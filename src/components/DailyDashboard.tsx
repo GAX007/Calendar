@@ -47,6 +47,7 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [activeDate, setActiveDate] = useState<string>(clock.dateStr);
   const [agendaMode, setAgendaMode] = useState<'days-feed' | 'single-day' | 'weekly-columns'>('days-feed');
+  const [weekOffset, setWeekOffset] = useState<number>(0);
 
   // If clock crosses midnight or changes date, keep activeDate aligned if user was on today
   const prevDateRef = useRef(clock.dateStr);
@@ -57,20 +58,22 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
     prevDateRef.current = clock.dateStr;
   }, [clock.dateStr, activeDate]);
 
-  // Dynamically calculate calendar days relative to the live real-time clock
+  // Dynamically calculate calendar days relative to the live real-time clock and weekOffset
   const calendarDays = useMemo(() => {
-    const baseList = [
-      { date: '2026-09-15', dayName: 'Mar', dayNumber: '15', month: 'Sep', fullDay: 'Martes 15 de Septiembre' },
-      { date: '2026-09-16', dayName: 'Mié', dayNumber: '16', month: 'Sep', fullDay: 'Miércoles 16 de Septiembre' },
-      { date: '2026-09-17', dayName: 'Jue', dayNumber: '17', month: 'Sep', fullDay: 'Jueves 17 de Septiembre' },
-      { date: '2026-09-18', dayName: 'Vie', dayNumber: '18', month: 'Sep', fullDay: 'Viernes 18 de Septiembre' },
-      { date: '2026-09-19', dayName: 'Sáb', dayNumber: '19', month: 'Sep', fullDay: 'Sábado 19 de Septiembre' },
-      { date: '2026-09-20', dayName: 'Dom', dayNumber: '20', month: 'Sep', fullDay: 'Domingo 20 de Septiembre' },
-      { date: '2026-09-21', dayName: 'Lun', dayNumber: '21', month: 'Sep', fullDay: 'Lunes 21 de Septiembre' },
-      { date: '2026-09-22', dayName: 'Mar', dayNumber: '22', month: 'Sep', fullDay: 'Martes 22 de Septiembre' },
-      { date: '2026-09-23', dayName: 'Mié', dayNumber: '23', month: 'Sep', fullDay: 'Miércoles 23 de Septiembre' },
-      { date: '2026-09-24', dayName: 'Jue', dayNumber: '24', month: 'Sep', fullDay: 'Jueves 24 de Septiembre' },
-    ];
+    const baseDate = new Date(clock.currentDate);
+    // Shift by weekOffset * 7 days
+    baseDate.setDate(baseDate.getDate() + weekOffset * 7);
+
+    // Anchor to Monday of the displayed week
+    const dayOfWeek = baseDate.getDay(); // 0 = Sun, 1 = Mon, ...
+    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(baseDate);
+    monday.setDate(baseDate.getDate() + diffToMonday);
+
+    const spanishDaysShort = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    const spanishDaysFull = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const spanishMonthsShort = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const spanishMonthsFull = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
     const tomD = new Date(clock.currentDate);
     tomD.setDate(tomD.getDate() + 1);
@@ -80,15 +83,35 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
     yestD.setDate(yestD.getDate() - 1);
     const yesterdayStr = `${yestD.getFullYear()}-${(yestD.getMonth() + 1).toString().padStart(2, '0')}-${yestD.getDate().toString().padStart(2, '0')}`;
 
-    return baseList.map((d) => ({
-      ...d,
-      isToday: d.date === clock.dateStr,
-      isTomorrow: d.date === tomorrowStr,
-      isYesterday: d.date === yesterdayStr,
-    }));
-  }, [clock.dateStr, clock.currentDate]);
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const cur = new Date(monday);
+      cur.setDate(monday.getDate() + i);
 
-  // Format date helper in Spanish
+      const y = cur.getFullYear();
+      const m = (cur.getMonth() + 1).toString().padStart(2, '0');
+      const d = cur.getDate().toString().padStart(2, '0');
+      const dateStr = `${y}-${m}-${d}`;
+
+      const curDayOfWeek = cur.getDay();
+      const curMonthIdx = cur.getMonth();
+
+      days.push({
+        date: dateStr,
+        dayName: spanishDaysShort[curDayOfWeek],
+        dayNumber: d,
+        month: spanishMonthsShort[curMonthIdx],
+        fullDay: `${spanishDaysFull[curDayOfWeek]} ${cur.getDate()} de ${spanishMonthsFull[curMonthIdx]}`,
+        isToday: dateStr === clock.dateStr,
+        isTomorrow: dateStr === tomorrowStr,
+        isYesterday: dateStr === yesterdayStr,
+      });
+    }
+
+    return days;
+  }, [clock.dateStr, clock.currentDate, weekOffset]);
+
+  // Format date helper in Spanish for ANY date
   const formatDayHeader = (dateStr: string) => {
     const matched = calendarDays.find((d) => d.date === dateStr);
     if (matched) {
@@ -98,9 +121,27 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
       else if (matched.isYesterday) suffix = ' (Ayer)';
       return `${matched.fullDay}${suffix}`;
     }
-    // Fallback parser
-    const [year, month, day] = dateStr.split('-');
-    return `Día ${day}/${month}/${year}`;
+
+    try {
+      const [yearStr, monthStr, dayStr] = dateStr.split('-');
+      const y = parseInt(yearStr, 10);
+      const m = parseInt(monthStr, 10) - 1;
+      const d = parseInt(dayStr, 10);
+      const dObj = new Date(y, m, d);
+
+      const spanishDaysFull = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+      const spanishMonthsFull = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+      const dayName = spanishDaysFull[dObj.getDay()] || 'Día';
+      const monthName = spanishMonthsFull[m] || monthStr;
+
+      let suffix = '';
+      if (dateStr === clock.dateStr) suffix = ' (Hoy)';
+
+      return `${dayName} ${d} de ${monthName} de ${y}${suffix}`;
+    } catch {
+      return `Día ${dateStr}`;
+    }
   };
 
   // Group all tasks by day
@@ -124,8 +165,8 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
       // Sort by time
       dayTasks.sort((a, b) => a.time.localeCompare(b.time));
 
-      // Keep dates that have tasks or are within current week
-      if (dayTasks.length > 0 || (date >= '2026-09-16' && date <= '2026-09-22')) {
+      // Keep dates that have tasks or are within current displayed week
+      if (dayTasks.length > 0 || calendarDays.some((c) => c.date === date)) {
         result.push({
           date,
           tasks: dayTasks,
@@ -220,14 +261,46 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
       {/* Interactive Calendar Days Strip (Planner Navigation) */}
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-1 text-xs text-slate-400 font-mono px-1">
-          <span>SELECCIONAR DÍA</span>
-          <span className="text-indigo-400 font-bold">
-            {clock.monthName} {clock.currentDate.getFullYear()} &bull; {clock.dayName} {clock.dayNumber}
-          </span>
+          <div className="flex items-center gap-2">
+            <span>SELECCIONAR DÍA</span>
+            {weekOffset !== 0 && (
+              <button
+                onClick={() => {
+                  setWeekOffset(0);
+                  setActiveDate(clock.dateStr);
+                }}
+                className="px-2 py-0.5 rounded text-[10px] bg-indigo-600/30 text-indigo-300 hover:bg-indigo-600/50 border border-indigo-500/40 transition cursor-pointer"
+              >
+                Volver a Hoy
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-indigo-400 font-bold">
+              {calendarDays[0]?.month} {calendarDays[0]?.date.split('-')[0]}
+              {calendarDays[0]?.month !== calendarDays[calendarDays.length - 1]?.month && ` / ${calendarDays[calendarDays.length - 1]?.month}`}
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setWeekOffset((w) => w - 1)}
+                className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
+                title="Semana anterior"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setWeekOffset((w) => w + 1)}
+                className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
+                title="Semana siguiente"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
-          {calendarDays.slice(0, 8).map((day) => {
+        <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+          {calendarDays.map((day) => {
             const isSelected = activeDate === day.date;
             const dayTaskCount = tasks.filter((t) => t.date === day.date).length;
 

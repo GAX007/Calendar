@@ -24,6 +24,103 @@ export function computeEndTime(startTime: string, durationMinutes: number): stri
   return `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
 }
 
+interface MonthTarget {
+  year: number;
+  monthIndex: number;
+  shortName: string;
+  fullName: string;
+}
+
+const SPANISH_MONTH_DICTIONARY: Record<string, { index: number; shortName: string; fullName: string }> = {
+  enero: { index: 0, shortName: 'Ene', fullName: 'Enero' },
+  febrero: { index: 1, shortName: 'Feb', fullName: 'Febrero' },
+  marzo: { index: 2, shortName: 'Mar', fullName: 'Marzo' },
+  abril: { index: 3, shortName: 'Abr', fullName: 'Abril' },
+  mayo: { index: 4, shortName: 'May', fullName: 'Mayo' },
+  junio: { index: 5, shortName: 'Jun', fullName: 'Junio' },
+  julio: { index: 6, shortName: 'Jul', fullName: 'Julio' },
+  agosto: { index: 7, shortName: 'Ago', fullName: 'Agosto' },
+  septiembre: { index: 8, shortName: 'Sep', fullName: 'Septiembre' },
+  setiembre: { index: 8, shortName: 'Sep', fullName: 'Septiembre' },
+  octubre: { index: 9, shortName: 'Oct', fullName: 'Octubre' },
+  noviembre: { index: 10, shortName: 'Nov', fullName: 'Noviembre' },
+  diciembre: { index: 11, shortName: 'Dic', fullName: 'Diciembre' },
+};
+
+function extractTargetMonths(textLower: string, defaultYear = 2026, defaultMonthIndex = 8): MonthTarget[] {
+  const mentioned = new Map<number, MonthTarget>();
+
+  // Check explicit range: "de [mes1] a [mes2]" e.g. "de septiembre a diciembre"
+  const rangeMatch = textLower.match(/de\s+([a-záéíóú]+)\s+a\s+([a-záéíóú]+)/i);
+  if (
+    rangeMatch &&
+    SPANISH_MONTH_DICTIONARY[rangeMatch[1].toLowerCase()] &&
+    SPANISH_MONTH_DICTIONARY[rangeMatch[2].toLowerCase()]
+  ) {
+    const startM = SPANISH_MONTH_DICTIONARY[rangeMatch[1].toLowerCase()].index;
+    const endM = SPANISH_MONTH_DICTIONARY[rangeMatch[2].toLowerCase()].index;
+    let cur = startM;
+    while (true) {
+      const info = Object.values(SPANISH_MONTH_DICTIONARY).find((m) => m.index === cur)!;
+      mentioned.set(cur, {
+        year: defaultYear,
+        monthIndex: cur,
+        shortName: info.shortName,
+        fullName: info.fullName,
+      });
+      if (cur === endM) break;
+      cur = (cur + 1) % 12;
+    }
+  }
+
+  // Check "hasta [mes]" e.g. "hasta diciembre", "hasta finales de octubre"
+  const hastaMatch = textLower.match(/hasta\s+(?:finales\s+de\s+|mediados\s+de\s+|principios\s+de\s+|el\s+mes\s+de\s+)?([a-záéíóú]+)/i);
+  if (hastaMatch && SPANISH_MONTH_DICTIONARY[hastaMatch[1].toLowerCase()]) {
+    const endM = SPANISH_MONTH_DICTIONARY[hastaMatch[1].toLowerCase()].index;
+    if (endM >= defaultMonthIndex) {
+      for (let m = defaultMonthIndex; m <= endM; m++) {
+        const info = Object.values(SPANISH_MONTH_DICTIONARY).find((item) => item.index === m)!;
+        mentioned.set(m, {
+          year: defaultYear,
+          monthIndex: m,
+          shortName: info.shortName,
+          fullName: info.fullName,
+        });
+      }
+    }
+  }
+
+  // Check individual mentioned months e.g. "septiembre y octubre", "en octubre"
+  for (const [name, meta] of Object.entries(SPANISH_MONTH_DICTIONARY)) {
+    const regex = new RegExp(`\\b${name}\\b`, 'i');
+    if (regex.test(textLower)) {
+      if (!mentioned.has(meta.index)) {
+        mentioned.set(meta.index, {
+          year: defaultYear,
+          monthIndex: meta.index,
+          shortName: meta.shortName,
+          fullName: meta.fullName,
+        });
+      }
+    }
+  }
+
+  if (mentioned.size > 0) {
+    return Array.from(mentioned.values()).sort((a, b) => a.monthIndex - b.monthIndex);
+  }
+
+  // Default: current month (September)
+  const defInfo = Object.values(SPANISH_MONTH_DICTIONARY).find((m) => m.index === defaultMonthIndex)!;
+  return [
+    {
+      year: defaultYear,
+      monthIndex: defaultMonthIndex,
+      shortName: defInfo.shortName,
+      fullName: defInfo.fullName,
+    },
+  ];
+}
+
 export function parseInputLocally(
   input: string,
   sourceType: 'voice' | 'vision' | 'text'
@@ -153,42 +250,51 @@ export function parseInputLocally(
       // Dynamic title extraction
       const cleanTitle = textClean
         .replace(/de\s+[a-záéíóú]+\s+a\s+[a-záéíóú]+/gi, '')
-        .replace(/(?:de\s+)?\d{1,2}[.:]\d{2}\s*(?:a|-)\s*\d{1,2}[.:]\d{2}/gi, '')
-        .replace(/(?:a las\s+)?\d{1,2}[.:]\d{2}/gi, '')
-        .replace(/durante\s+(?:todo\s+)?el\s+mes(?:\s+de\s+[a-z]+)?/gi, '')
+        .replace(/(?:de\s+)?\d{1,2}[.:]\d{2}\s*(?:a|-|hasta)\s*\d{1,2}[.:]\d{2}/gi, '')
+        .replace(/(?:a las|a la)\s+\d{1,2}[.:]\d{2}/gi, '')
+        .replace(/durante\s+(?:todo\s+)?(?:el\s+mes(?:\s+de\s+[a-z]+)?|[a-záéíóú]+(?:\s+y\s+[a-záéíóú]+)?)/gi, '')
+        .replace(/\b(?:hasta|desde|durante|todo|todos|toda|todas)\s+(?:el\s+)?(?:mes\s+de\s+)?[a-záéíóú]+\b/gi, '')
         .trim();
       if (cleanTitle.length > 2) {
         baseTitle = cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1);
       }
     }
 
-    for (let day = 1; day <= 30; day++) {
-      const d = new Date(Date.UTC(2026, 8, day));
-      const dayOfWeek = d.getUTCDay();
-      if (recurringDays.includes(dayOfWeek)) {
-        const dateStr = `2026-09-${day.toString().padStart(2, '0')}`;
-        const dayName = spanishDayNamesByIndex[dayOfWeek];
-        const finalEndTime =
-          extractedEndTime || computeEndTime(extractedStartTime, extractedDuration);
-        const deadlineLabel = `${dayName} ${day} Sep, ${extractedStartTime} - ${finalEndTime}`;
+    // Determine target months
+    const targetMonths = extractTargetMonths(textLower, 2026, 8);
 
-        tasks.push({
-          id: `task-local-recur-${dateStr}-${tasks.length}`,
-          title: baseTitle,
-          category,
-          date: dateStr,
-          time: extractedStartTime,
-          endTime: finalEndTime,
-          durationMinutes: extractedDuration,
-          priority: 'media',
-          notes: `Sesión regular: ${extractedStartTime} a ${finalEndTime}`,
-          sourceType,
-          confidence: 0.98,
-          extractedFields: {
-            deadlineLabel,
-            detectedTag,
-          },
-        });
+    for (const target of targetMonths) {
+      const daysInMonth = new Date(Date.UTC(target.year, target.monthIndex + 1, 0)).getUTCDate();
+      for (let day = 1; day <= daysInMonth; day++) {
+        const d = new Date(Date.UTC(target.year, target.monthIndex, day));
+        const dayOfWeek = d.getUTCDay();
+        if (recurringDays.includes(dayOfWeek)) {
+          const monthNum = (target.monthIndex + 1).toString().padStart(2, '0');
+          const dayNum = day.toString().padStart(2, '0');
+          const dateStr = `${target.year}-${monthNum}-${dayNum}`;
+          const dayName = spanishDayNamesByIndex[dayOfWeek];
+          const finalEndTime =
+            extractedEndTime || computeEndTime(extractedStartTime, extractedDuration);
+          const deadlineLabel = `${dayName} ${day} ${target.shortName}, ${extractedStartTime} - ${finalEndTime}`;
+
+          tasks.push({
+            id: `task-local-recur-${dateStr}-${tasks.length}`,
+            title: baseTitle,
+            category,
+            date: dateStr,
+            time: extractedStartTime,
+            endTime: finalEndTime,
+            durationMinutes: extractedDuration,
+            priority: 'media',
+            notes: `Sesión regular: ${extractedStartTime} a ${finalEndTime}`,
+            sourceType,
+            confidence: 0.98,
+            extractedFields: {
+              deadlineLabel,
+              detectedTag,
+            },
+          });
+        }
       }
     }
 

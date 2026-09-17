@@ -165,6 +165,103 @@ function computeEndTime(startTime: string, durationMinutes: number): string {
   return `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
 }
 
+interface MonthTarget {
+  year: number;
+  monthIndex: number;
+  shortName: string;
+  fullName: string;
+}
+
+const SPANISH_MONTH_DICTIONARY: Record<string, { index: number; shortName: string; fullName: string }> = {
+  enero: { index: 0, shortName: 'Ene', fullName: 'Enero' },
+  febrero: { index: 1, shortName: 'Feb', fullName: 'Febrero' },
+  marzo: { index: 2, shortName: 'Mar', fullName: 'Marzo' },
+  abril: { index: 3, shortName: 'Abr', fullName: 'Abril' },
+  mayo: { index: 4, shortName: 'May', fullName: 'Mayo' },
+  junio: { index: 5, shortName: 'Jun', fullName: 'Junio' },
+  julio: { index: 6, shortName: 'Jul', fullName: 'Julio' },
+  agosto: { index: 7, shortName: 'Ago', fullName: 'Agosto' },
+  septiembre: { index: 8, shortName: 'Sep', fullName: 'Septiembre' },
+  setiembre: { index: 8, shortName: 'Sep', fullName: 'Septiembre' },
+  octubre: { index: 9, shortName: 'Oct', fullName: 'Octubre' },
+  noviembre: { index: 10, shortName: 'Nov', fullName: 'Noviembre' },
+  diciembre: { index: 11, shortName: 'Dic', fullName: 'Diciembre' },
+};
+
+function extractTargetMonths(textLower: string, defaultYear = 2026, defaultMonthIndex = 8): MonthTarget[] {
+  const mentioned = new Map<number, MonthTarget>();
+
+  // Check explicit range: "de [mes1] a [mes2]" e.g. "de septiembre a diciembre"
+  const rangeMatch = textLower.match(/de\s+([a-záéíóú]+)\s+a\s+([a-záéíóú]+)/i);
+  if (
+    rangeMatch &&
+    SPANISH_MONTH_DICTIONARY[rangeMatch[1].toLowerCase()] &&
+    SPANISH_MONTH_DICTIONARY[rangeMatch[2].toLowerCase()]
+  ) {
+    const startM = SPANISH_MONTH_DICTIONARY[rangeMatch[1].toLowerCase()].index;
+    const endM = SPANISH_MONTH_DICTIONARY[rangeMatch[2].toLowerCase()].index;
+    let cur = startM;
+    while (true) {
+      const info = Object.values(SPANISH_MONTH_DICTIONARY).find((m) => m.index === cur)!;
+      mentioned.set(cur, {
+        year: defaultYear,
+        monthIndex: cur,
+        shortName: info.shortName,
+        fullName: info.fullName,
+      });
+      if (cur === endM) break;
+      cur = (cur + 1) % 12;
+    }
+  }
+
+  // Check "hasta [mes]" e.g. "hasta diciembre", "hasta finales de octubre"
+  const hastaMatch = textLower.match(/hasta\s+(?:finales\s+de\s+|mediados\s+de\s+|principios\s+de\s+|el\s+mes\s+de\s+)?([a-záéíóú]+)/i);
+  if (hastaMatch && SPANISH_MONTH_DICTIONARY[hastaMatch[1].toLowerCase()]) {
+    const endM = SPANISH_MONTH_DICTIONARY[hastaMatch[1].toLowerCase()].index;
+    if (endM >= defaultMonthIndex) {
+      for (let m = defaultMonthIndex; m <= endM; m++) {
+        const info = Object.values(SPANISH_MONTH_DICTIONARY).find((item) => item.index === m)!;
+        mentioned.set(m, {
+          year: defaultYear,
+          monthIndex: m,
+          shortName: info.shortName,
+          fullName: info.fullName,
+        });
+      }
+    }
+  }
+
+  // Check individual mentioned months e.g. "septiembre y octubre", "en octubre"
+  for (const [name, meta] of Object.entries(SPANISH_MONTH_DICTIONARY)) {
+    const regex = new RegExp(`\\b${name}\\b`, 'i');
+    if (regex.test(textLower)) {
+      if (!mentioned.has(meta.index)) {
+        mentioned.set(meta.index, {
+          year: defaultYear,
+          monthIndex: meta.index,
+          shortName: meta.shortName,
+          fullName: meta.fullName,
+        });
+      }
+    }
+  }
+
+  if (mentioned.size > 0) {
+    return Array.from(mentioned.values()).sort((a, b) => a.monthIndex - b.monthIndex);
+  }
+
+  // Default: current month (September)
+  const defInfo = Object.values(SPANISH_MONTH_DICTIONARY).find((m) => m.index === defaultMonthIndex)!;
+  return [
+    {
+      year: defaultYear,
+      monthIndex: defaultMonthIndex,
+      shortName: defInfo.shortName,
+      fullName: defInfo.fullName,
+    },
+  ];
+}
+
 // Resilient heuristic parser in Spanish when Gemini API key is missing or offline
 function fallbackParseSpanish(input: string, sourceType: 'voice' | 'text' | 'vision') {
   const textClean = input.trim();
@@ -262,41 +359,50 @@ function fallbackParseSpanish(input: string, sourceType: 'voice' | 'text' | 'vis
     } else {
       const cleanTitle = textClean
         .replace(/de\s+[a-záéíóú]+\s+a\s+[a-záéíóú]+/gi, '')
-        .replace(/(?:de\s+)?\d{1,2}[.:]\d{2}\s*(?:a|-)\s*\d{1,2}[.:]\d{2}/gi, '')
-        .replace(/(?:a las\s+)?\d{1,2}[.:]\d{2}/gi, '')
-        .replace(/durante\s+(?:todo\s+)?el\s+mes(?:\s+de\s+[a-z]+)?/gi, '')
+        .replace(/(?:de\s+)?\d{1,2}[.:]\d{2}\s*(?:a|-|hasta)\s*\d{1,2}[.:]\d{2}/gi, '')
+        .replace(/(?:a las|a la)\s+\d{1,2}[.:]\d{2}/gi, '')
+        .replace(/durante\s+(?:todo\s+)?(?:el\s+mes(?:\s+de\s+[a-z]+)?|[a-záéíóú]+(?:\s+y\s+[a-záéíóú]+)?)/gi, '')
+        .replace(/\b(?:hasta|desde|durante|todo|todos|toda|todas)\s+(?:el\s+)?(?:mes\s+de\s+)?[a-záéíóú]+\b/gi, '')
         .trim();
       if (cleanTitle.length > 2) {
         baseTitle = cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1);
       }
     }
 
-    // Generate dates for each matching day in September 2026 (September 1 to 30)
-    for (let day = 1; day <= 30; day++) {
-      const d = new Date(Date.UTC(2026, 8, day));
-      const dayOfWeek = d.getUTCDay();
-      if (recurringDays.includes(dayOfWeek)) {
-        const dateStr = `2026-09-${day.toString().padStart(2, '0')}`;
-        const dayName = spanishDayNamesByIndex[dayOfWeek];
-        const deadlineLabel = `${dayName} ${day} Sep, ${extractedStartTime} - ${extractedEndTime || computeEndTime(extractedStartTime, extractedDuration)}`;
+    // Determine target months (e.g. "todo septiembre y octubre", "de septiembre a diciembre", etc.)
+    const targetMonths = extractTargetMonths(textLower, 2026, 8);
 
-        tasks.push({
-          id: `task-recur-${dateStr}-${tasks.length}`,
-          title: baseTitle,
-          category,
-          date: dateStr,
-          time: extractedStartTime,
-          endTime: extractedEndTime || computeEndTime(extractedStartTime, extractedDuration),
-          durationMinutes: extractedDuration,
-          priority: 'media',
-          notes: `Sesión regular: ${extractedStartTime} a ${extractedEndTime || computeEndTime(extractedStartTime, extractedDuration)}`,
-          sourceType,
-          confidence: 0.98,
-          extractedFields: {
-            deadlineLabel,
-            detectedTag,
-          },
-        });
+    for (const target of targetMonths) {
+      const daysInMonth = new Date(Date.UTC(target.year, target.monthIndex + 1, 0)).getUTCDate();
+      for (let day = 1; day <= daysInMonth; day++) {
+        const d = new Date(Date.UTC(target.year, target.monthIndex, day));
+        const dayOfWeek = d.getUTCDay();
+        if (recurringDays.includes(dayOfWeek)) {
+          const monthNum = (target.monthIndex + 1).toString().padStart(2, '0');
+          const dayNum = day.toString().padStart(2, '0');
+          const dateStr = `${target.year}-${monthNum}-${dayNum}`;
+          const dayName = spanishDayNamesByIndex[dayOfWeek];
+          const finalEndTime = extractedEndTime || computeEndTime(extractedStartTime, extractedDuration);
+          const deadlineLabel = `${dayName} ${day} ${target.shortName}, ${extractedStartTime} - ${finalEndTime}`;
+
+          tasks.push({
+            id: `task-recur-${dateStr}-${tasks.length}`,
+            title: baseTitle,
+            category,
+            date: dateStr,
+            time: extractedStartTime,
+            endTime: finalEndTime,
+            durationMinutes: extractedDuration,
+            priority: 'media',
+            notes: `Sesión regular: ${extractedStartTime} a ${finalEndTime}`,
+            sourceType,
+            confidence: 0.98,
+            extractedFields: {
+              deadlineLabel,
+              detectedTag,
+            },
+          });
+        }
       }
     }
 
@@ -581,18 +687,25 @@ Para cada tarea extraída, clasifica rigurosamente en una de estas categorías:
 - 'Personal' (para ocio, trámites, compras)
 - 'Health' (para médico, fisio, salud)
 
-REGLAS CRÍTICAS DE HORARIOS Y RANGOS TEMPORALES:
+REGLAS CRÍTICAS DE HORARIOS, RECURRENCIA Y MESES:
 1. RANGOS HORARIOS (ej. "19.30-21.00", "19:30 a 21:00", "de 19.30 a 21.00"):
    - 'time': hora de inicio en formato 'HH:mm' de 24 horas (ej. "19:30"). Si tiene punto como "19.30", normalízalo siempre a dos puntos "19:30".
    - 'endTime': hora de finalización en formato 'HH:mm' de 24 horas (ej. "21:00").
    - 'durationMinutes': diferencia exacta en minutos entre inicio y fin (ej. de 19:30 a 21:00 son 90 minutos).
-2. RECURRENCIA Y RANGOS DE DÍAS (ej. "de lunes a jueves", "de lunes a viernes", "cada martes y jueves"):
-   - Si el usuario indica un rango de días o recurrencia (como "de lunes a jueves de 19:30 a 21:00"), DEBES generar una entrada individual para CADA día que cumpla el criterio en el mes actual (septiembre de 2026, del 1 al 30 de septiembre de 2026, cada lunes, martes, miércoles y jueves correspondientes).
-   - Fechas de septiembre 2026: 2026-09-01 (Mar), 2026-09-02 (Mié), 2026-09-03 (Jue), 2026-09-07 (Lun), 2026-09-08 (Mar), 2026-09-09 (Mié), 2026-09-10 (Jue), 2026-09-14 (Lun), 2026-09-15 (Mar), 2026-09-16 (Mié), 2026-09-17 (Jue), 2026-09-21 (Lun), 2026-09-22 (Mar), 2026-09-23 (Mié), 2026-09-24 (Jue), 2026-09-28 (Lun), 2026-09-29 (Mar), 2026-09-30 (Mié).
-   - Cada una con 'time': '19:30', 'endTime': '21:00', 'durationMinutes': 90.
-3. 'deadlineLabel' debe describir el día y horario legible (ej. "Lunes 21 Sep, 19:30 - 21:00").
-4. 'detectedTag' (ej. "Sports/Karate (Tag: Red)" o "Académico (Tag: Blue)").
-Devuelve estrictamente un array JSON con las tareas encontradas.`;
+
+2. RECURRENCIA, RANGOS DE DÍAS Y MESES SOLICITADOS:
+   - Si el usuario indica un rango de días o recurrencia (ej. "de lunes a jueves de 19:30 a 21:00", "cada martes y jueves", "todos los viernes"):
+     * COMPRUEBA SI EL USUARIO ESPECIFICA UNO O VARIOS MESES O UN RANGO TEMPORAL (ej. "durante todo septiembre y octubre", "en octubre y noviembre", "de septiembre a diciembre", "hasta finales de año", "las próximas semanas", "en octubre", etc.).
+     * DEBES GENERAR UNA ENTRADA INDIVIDUAL PARA CADA DÍA QUE CUMPLA EL CRITERIO EN TODOS LOS MESES O RANGOS SOLICITADOS.
+       - Por ejemplo, si el usuario dice: "Entrenamiento de karate de lunes a jueves de 19:30 a 21:00 durante todo septiembre y octubre", DEBES generar un evento para cada lunes, martes, miércoles y jueves de septiembre de 2026 ('2026-09-XX') Y ADEMÁS un evento para cada lunes, martes, miércoles y jueves de octubre de 2026 ('2026-10-XX').
+       - Si el usuario dice "hasta diciembre", genera los eventos para cada uno de los meses desde septiembre hasta diciembre de 2026.
+       - Si el usuario solo menciona un mes (ej. "en octubre"), genera los eventos para ese mes solicitado ('2026-10-XX').
+       - Si el usuario NO menciona ningún mes ni periodo explícito, asume por defecto el mes en curso (septiembre de 2026).
+     * Cada fecha en 'date' DEBE tener el formato ISO exacto 'YYYY-MM-DD' (ej. "2026-09-22", "2026-10-01", "2026-10-15").
+     * 'deadlineLabel' debe describir el día y horario legible con su mes correcto (ej. "Jueves 1 Oct, 19:30 - 21:00", "Lunes 19 Oct, 19:30 - 21:00").
+     * 'detectedTag': ej. "Sports/Karate (Tag: Red)" o "Académico (Tag: Blue)".
+
+3. Devuelve estrictamente un array JSON con las tareas encontradas.`;
 
         let contents: any[] = [];
         let systemPromptToUse = systemPrompt;
