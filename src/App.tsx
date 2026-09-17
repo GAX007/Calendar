@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Sparkles,
@@ -12,28 +12,40 @@ import {
   ShieldCheck,
   Check,
   ArrowUp,
+  Database,
+  Cloud,
+  User,
+  LogOut,
 } from 'lucide-react';
 import { TaskItem } from './types';
-import { INITIAL_TASKS } from './data/initialTasks';
 import { DailyDashboard } from './components/DailyDashboard';
 import { OmniInputBar } from './components/OmniInputBar';
 import { SmartApprovalModal } from './components/SmartApprovalModal';
 import { VisionScannerModal } from './components/VisionScannerModal';
 import { TaskEditModal } from './components/TaskEditModal';
+import { AuthScreen } from './components/AuthScreen';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { parseInputLocally, normalizeTimeString, computeEndTime } from './utils/localParser';
 import { useRealTimeClock } from './hooks/useRealTimeClock';
+import {
+  getLocalTasks,
+  loadTasks,
+  saveLocalTasks,
+  upsertTasks,
+  deleteTaskFromDb,
+  toggleTaskCompleteInDb,
+  subscribeToTaskChanges,
+} from './services/taskService';
+import { isSupabaseConfigured } from './lib/supabase';
 
-export default function App() {
+function CalendarApp() {
+  const { user, isGuest, signOut, loading: authLoading } = useAuth();
   const clock = useRealTimeClock();
 
-  // Load tasks from localStorage or initial dataset
-  const [tasks, setTasks] = useState<TaskItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('calendarasist_tasks') || localStorage.getItem('omniagenda_tasks');
-      if (saved) return JSON.parse(saved);
-    } catch (_) {}
-    return INITIAL_TASKS;
-  });
+  // Load tasks from Supabase or localStorage fallback
+  const [tasks, setTasks] = useState<TaskItem[]>(() => getLocalTasks(user?.id));
+  const [isCloudConnected, setIsCloudConnected] = useState<boolean>(false);
+  const [isLoadingDb, setIsLoadingDb] = useState<boolean>(true);
 
   // Modal states
   const [isVisionModalOpen, setIsVisionModalOpen] = useState<boolean>(false);
@@ -54,7 +66,6 @@ export default function App() {
 
   useEffect(() => {
     const handleScroll = () => {
-      // Show button once user scrolls past 280px
       setShowScrollTop(window.scrollY > 280);
     };
 
@@ -69,12 +80,49 @@ export default function App() {
     });
   };
 
-  // Save tasks to localStorage
+  // Initial load from Supabase & Realtime subscription scoped to user
   useEffect(() => {
-    try {
-      localStorage.setItem('calendarasist_tasks', JSON.stringify(tasks));
-    } catch (_) {}
-  }, [tasks]);
+    let isMounted = true;
+
+    async function initializeTasks() {
+      try {
+        const { tasks: loadedTasks, isCloud } = await loadTasks(user?.id);
+        if (isMounted) {
+          setTasks(loadedTasks);
+          setIsCloudConnected(isCloud);
+        }
+      } catch (err) {
+        console.warn('Error during initial task load:', err);
+      } finally {
+        if (isMounted) {
+          setIsLoadingDb(false);
+        }
+      }
+    }
+
+    if (user || isGuest) {
+      initializeTasks();
+    }
+
+    // Subscribe to realtime updates from Supabase if connected
+    const unsubscribe = subscribeToTaskChanges(async () => {
+      const { tasks: freshTasks, isCloud } = await loadTasks(user?.id);
+      if (isMounted) {
+        setTasks(freshTasks);
+        setIsCloudConnected(isCloud);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [user?.id, isGuest]);
+
+  // Save tasks to local cache
+  useEffect(() => {
+    saveLocalTasks(tasks, user?.id);
+  }, [tasks, user?.id]);
 
   const showToast = (message: string) => {
     setToastMessage(message);
@@ -128,7 +176,6 @@ export default function App() {
       setIsApprovalModalOpen(true);
     } catch (err) {
       console.warn('Usando parsing inteligente local de respaldo:', err);
-      // Resilient local extraction from user's actual prompt
       const fallbackExtracted = parseInputLocally(text, sourceType);
       setStagedApprovalTasks(fallbackExtracted);
       setStagedApprovalSource(sourceType);
@@ -142,6 +189,7 @@ export default function App() {
   // Approve and add tasks from the Smart Approval Card
   const handleApproveAndAddTasks = (approvedTasks: TaskItem[]) => {
     setTasks((prev) => [...approvedTasks, ...prev]);
+    upsertTasks(approvedTasks, user?.id);
     setIsApprovalModalOpen(false);
     showToast(
       `¡${approvedTasks.length} ${approvedTasks.length === 1 ? 'tarea añadida' : 'tareas añadidas'} al calendario exitosamente!`
@@ -151,6 +199,7 @@ export default function App() {
   // Directly approve tasks from Vision Scanner
   const handleApproveVisionTasks = (visionTasks: TaskItem[]) => {
     setTasks((prev) => [...visionTasks, ...prev]);
+    upsertTasks(visionTasks, user?.id);
     setIsVisionModalOpen(false);
     showToast(
       `¡${visionTasks.length} bloques de calendario extraídos de la imagen y sincronizados!`
@@ -169,19 +218,41 @@ export default function App() {
   // Task actions in dashboard
   const handleToggleTaskComplete = (taskId: string) => {
     setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, completed: !t.completed } : t))
+      prev.map((t) => {
+        if (t.id === taskId) {
+          const updated = !t.completed;
+          toggleTaskCompleteInDb(taskId, updated);
+          return { ...t, completed: updated };
+        }
+        return t;
+      })
     );
   };
 
   const handleDeleteTask = (taskId: string) => {
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    deleteTaskFromDb(taskId);
     showToast('Tarea eliminada del calendario.');
   };
 
   const handleSaveUpdatedTask = (updated: TaskItem) => {
     setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+    upsertTasks([updated], user?.id);
     showToast('Tarea actualizada correctamente.');
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-slate-400 gap-3 font-sans">
+        <div className="w-10 h-10 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+        <span className="text-xs text-slate-500 font-medium">Iniciando CalendarAsist...</span>
+      </div>
+    );
+  }
+
+  if (!user && !isGuest) {
+    return <AuthScreen />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500/30 selection:text-indigo-200">
@@ -202,8 +273,34 @@ export default function App() {
             </div>
           </div>
 
-          {/* Quick actions */}
-          <div className="flex items-center gap-2">
+          {/* Quick actions, Cloud Badge & User Avatar */}
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <div
+              title={
+                isCloudConnected
+                  ? 'Conectado a la base de datos Supabase en la nube'
+                  : 'Modo local: los datos se guardan en este dispositivo'
+              }
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border font-medium transition-all ${
+                isCloudConnected
+                  ? 'bg-emerald-950/50 border-emerald-500/30 text-emerald-300'
+                  : 'bg-slate-900 border-slate-800 text-slate-400'
+              }`}
+            >
+              {isCloudConnected ? (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="hidden sm:inline">Supabase</span>
+                  <span>En la nube</span>
+                </>
+              ) : (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-amber-400/80" />
+                  <span>Modo local</span>
+                </>
+              )}
+            </div>
+
             <button
               id="header-btn-quick-vision-demo"
               onClick={() => {
@@ -212,8 +309,38 @@ export default function App() {
               className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 border border-slate-700/80 text-xs text-slate-300 hover:text-white hover:border-slate-600 transition cursor-pointer"
             >
               <Camera className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Escanear foto</span>
+              <span className="hidden sm:inline">Escanear foto</span>
+              <span className="sm:hidden">Foto</span>
             </button>
+
+            {/* User Session Info & Sign Out */}
+            {user ? (
+              <div className="flex items-center gap-1 pl-1.5 border-l border-slate-800">
+                <div
+                  title={user.email}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800 text-xs text-slate-300 max-w-[120px] sm:max-w-[180px]"
+                >
+                  <User className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                  <span className="truncate text-[11px]">{user.email}</span>
+                </div>
+                <button
+                  onClick={() => signOut()}
+                  title="Cerrar sesión"
+                  className="p-1.5 rounded-full text-slate-400 hover:text-red-400 hover:bg-slate-900 transition cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => signOut()}
+                title="Iniciar sesión con una cuenta privada"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-indigo-600/20 border border-indigo-500/40 text-indigo-300 text-xs hover:bg-indigo-600/30 transition cursor-pointer"
+              >
+                <User className="w-3 h-3" />
+                <span>Login</span>
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -234,29 +361,24 @@ export default function App() {
       <AnimatePresence>
         {showScrollTop && (
           <motion.button
-            id="btn-scroll-to-top"
             initial={{ opacity: 0, scale: 0.8, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.8, y: 10 }}
-            transition={{ duration: 0.18 }}
+            transition={{ duration: 0.2 }}
             onClick={handleScrollToTop}
-            className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] sm:bottom-20 right-3.5 sm:right-6 z-30 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-slate-900/90 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-700/80 shadow-lg shadow-black/50 backdrop-blur-md flex items-center justify-center transition cursor-pointer active:scale-90 group"
-            aria-label="Volver arriba"
             title="Volver arriba"
+            aria-label="Volver arriba"
+            className="fixed bottom-24 right-5 sm:right-8 z-40 p-2.5 rounded-full bg-slate-900/90 hover:bg-indigo-600 text-slate-400 hover:text-white border border-slate-700/80 shadow-lg shadow-black/50 backdrop-blur-sm transition-colors cursor-pointer group"
           >
-            <ArrowUp className="w-4 h-4 sm:w-4.5 sm:h-4.5 transition-transform group-hover:-translate-y-0.5" />
+            <ArrowUp className="w-4 h-4 transition-transform group-hover:-translate-y-0.5" />
           </motion.button>
         )}
       </AnimatePresence>
 
-      {/* The Omni-Input Floating Action Bar (Sticky at bottom, clean modern style) */}
-      <OmniInputBar
-        onOpenVisionModal={() => setIsVisionModalOpen(true)}
-        onSubmitText={(text) => handleProcessInput(text, 'text')}
-        isProcessing={isProcessing}
-      />
+      {/* Floating Omni-Input Bar (Voice & Text) */}
+      <OmniInputBar onProcessInput={handleProcessInput} isProcessing={isProcessing} />
 
-      {/* Confirmation & Approval Modal */}
+      {/* Smart Approval Confirmation Card */}
       <SmartApprovalModal
         isOpen={isApprovalModalOpen}
         tasks={stagedApprovalTasks}
@@ -298,5 +420,13 @@ export default function App() {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <CalendarApp />
+    </AuthProvider>
   );
 }
