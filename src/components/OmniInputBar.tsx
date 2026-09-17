@@ -3,14 +3,16 @@ import { motion } from 'motion/react';
 import { Camera, Keyboard, Send } from 'lucide-react';
 
 interface OmniInputBarProps {
-  onOpenVisionModal: () => void;
-  onSubmitText: (text: string) => void;
+  onOpenVisionModal?: () => void;
+  onSubmitText?: (text: string) => void;
+  onProcessInput?: (text: string, sourceType?: 'voice' | 'text') => void;
   isProcessing: boolean;
 }
 
 export const OmniInputBar: React.FC<OmniInputBarProps> = ({
   onOpenVisionModal,
   onSubmitText,
+  onProcessInput,
   isProcessing,
 }) => {
   const [inputText, setInputText] = useState<string>('');
@@ -18,12 +20,18 @@ export const OmniInputBar: React.FC<OmniInputBarProps> = ({
 
   const handleSend = () => {
     if (!inputText.trim() || isProcessing) return;
-    onSubmitText(inputText);
+    const textToSend = inputText.trim();
+    if (onSubmitText) {
+      onSubmitText(textToSend);
+    } else if (onProcessInput) {
+      onProcessInput(textToSend, 'text');
+    }
     setInputText('');
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
+      e.preventDefault();
       handleSend();
     }
   };

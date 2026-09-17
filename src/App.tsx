@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Sparkles,
@@ -376,7 +376,12 @@ function CalendarApp() {
       </AnimatePresence>
 
       {/* Floating Omni-Input Bar (Voice & Text) */}
-      <OmniInputBar onProcessInput={handleProcessInput} isProcessing={isProcessing} />
+      <OmniInputBar
+        onOpenVisionModal={() => setIsVisionModalOpen(true)}
+        onSubmitText={(text) => handleProcessInput(text, 'text')}
+        onProcessInput={(text, source) => handleProcessInput(text, source || 'text')}
+        isProcessing={isProcessing}
+      />
 
       {/* Smart Approval Confirmation Card */}
       <SmartApprovalModal
