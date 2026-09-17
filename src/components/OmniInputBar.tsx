@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Camera, Keyboard, Send } from 'lucide-react';
+import { Camera, Keyboard, Send, PlusCircle } from 'lucide-react';
 
 interface OmniInputBarProps {
   onOpenVisionModal?: () => void;
+  onOpenNewTaskModal?: () => void;
   onSubmitText?: (text: string) => void;
   onProcessInput?: (text: string, sourceType?: 'voice' | 'text') => void;
   isProcessing: boolean;
@@ -11,6 +12,7 @@ interface OmniInputBarProps {
 
 export const OmniInputBar: React.FC<OmniInputBarProps> = ({
   onOpenVisionModal,
+  onOpenNewTaskModal,
   onSubmitText,
   onProcessInput,
   isProcessing,
@@ -46,6 +48,17 @@ export const OmniInputBar: React.FC<OmniInputBarProps> = ({
       >
         {/* Subtle quick trigger chip right above floating bar */}
         <div className="flex items-center justify-center gap-1.5 sm:gap-2 mb-2">
+          {onOpenNewTaskModal && (
+            <button
+              id="chip-trigger-manual-add"
+              onClick={onOpenNewTaskModal}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/90 backdrop-blur-md border border-indigo-500/30 text-indigo-300 hover:text-indigo-200 hover:bg-slate-850 text-[11px] font-semibold transition shadow-md shadow-slate-950/40 cursor-pointer active:scale-95 whitespace-nowrap"
+            >
+              <PlusCircle className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+              <span>Añadir Manualmente</span>
+            </button>
+          )}
+
           <button
             id="chip-trigger-vision"
             onClick={onOpenVisionModal}
@@ -67,16 +80,30 @@ export const OmniInputBar: React.FC<OmniInputBarProps> = ({
           {/* Subtle bottom border shimmer */}
           <div className="absolute -inset-px rounded-2xl sm:rounded-full bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-slate-700/20 -z-10 blur-[1px] opacity-70" />
 
-          <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:px-3 sm:py-2">
+          <div className="flex items-center gap-1 sm:gap-2 p-1.5 sm:px-3 sm:py-2">
+            {/* Action: Manual Add Button */}
+            {onOpenNewTaskModal && (
+              <button
+                id="omni-btn-manual-add"
+                onClick={onOpenNewTaskModal}
+                title="Añadir tarea manualmente"
+                className="relative w-9 h-9 sm:w-8 sm:h-8 rounded-xl sm:rounded-full text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 active:scale-95 transition cursor-pointer flex items-center justify-center shrink-0 group"
+                aria-label="Añadir tarea manualmente"
+              >
+                <PlusCircle className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-indigo-400 group-hover:scale-110 transition-transform" />
+                <span className="sr-only">Añadir manual</span>
+              </button>
+            )}
+
             {/* Action: Camera */}
             <button
               id="omni-btn-camera"
               onClick={onOpenVisionModal}
               title="Escanear foto u horario"
-              className="relative w-10 h-10 sm:w-9 sm:h-9 rounded-xl sm:rounded-full text-slate-300 hover:text-cyan-400 hover:bg-cyan-500/10 active:scale-95 transition cursor-pointer flex items-center justify-center shrink-0 group"
+              className="relative w-9 h-9 sm:w-8 sm:h-8 rounded-xl sm:rounded-full text-slate-300 hover:text-cyan-400 hover:bg-cyan-500/10 active:scale-95 transition cursor-pointer flex items-center justify-center shrink-0 group"
               aria-label="Escanear foto"
             >
-              <Camera className="w-5 h-5 text-cyan-400 group-hover:scale-110 transition-transform" />
+              <Camera className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-cyan-400 group-hover:scale-110 transition-transform" />
               <span className="sr-only">Cámara</span>
             </button>
 

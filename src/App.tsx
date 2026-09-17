@@ -12,8 +12,7 @@ import {
   ShieldCheck,
   Check,
   ArrowUp,
-  Database,
-  Cloud,
+  PlusCircle,
   User,
   LogOut,
 } from 'lucide-react';
@@ -51,6 +50,7 @@ function CalendarApp() {
   const [isVisionModalOpen, setIsVisionModalOpen] = useState<boolean>(false);
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState<boolean>(false);
   const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
+  const [isNewTask, setIsNewTask] = useState<boolean>(false);
 
   // Staged tasks for Confirmation Card
   const [stagedApprovalTasks, setStagedApprovalTasks] = useState<TaskItem[]>([]);
@@ -235,10 +235,36 @@ function CalendarApp() {
     showToast('Tarea eliminada del calendario.');
   };
 
+  const handleOpenNewTaskModal = (targetDate?: string) => {
+    const newTask: TaskItem = {
+      id: `manual-${Date.now()}`,
+      title: '',
+      category: 'Academics',
+      date: targetDate || clock.dateStr,
+      time: '12:00',
+      endTime: '13:00',
+      durationMinutes: 60,
+      priority: 'media',
+      notes: '',
+      sourceType: 'manual',
+      confidence: 1.0,
+      completed: false,
+    };
+    setIsNewTask(true);
+    setEditingTask(newTask);
+  };
+
   const handleSaveUpdatedTask = (updated: TaskItem) => {
-    setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-    upsertTasks([updated], user?.id);
-    showToast('Tarea actualizada correctamente.');
+    if (isNewTask) {
+      setTasks((prev) => [updated, ...prev]);
+      upsertTasks([updated], user?.id);
+      showToast('Nueva tarea añadida correctamente.');
+      setIsNewTask(false);
+    } else {
+      setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      upsertTasks([updated], user?.id);
+      showToast('Tarea actualizada correctamente.');
+    }
   };
 
   if (authLoading) {
@@ -273,33 +299,18 @@ function CalendarApp() {
             </div>
           </div>
 
-          {/* Quick actions, Cloud Badge & User Avatar */}
+          {/* Quick actions, Manual Add & User Avatar */}
           <div className="flex items-center gap-2 sm:gap-2.5">
-            <div
-              title={
-                isCloudConnected
-                  ? 'Conectado a la base de datos Supabase en la nube'
-                  : 'Modo local: los datos se guardan en este dispositivo'
-              }
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border font-medium transition-all ${
-                isCloudConnected
-                  ? 'bg-emerald-950/50 border-emerald-500/30 text-emerald-300'
-                  : 'bg-slate-900 border-slate-800 text-slate-400'
-              }`}
+            {/* Manual Task Creation Button */}
+            <button
+              id="header-btn-add-task"
+              onClick={() => handleOpenNewTaskModal()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm shadow-indigo-600/30 transition cursor-pointer active:scale-95"
+              title="Añadir tarea manualmente"
             >
-              {isCloudConnected ? (
-                <>
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="hidden sm:inline">Supabase</span>
-                  <span>En la nube</span>
-                </>
-              ) : (
-                <>
-                  <span className="w-2 h-2 rounded-full bg-amber-400/80" />
-                  <span>Modo local</span>
-                </>
-              )}
-            </div>
+              <PlusCircle className="w-3.5 h-3.5 shrink-0" />
+              <span>Nueva tarea</span>
+            </button>
 
             <button
               id="header-btn-quick-vision-demo"
@@ -352,8 +363,12 @@ function CalendarApp() {
           clock={clock}
           onToggleTaskComplete={handleToggleTaskComplete}
           onDeleteTask={handleDeleteTask}
-          onEditTaskRequest={(task) => setEditingTask(task)}
+          onEditTaskRequest={(task) => {
+            setIsNewTask(false);
+            setEditingTask(task);
+          }}
           onOpenVisionModal={() => setIsVisionModalOpen(true)}
+          onAddNewTask={(date) => handleOpenNewTaskModal(date)}
         />
       </main>
 
@@ -378,6 +393,7 @@ function CalendarApp() {
       {/* Floating Omni-Input Bar (Voice & Text) */}
       <OmniInputBar
         onOpenVisionModal={() => setIsVisionModalOpen(true)}
+        onOpenNewTaskModal={() => handleOpenNewTaskModal()}
         onSubmitText={(text) => handleProcessInput(text, 'text')}
         onProcessInput={(text, source) => handleProcessInput(text, source || 'text')}
         isProcessing={isProcessing}
@@ -405,7 +421,11 @@ function CalendarApp() {
       <TaskEditModal
         isOpen={Boolean(editingTask)}
         task={editingTask}
-        onClose={() => setEditingTask(null)}
+        isNew={isNewTask}
+        onClose={() => {
+          setEditingTask(null);
+          setIsNewTask(false);
+        }}
         onSave={handleSaveUpdatedTask}
         onDelete={handleDeleteTask}
       />

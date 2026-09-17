@@ -10,6 +10,7 @@ interface TaskEditModalProps {
   onClose: () => void;
   onSave: (updatedTask: TaskItem) => void;
   onDelete: (taskId: string) => void;
+  isNew?: boolean;
 }
 
 export const TaskEditModal: React.FC<TaskEditModalProps> = ({
@@ -18,6 +19,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
   onClose,
   onSave,
   onDelete,
+  isNew = false,
 }) => {
   const [formData, setFormData] = useState<TaskItem | null>(null);
 
@@ -45,7 +47,9 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
           className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-2xl text-slate-100 my-auto max-h-[92dvh] overflow-y-auto"
         >
           <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-            <h3 className="font-bold text-white text-base">Modificar Tarea</h3>
+            <h3 className="font-bold text-white text-base">
+              {isNew ? 'Añadir Nueva Tarea' : 'Modificar Tarea'}
+            </h3>
             <button
               onClick={onClose}
               className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
@@ -154,36 +158,41 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                 rows={2}
                 value={formData.notes || ''}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                placeholder="Notas adicionales, detalles o ubicación..."
                 className="w-full mt-1.5 px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
               />
             </div>
 
             <div className="flex items-center justify-between pt-3 border-t border-slate-800">
-              <button
-                type="button"
-                onClick={() => {
-                  onDelete(formData.id);
-                  onClose();
-                }}
-                className="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1.5 p-1"
-              >
-                <Trash2 className="w-4 h-4" />
-                Eliminar tarea
-              </button>
+              {!isNew ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onDelete(formData.id);
+                    onClose();
+                  }}
+                  className="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1.5 p-1 transition cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Eliminar tarea
+                </button>
+              ) : (
+                <div />
+              )}
 
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-3.5 py-2 rounded-xl text-xs text-slate-400 hover:text-white"
+                  className="px-3.5 py-2 rounded-xl text-xs text-slate-400 hover:text-white transition cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/30"
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/30 transition cursor-pointer"
                 >
-                  Guardar
+                  {isNew ? 'Crear Tarea' : 'Guardar'}
                 </button>
               </div>
             </div>

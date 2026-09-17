@@ -34,6 +34,7 @@ interface DailyDashboardProps {
   onDeleteTask: (taskId: string) => void;
   onEditTaskRequest: (task: TaskItem) => void;
   onOpenVisionModal: () => void;
+  onAddNewTask?: (date?: string) => void;
 }
 
 export const DailyDashboard: React.FC<DailyDashboardProps> = ({
@@ -43,6 +44,7 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
   onDeleteTask,
   onEditTaskRequest,
   onOpenVisionModal,
+  onAddNewTask,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [activeDate, setActiveDate] = useState<string>(clock.dateStr);
@@ -494,6 +496,16 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
 
                   {/* Quick trigger to add task on this specific day */}
                   <div className="flex items-center gap-2">
+                    {onAddNewTask && (
+                      <button
+                        onClick={() => onAddNewTask(group.date)}
+                        className="text-xs text-indigo-400 hover:text-white hover:bg-indigo-600 px-2.5 py-1.5 rounded-lg border border-indigo-500/30 hover:border-indigo-500 transition cursor-pointer flex items-center gap-1 font-semibold"
+                        title="Añadir tarea manualmente a este día"
+                      >
+                        <PlusCircle className="w-3.5 h-3.5" />
+                        <span>Añadir</span>
+                      </button>
+                    )}
                     <button
                       onClick={onOpenVisionModal}
                       className="text-xs text-slate-400 hover:text-cyan-400 hover:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-800 transition cursor-pointer flex items-center gap-1"
@@ -507,8 +519,17 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
 
                 {/* Day Tasks List */}
                 {group.tasks.length === 0 ? (
-                  <div className="py-6 text-center text-slate-500 text-xs border border-dashed border-slate-800/80 rounded-xl bg-slate-950/30">
-                    No hay eventos programados para este día. Usa el micrófono o la cámara inferior para añadir tareas rápidamente.
+                  <div className="py-6 text-center text-slate-500 text-xs border border-dashed border-slate-800/80 rounded-xl bg-slate-950/30 flex flex-col items-center gap-2">
+                    <span>No hay eventos programados para este día.</span>
+                    {onAddNewTask && (
+                      <button
+                        onClick={() => onAddNewTask(group.date)}
+                        className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-semibold hover:underline cursor-pointer"
+                      >
+                        <PlusCircle className="w-3.5 h-3.5" />
+                        <span>Añadir tarea para este día</span>
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <div className="flex flex-col gap-2.5">
@@ -723,6 +744,15 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
               </h2>
             </div>
             <div className="flex items-center gap-2">
+              {onAddNewTask && (
+                <button
+                  onClick={() => onAddNewTask(activeDate)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm transition cursor-pointer"
+                >
+                  <PlusCircle className="w-3.5 h-3.5" />
+                  <span>Añadir tarea</span>
+                </button>
+              )}
               <button
                 onClick={() => {
                   const idx = calendarDays.findIndex((d) => d.date === activeDate);
@@ -745,8 +775,17 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
           </div>
 
           {singleDayTasks.length === 0 ? (
-            <div className="py-12 text-center text-slate-400 text-sm">
-              No hay actividades programadas para este día en particular.
+            <div className="py-12 text-center text-slate-400 text-sm flex flex-col items-center gap-3">
+              <span>No hay actividades programadas para este día en particular.</span>
+              {onAddNewTask && (
+                <button
+                  onClick={() => onAddNewTask(activeDate)}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/30 transition cursor-pointer"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  <span>Añadir primera tarea</span>
+                </button>
+              )}
             </div>
           ) : (
             <div className="flex flex-col gap-3">
