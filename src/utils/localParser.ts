@@ -113,13 +113,7 @@ export function parseInputLocally(
     }
   }
 
-  const isWholeSeptember =
-    textLower.includes('mes de septiembre') ||
-    textLower.includes('todo el mes') ||
-    textLower.includes('durante septiembre') ||
-    textLower.includes('en septiembre');
-
-  if (recurringDays.length > 0 && isWholeSeptember) {
+  if (recurringDays.length > 0) {
     let category: CategoryType = 'Sports/Karate';
     let detectedTag = 'Sports/Karate (Tag: Red)';
     let baseTitle = 'Entrenamiento de Karate';
@@ -131,7 +125,8 @@ export function parseInputLocally(
     } else if (
       textLower.includes('matlab') ||
       textLower.includes('clase') ||
-      textLower.includes('universidad')
+      textLower.includes('universidad') ||
+      textLower.includes('estudi')
     ) {
       category = 'Academics';
       detectedTag = 'Académico (Tag: Blue)';
@@ -144,6 +139,27 @@ export function parseInputLocally(
       category = 'Work';
       detectedTag = 'Trabajo (Tag: Amber)';
       baseTitle = 'Turno de Trabajo';
+    } else if (
+      textLower.includes('gym') ||
+      textLower.includes('gimnasio') ||
+      textLower.includes('pesas') ||
+      textLower.includes('hipertrofia') ||
+      textLower.includes('entren')
+    ) {
+      category = 'Sports/Karate';
+      detectedTag = 'Sports/Karate (Tag: Red)';
+      baseTitle = 'Entrenamiento Físico';
+    } else {
+      // Dynamic title extraction
+      const cleanTitle = textClean
+        .replace(/de\s+[a-záéíóú]+\s+a\s+[a-záéíóú]+/gi, '')
+        .replace(/(?:de\s+)?\d{1,2}[.:]\d{2}\s*(?:a|-)\s*\d{1,2}[.:]\d{2}/gi, '')
+        .replace(/(?:a las\s+)?\d{1,2}[.:]\d{2}/gi, '')
+        .replace(/durante\s+(?:todo\s+)?el\s+mes(?:\s+de\s+[a-z]+)?/gi, '')
+        .trim();
+      if (cleanTitle.length > 2) {
+        baseTitle = cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1);
+      }
     }
 
     for (let day = 1; day <= 30; day++) {

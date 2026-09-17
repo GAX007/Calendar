@@ -22,9 +22,10 @@ app.use((req, res, next) => {
 // Lazy Gemini Client Initialization
 let geminiClient: GoogleGenAI | null = null;
 function getGeminiClient(): GoogleGenAI | null {
-  if (!geminiClient && process.env.GEMINI_API_KEY) {
+  const key = (process.env.GEMINI_API_KEY || '').trim();
+  if (!geminiClient && key && key !== 'MY_GEMINI_API_KEY') {
     geminiClient = new GoogleGenAI({
-      apiKey: process.env.GEMINI_API_KEY,
+      apiKey: key,
       httpOptions: {
         headers: {
           'User-Agent': 'aistudio-build',
@@ -236,14 +237,8 @@ function fallbackParseSpanish(input: string, sourceType: 'voice' | 'text' | 'vis
     }
   }
 
-  const isWholeSeptember =
-    textLower.includes('mes de septiembre') ||
-    textLower.includes('todo el mes') ||
-    textLower.includes('durante septiembre') ||
-    textLower.includes('en septiembre');
-
-  // If recurring across September (e.g. "de lunes a jueves durante todo el mes de septiembre")
-  if (recurringDays.length > 0 && isWholeSeptember) {
+  // If recurring across days (e.g. "de lunes a jueves de 19:30 a 21:00")
+  if (recurringDays.length > 0) {
     let category = 'Sports/Karate';
     let detectedTag = 'Sports/Karate (Tag: Red)';
     let baseTitle = 'Entrenamiento de Karate';
@@ -252,7 +247,7 @@ function fallbackParseSpanish(input: string, sourceType: 'voice' | 'text' | 'vis
       category = 'Sports/Karate';
       detectedTag = 'Sports/Karate (Tag: Red)';
       baseTitle = 'Entrenamiento de Karate';
-    } else if (textLower.includes('matlab') || textLower.includes('clase') || textLower.includes('universidad')) {
+    } else if (textLower.includes('matlab') || textLower.includes('clase') || textLower.includes('universidad') || textLower.includes('estudi')) {
       category = 'Academics';
       detectedTag = 'Académico (Tag: Blue)';
       baseTitle = 'Clase / Estudio';
@@ -260,6 +255,20 @@ function fallbackParseSpanish(input: string, sourceType: 'voice' | 'text' | 'vis
       category = 'Work';
       detectedTag = 'Trabajo (Tag: Amber)';
       baseTitle = 'Turno de Trabajo';
+    } else if (textLower.includes('gym') || textLower.includes('gimnasio') || textLower.includes('pesas') || textLower.includes('hipertrofia') || textLower.includes('entren')) {
+      category = 'Sports/Karate';
+      detectedTag = 'Sports/Karate (Tag: Red)';
+      baseTitle = 'Entrenamiento Físico';
+    } else {
+      const cleanTitle = textClean
+        .replace(/de\s+[a-záéíóú]+\s+a\s+[a-záéíóú]+/gi, '')
+        .replace(/(?:de\s+)?\d{1,2}[.:]\d{2}\s*(?:a|-)\s*\d{1,2}[.:]\d{2}/gi, '')
+        .replace(/(?:a las\s+)?\d{1,2}[.:]\d{2}/gi, '')
+        .replace(/durante\s+(?:todo\s+)?el\s+mes(?:\s+de\s+[a-z]+)?/gi, '')
+        .trim();
+      if (cleanTitle.length > 2) {
+        baseTitle = cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1);
+      }
     }
 
     // Generate dates for each matching day in September 2026 (September 1 to 30)
@@ -493,8 +502,14 @@ app.post('/api/transcribe-audio', async (req, res) => {
       };
 
       // Model candidate cascade for transcription:
-      // gemini-3.1-flash-lite (fast, high availability) -> gemini-3.8-flash -> gemini-3.5-transcribe
-      const transcriptionModels = ['gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-3.5-transcribe'];
+      const transcriptionModels = [
+        'gemini-2.5-flash',
+        'gemini-2.0-flash',
+        'gemini-1.5-flash',
+        'gemini-flash-latest',
+        'gemini-3.1-flash-lite',
+        'gemini-3.8-flash',
+      ];
 
       try {
         const { result: response, modelUsed } = await executeWithGeminiFallback(
@@ -570,8 +585,8 @@ REGLAS CRÍTICAS DE HORARIOS Y RANGOS TEMPORALES:
    - 'time': hora de inicio en formato 'HH:mm' de 24 horas (ej. "19:30"). Si tiene punto como "19.30", normalízalo siempre a dos puntos "19:30".
    - 'endTime': hora de finalización en formato 'HH:mm' de 24 horas (ej. "21:00").
    - 'durationMinutes': diferencia exacta en minutos entre inicio y fin (ej. de 19:30 a 21:00 son 90 minutos).
-2. RECURRENCIA Y RANGOS DE DÍAS (ej. "de lunes a jueves durante todo el mes de septiembre"):
-   - DEBES generar una entrada individual para CADA día que cumpla el criterio en el mes de septiembre de 2026 (del 1 al 30 de septiembre de 2026, cada lunes, martes, miércoles y jueves).
+2. RECURRENCIA Y RANGOS DE DÍAS (ej. "de lunes a jueves", "de lunes a viernes", "cada martes y jueves"):
+   - Si el usuario indica un rango de días o recurrencia (como "de lunes a jueves de 19:30 a 21:00"), DEBES generar una entrada individual para CADA día que cumpla el criterio en el mes actual (septiembre de 2026, del 1 al 30 de septiembre de 2026, cada lunes, martes, miércoles y jueves correspondientes).
    - Fechas de septiembre 2026: 2026-09-01 (Mar), 2026-09-02 (Mié), 2026-09-03 (Jue), 2026-09-07 (Lun), 2026-09-08 (Mar), 2026-09-09 (Mié), 2026-09-10 (Jue), 2026-09-14 (Lun), 2026-09-15 (Mar), 2026-09-16 (Mié), 2026-09-17 (Jue), 2026-09-21 (Lun), 2026-09-22 (Mar), 2026-09-23 (Mié), 2026-09-24 (Jue), 2026-09-28 (Lun), 2026-09-29 (Mar), 2026-09-30 (Mié).
    - Cada una con 'time': '19:30', 'endTime': '21:00', 'durationMinutes': 90.
 3. 'deadlineLabel' debe describir el día y horario legible (ej. "Lunes 21 Sep, 19:30 - 21:00").
@@ -641,8 +656,15 @@ Devuelve un array JSON con todos los eventos encontrados en la imagen de calenda
           ];
         }
 
-        // Model candidate cascade: gemini-3.1-flash-lite (high availability, ultra-fast) -> gemini-3.8-flash -> gemini-flash-latest
-        const parseModelCandidates = ['gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-flash-latest'];
+        // Model candidate cascade: official production models first
+        const parseModelCandidates = [
+          'gemini-2.5-flash',
+          'gemini-2.0-flash',
+          'gemini-1.5-flash',
+          'gemini-flash-latest',
+          'gemini-3.1-flash-lite',
+          'gemini-3.8-flash',
+        ];
 
         const { result: response, modelUsed } = await executeWithGeminiFallback(
           parseModelCandidates,
@@ -750,8 +772,17 @@ Devuelve un array JSON con todos los eventos encontrados en la imagen de calenda
     }
 
     if (type === 'vision') {
+      const hasKey = Boolean(
+        process.env.GEMINI_API_KEY &&
+        process.env.GEMINI_API_KEY !== 'MY_GEMINI_API_KEY' &&
+        process.env.GEMINI_API_KEY.trim().length > 15
+      );
+      const errorMsg = hasKey
+        ? 'No se pudieron detectar actividades legibles en la imagen. Asegúrate de que la captura de tu calendario sea nítida y muestra claramente los bloques con sus nombres y horarios.'
+        : 'Para escanear fotos de calendarios con IA debes configurar tu GEMINI_API_KEY en Netlify (o en el archivo .env). Consíguela gratis en https://aistudio.google.com/app/apikey';
+
       return res.status(422).json({
-        error: 'No se pudieron extraer actividades de la imagen. Verifica que la captura del calendario sea legible y vuelve a intentarlo.',
+        error: errorMsg,
         extractedTasks: [],
         sourceType: type,
       });
