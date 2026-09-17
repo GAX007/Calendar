@@ -1,0 +1,8 @@
+{
+  "name": "CalendarAsist",
+  "description": "Asistente de calendario y agenda personal para organizar tus tareas y eventos diarios de forma rápida y sencilla.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
