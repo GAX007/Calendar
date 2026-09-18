@@ -59,18 +59,25 @@ export const SmartApprovalModal: React.FC<SmartApprovalModalProps> = ({
   };
 
   const handleAddTask = () => {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = (today.getMonth() + 1).toString().padStart(2, '0');
+    const d = today.getDate().toString().padStart(2, '0');
+    const dateStr = `${y}-${m}-${d}`;
+    const spanishMonthsShort = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
     const newTask: TaskItem = {
       id: `task-manual-${Date.now()}`,
       title: 'Nueva Tarea Extraída',
       category: 'Academics',
-      date: '2026-09-17',
+      date: dateStr,
       time: '12:00',
       durationMinutes: 60,
       priority: 'media',
       sourceType,
       confidence: 0.95,
       extractedFields: {
-        deadlineLabel: '17 Sep, 12:00',
+        deadlineLabel: `${today.getDate()} ${spanishMonthsShort[today.getMonth()]}, 12:00`,
         detectedTag: 'Académico (Tag: Blue)',
       },
     };

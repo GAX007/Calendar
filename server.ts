@@ -69,7 +69,8 @@ function isRetryableGeminiError(error: any): boolean {
 // Executes an async Gemini operation with automatic retry on transient errors and multi-model failover
 async function executeWithGeminiFallback<T>(
   modelCandidates: string[],
-  operation: (model: string) => Promise<T>
+  operation: (model: string) => Promise<T>,
+  timeoutMs = 15000
 ): Promise<{ result: T; modelUsed: string }> {
   let lastError: any = null;
 
@@ -79,7 +80,10 @@ async function executeWithGeminiFallback<T>(
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        const result = await operation(model);
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`Timeout de ${timeoutMs}ms para modelo ${model}`)), timeoutMs)
+        );
+        const result = await Promise.race([operation(model), timeoutPromise]);
         return { result, modelUsed: model };
       } catch (err: any) {
         lastError = err;
@@ -135,9 +139,37 @@ function normalizeTimeString(raw: string | undefined, defaultTime = '12:00'): st
   return defaultTime;
 }
 
+function getTodayInfo(): {
+  dateStr: string;
+  dayName: string;
+  todayStr: string;
+  year: number;
+  monthIndex: number;
+  dayOfMonth: number;
+  dayOfWeek: number;
+} {
+  const now = new Date();
+  const spanishDays = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+  const dayName = spanishDays[now.getDay()];
+  const y = now.getFullYear();
+  const m = (now.getMonth() + 1).toString().padStart(2, '0');
+  const d = now.getDate().toString().padStart(2, '0');
+  const dateStr = `${y}-${m}-${d}`;
+  return {
+    dateStr,
+    dayName,
+    todayStr: `${dateStr} (${dayName})`,
+    year: y,
+    monthIndex: now.getMonth(),
+    dayOfMonth: now.getDate(),
+    dayOfWeek: now.getDay(),
+  };
+}
+
 // Helper to normalize any date string into YYYY-MM-DD
-function normalizeDateString(rawDate: string | undefined, defaultDate = '2026-09-17'): string {
-  if (!rawDate) return defaultDate;
+function normalizeDateString(rawDate: string | undefined, defaultDate?: string): string {
+  const fallback = defaultDate || getTodayInfo().dateStr;
+  if (!rawDate) return fallback;
   const clean = rawDate.trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
   const dmy = clean.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
@@ -151,7 +183,7 @@ function normalizeDateString(rawDate: string | undefined, defaultDate = '2026-09
   if (ymd) {
     return `${ymd[1]}-${ymd[2].padStart(2, '0')}-${ymd[3].padStart(2, '0')}`;
   }
-  return defaultDate;
+  return fallback;
 }
 
 // Helper to compute end time given start time and duration
@@ -188,7 +220,10 @@ const SPANISH_MONTH_DICTIONARY: Record<string, { index: number; shortName: strin
   diciembre: { index: 11, shortName: 'Dic', fullName: 'Diciembre' },
 };
 
-function extractTargetMonths(textLower: string, defaultYear = 2026, defaultMonthIndex = 8): MonthTarget[] {
+function extractTargetMonths(textLower: string, defaultYear?: number, defaultMonthIndex?: number): MonthTarget[] {
+  const todayInfo = getTodayInfo();
+  const baseYear = defaultYear ?? todayInfo.year;
+  const baseMonthIndex = defaultMonthIndex ?? todayInfo.monthIndex;
   const mentioned = new Map<number, MonthTarget>();
 
   // Check explicit range: "de [mes1] a [mes2]" e.g. "de septiembre a diciembre"
@@ -204,7 +239,7 @@ function extractTargetMonths(textLower: string, defaultYear = 2026, defaultMonth
     while (true) {
       const info = Object.values(SPANISH_MONTH_DICTIONARY).find((m) => m.index === cur)!;
       mentioned.set(cur, {
-        year: defaultYear,
+        year: baseYear,
         monthIndex: cur,
         shortName: info.shortName,
         fullName: info.fullName,
@@ -218,11 +253,11 @@ function extractTargetMonths(textLower: string, defaultYear = 2026, defaultMonth
   const hastaMatch = textLower.match(/hasta\s+(?:finales\s+de\s+|mediados\s+de\s+|principios\s+de\s+|el\s+mes\s+de\s+)?([a-záéíóú]+)/i);
   if (hastaMatch && SPANISH_MONTH_DICTIONARY[hastaMatch[1].toLowerCase()]) {
     const endM = SPANISH_MONTH_DICTIONARY[hastaMatch[1].toLowerCase()].index;
-    if (endM >= defaultMonthIndex) {
-      for (let m = defaultMonthIndex; m <= endM; m++) {
+    if (endM >= baseMonthIndex) {
+      for (let m = baseMonthIndex; m <= endM; m++) {
         const info = Object.values(SPANISH_MONTH_DICTIONARY).find((item) => item.index === m)!;
         mentioned.set(m, {
-          year: defaultYear,
+          year: baseYear,
           monthIndex: m,
           shortName: info.shortName,
           fullName: info.fullName,
@@ -237,7 +272,7 @@ function extractTargetMonths(textLower: string, defaultYear = 2026, defaultMonth
     if (regex.test(textLower)) {
       if (!mentioned.has(meta.index)) {
         mentioned.set(meta.index, {
-          year: defaultYear,
+          year: baseYear,
           monthIndex: meta.index,
           shortName: meta.shortName,
           fullName: meta.fullName,
@@ -250,12 +285,12 @@ function extractTargetMonths(textLower: string, defaultYear = 2026, defaultMonth
     return Array.from(mentioned.values()).sort((a, b) => a.monthIndex - b.monthIndex);
   }
 
-  // Default: current month (September)
-  const defInfo = Object.values(SPANISH_MONTH_DICTIONARY).find((m) => m.index === defaultMonthIndex)!;
+  // Default: current month
+  const defInfo = Object.values(SPANISH_MONTH_DICTIONARY).find((m) => m.index === baseMonthIndex) || SPANISH_MONTH_DICTIONARY['septiembre'];
   return [
     {
-      year: defaultYear,
-      monthIndex: defaultMonthIndex,
+      year: baseYear,
+      monthIndex: baseMonthIndex,
       shortName: defInfo.shortName,
       fullName: defInfo.fullName,
     },
@@ -370,7 +405,7 @@ function fallbackParseSpanish(input: string, sourceType: 'voice' | 'text' | 'vis
     }
 
     // Determine target months (e.g. "todo septiembre y octubre", "de septiembre a diciembre", etc.)
-    const targetMonths = extractTargetMonths(textLower, 2026, 8);
+    const targetMonths = extractTargetMonths(textLower);
 
     for (const target of targetMonths) {
       const daysInMonth = new Date(Date.UTC(target.year, target.monthIndex + 1, 0)).getUTCDate();
@@ -411,8 +446,9 @@ function fallbackParseSpanish(input: string, sourceType: 'voice' | 'text' | 'vis
     }
   }
 
-  // Determine base dates relative to current date (2026-09-17, Jueves)
-  const baseDate = new Date('2026-09-17T12:00:00Z');
+  // Determine base dates relative to current live date
+  const todayInfo = getTodayInfo();
+  const baseDate = new Date();
 
   // Split multi-task compound sentences: "..., y recuérdame ...", "y además", "y también", "y "
   const rawSegments = textClean
@@ -479,28 +515,43 @@ function fallbackParseSpanish(input: string, sourceType: 'voice' | 'text' | 'vis
       detectedTag = 'Salud (Tag: Emerald)';
     }
 
-    // 2. Extract Relative Date (Hoy = 2026-09-17 Jueves)
-    let taskDate = '2026-09-17';
-    let deadlineLabel = 'Hoy (Jueves)';
+    // 2. Extract Relative Date dynamically
+    let taskDate = todayInfo.dateStr;
+    let deadlineLabel = `Hoy (${todayInfo.dayName})`;
 
     if (segLower.includes('hoy')) {
-      taskDate = '2026-09-17';
-      deadlineLabel = 'Hoy (Jueves)';
+      taskDate = todayInfo.dateStr;
+      deadlineLabel = `Hoy (${todayInfo.dayName})`;
     } else if (segLower.includes('pasado mañana')) {
-      taskDate = '2026-09-19';
-      deadlineLabel = 'Sábado';
+      const d = new Date(baseDate);
+      d.setDate(d.getDate() + 2);
+      const y = d.getFullYear();
+      const m = (d.getMonth() + 1).toString().padStart(2, '0');
+      const day = d.getDate().toString().padStart(2, '0');
+      taskDate = `${y}-${m}-${day}`;
+      const spanishDays = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+      deadlineLabel = spanishDays[d.getDay()];
     } else if (segLower.includes('mañana')) {
-      taskDate = '2026-09-18';
-      deadlineLabel = 'Mañana (Viernes)';
+      const d = new Date(baseDate);
+      d.setDate(d.getDate() + 1);
+      const y = d.getFullYear();
+      const m = (d.getMonth() + 1).toString().padStart(2, '0');
+      const day = d.getDate().toString().padStart(2, '0');
+      taskDate = `${y}-${m}-${day}`;
+      const spanishDays = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+      deadlineLabel = `Mañana (${spanishDays[d.getDay()]})`;
     } else {
       // Check explicit weekday mentions
       for (const [dayName, targetDayNum] of Object.entries(dayNames)) {
         if (segLower.includes(dayName)) {
-          const currentDayNum = 4; // Thursday (2026-09-17)
+          const currentDayNum = todayInfo.dayOfWeek;
           let diff = targetDayNum - currentDayNum;
           if (diff <= 0) diff += 7; // next occurrence
           const computedDate = new Date(baseDate.getTime() + diff * 24 * 60 * 60 * 1000);
-          taskDate = computedDate.toISOString().split('T')[0];
+          const y = computedDate.getFullYear();
+          const m = (computedDate.getMonth() + 1).toString().padStart(2, '0');
+          const day = computedDate.getDate().toString().padStart(2, '0');
+          taskDate = `${y}-${m}-${day}`;
           deadlineLabel = dayName.charAt(0).toUpperCase() + dayName.slice(1);
           break;
         }
@@ -609,10 +660,6 @@ app.post('/api/transcribe-audio', async (req, res) => {
 
       // Model candidate cascade for transcription:
       const transcriptionModels = [
-        'gemini-3.6-flash',
-        'gemini-flash-latest',
-        'gemini-3.1-flash-lite',
-        'gemini-3.8-flash',
         'gemini-2.5-flash',
         'gemini-2.0-flash',
         'gemini-1.5-flash',
@@ -671,7 +718,8 @@ app.post('/api/parse-multimodal', async (req, res) => {
     }
 
     const ai = getGeminiClient();
-    const todayStr = '2026-09-17 (Jueves)';
+    const todayInfo = getTodayInfo();
+    const todayStr = todayInfo.todayStr;
 
     // If Gemini client is available, invoke with multi-model cascade:
     // gemini-3.8-flash -> gemini-flash-latest -> gemini-3.1-flash-lite
@@ -697,11 +745,11 @@ REGLAS CRÍTICAS DE HORARIOS, RECURRENCIA Y MESES:
    - Si el usuario indica un rango de días o recurrencia (ej. "de lunes a jueves de 19:30 a 21:00", "cada martes y jueves", "todos los viernes"):
      * COMPRUEBA SI EL USUARIO ESPECIFICA UNO O VARIOS MESES O UN RANGO TEMPORAL (ej. "durante todo septiembre y octubre", "en octubre y noviembre", "de septiembre a diciembre", "hasta finales de año", "las próximas semanas", "en octubre", etc.).
      * DEBES GENERAR UNA ENTRADA INDIVIDUAL PARA CADA DÍA QUE CUMPLA EL CRITERIO EN TODOS LOS MESES O RANGOS SOLICITADOS.
-       - Por ejemplo, si el usuario dice: "Entrenamiento de karate de lunes a jueves de 19:30 a 21:00 durante todo septiembre y octubre", DEBES generar un evento para cada lunes, martes, miércoles y jueves de septiembre de 2026 ('2026-09-XX') Y ADEMÁS un evento para cada lunes, martes, miércoles y jueves de octubre de 2026 ('2026-10-XX').
-       - Si el usuario dice "hasta diciembre", genera los eventos para cada uno de los meses desde septiembre hasta diciembre de 2026.
-       - Si el usuario solo menciona un mes (ej. "en octubre"), genera los eventos para ese mes solicitado ('2026-10-XX').
-       - Si el usuario NO menciona ningún mes ni periodo explícito, asume por defecto el mes en curso (septiembre de 2026).
-     * Cada fecha en 'date' DEBE tener el formato ISO exacto 'YYYY-MM-DD' (ej. "2026-09-22", "2026-10-01", "2026-10-15").
+       - Por ejemplo, si el usuario dice: "Entrenamiento de karate de lunes a jueves de 19:30 a 21:00 durante todo septiembre y octubre", DEBES generar un evento para cada lunes, martes, miércoles y jueves de septiembre de ${todayInfo.year} ('${todayInfo.year}-09-XX') Y ADEMÁS un evento para cada lunes, martes, miércoles y jueves de octubre de ${todayInfo.year} ('${todayInfo.year}-10-XX').
+       - Si el usuario dice "hasta diciembre", genera los eventos para cada uno de los meses desde el actual hasta diciembre de ${todayInfo.year}.
+       - Si el usuario solo menciona un mes (ej. "en octubre"), genera los eventos para ese mes solicitado ('${todayInfo.year}-10-XX').
+       - Si el usuario NO menciona ningún mes ni periodo explícito, asume por defecto el mes en curso (${todayInfo.todayStr}).
+     * Cada fecha en 'date' DEBE tener el formato ISO exacto 'YYYY-MM-DD' (ej. "${todayInfo.dateStr}", "${todayInfo.year}-10-01").
      * 'deadlineLabel' debe describir el día y horario legible con su mes correcto (ej. "Jueves 1 Oct, 19:30 - 21:00", "Lunes 19 Oct, 19:30 - 21:00").
      * 'detectedTag': ej. "Sports/Karate (Tag: Red)" o "Académico (Tag: Blue)".
 
@@ -735,9 +783,9 @@ INSTRUCCIONES CLAVE DE EXTRACCIÓN DE CALENDARIO:
    - Extrae el título exacto de la actividad (ej. "Reunión de proyecto", "Clase de Matemáticas", "Gimnasio", "Dentista", "Almuerzo", "Karate").
 2. FECHAS (formato YYYY-MM-DD):
    - Localiza las cabeceras de los días o columnas (ej. "LUN 15", "MAR 16", "MIÉ 17", "JUE 18", "VIE 19", "SÁB 20", "DOM 21", o nombres de meses como Septiembre, Octubre).
-   - Asigna cada evento a su fecha correspondiente 'YYYY-MM-DD' (usando el año 2026 si no se especifica otro).
-   - Si se muestran días de la semana sin número, asócialos a la semana de hoy (14 al 20 de septiembre de 2026: Lunes = 2026-09-14, Martes = 2026-09-15, Miércoles = 2026-09-16, Jueves = 2026-09-17, Viernes = 2026-09-18, Sábado = 2026-09-19, Domingo = 2026-09-20).
-   - Si no hay fecha visible, asígnalo a hoy: 2026-09-17.
+   - Asigna cada evento a su fecha correspondiente 'YYYY-MM-DD' (usando el año ${todayInfo.year} si no se especifica otro).
+   - Si se muestran días de la semana sin número, asócialos a los días de la semana de hoy (${todayInfo.todayStr}).
+   - Si no hay fecha visible, asígnalo a hoy: ${todayInfo.dateStr}.
 3. HORAS (formato HH:mm 24 horas):
    - Extrae la hora de inicio ('time') y hora de fin ('endTime') basándote en la escala horaria vertical a la izquierda o en el texto del bloque.
    - 'durationMinutes': calcula los minutos entre inicio y fin (ej. 60 min, 90 min, 120 min).
@@ -772,10 +820,6 @@ Devuelve un array JSON con todos los eventos encontrados en la imagen de calenda
 
         // Model candidate cascade: official production models first
         const parseModelCandidates = [
-          'gemini-3.6-flash',
-          'gemini-flash-latest',
-          'gemini-3.1-flash-lite',
-          'gemini-3.8-flash',
           'gemini-2.5-flash',
           'gemini-2.0-flash',
           'gemini-1.5-flash',
@@ -856,7 +900,7 @@ Devuelve un array JSON con todos los eventos encontrados en la imagen de calenda
             id: `ai-${Date.now()}-${idx}`,
             title: item.title,
             category: item.category || 'Academics',
-            date: normalizeDateString(item.date, '2026-09-17'),
+            date: normalizeDateString(item.date, todayInfo.dateStr),
             time: taskTime,
             endTime: endTime || computeEndTime(taskTime, durationMinutes),
             durationMinutes,

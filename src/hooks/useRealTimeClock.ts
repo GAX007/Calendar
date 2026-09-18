@@ -27,13 +27,8 @@ const SPANISH_MONTHS = [
 ];
 
 export function useRealTimeClock(): RealTimeClockState {
-  // Initialize to 2026-09-17 with current real system hours/minutes/seconds
-  const [currentDate, setCurrentDate] = useState<Date>(() => {
-    const realNow = new Date();
-    // Default to September 17, 2026 preserving current real clock hours, minutes & seconds
-    const initDate = new Date(2026, 8, 17, realNow.getHours(), realNow.getMinutes(), realNow.getSeconds());
-    return initDate;
-  });
+  // Initialize with real current system date & time
+  const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
 
   const [speed, setSpeed] = useState<number>(1);
   const [isPaused, setIsPaused] = useState<boolean>(false);
@@ -48,10 +43,15 @@ export function useRealTimeClock(): RealTimeClockState {
       const realElapsed = now - lastTickRef.current;
       lastTickRef.current = now;
 
-      if (!isPaused && realElapsed > 0) {
-        // Multiply elapsed time by simulation speed
-        const simulatedDelta = realElapsed * speed;
-        setCurrentDate((prev) => new Date(prev.getTime() + simulatedDelta));
+      if (!isPaused) {
+        if (speed === 1) {
+          // Keep synchronized with real live device clock across midnights
+          setCurrentDate(new Date());
+        } else if (realElapsed > 0) {
+          // Multiply elapsed time by simulation speed
+          const simulatedDelta = realElapsed * speed;
+          setCurrentDate((prev) => new Date(prev.getTime() + simulatedDelta));
+        }
       }
     }, 500);
 
@@ -74,8 +74,7 @@ export function useRealTimeClock(): RealTimeClockState {
 
   // Reset to live real-time
   const resetToRealTime = useCallback(() => {
-    const realNow = new Date();
-    setCurrentDate(new Date(2026, 8, 17, realNow.getHours(), realNow.getMinutes(), realNow.getSeconds()));
+    setCurrentDate(new Date());
     setSpeed(1);
     setIsPaused(false);
   }, []);

@@ -47,7 +47,7 @@ const SPANISH_MONTH_DICTIONARY: Record<string, { index: number; shortName: strin
   diciembre: { index: 11, shortName: 'Dic', fullName: 'Diciembre' },
 };
 
-function extractTargetMonths(textLower: string, defaultYear = 2026, defaultMonthIndex = 8): MonthTarget[] {
+function extractTargetMonths(textLower: string, defaultYear = new Date().getFullYear(), defaultMonthIndex = new Date().getMonth()): MonthTarget[] {
   const mentioned = new Map<number, MonthTarget>();
 
   // Check explicit range: "de [mes1] a [mes2]" e.g. "de septiembre a diciembre"
@@ -261,7 +261,8 @@ export function parseInputLocally(
     }
 
     // Determine target months
-    const targetMonths = extractTargetMonths(textLower, 2026, 8);
+    const nowTarget = new Date();
+    const targetMonths = extractTargetMonths(textLower, nowTarget.getFullYear(), nowTarget.getMonth());
 
     for (const target of targetMonths) {
       const daysInMonth = new Date(Date.UTC(target.year, target.monthIndex + 1, 0)).getUTCDate();
@@ -324,29 +325,49 @@ export function parseInputLocally(
     detectedTag = 'Trabajo (Tag: Amber)';
   }
 
-  // Detect relative date (Today = Thursday Sep 17, 2026)
-  let taskDate = '2026-09-17';
-  let deadlineDateLabel = 'Jueves 17 Sep';
+  // Detect relative date dynamically based on current date
+  const now = new Date();
+  const spanishDays = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+  const spanishMonthsShort = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+  const formatDateStr = (d: Date) => {
+    const y = d.getFullYear();
+    const m = (d.getMonth() + 1).toString().padStart(2, '0');
+    const day = d.getDate().toString().padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  const formatDeadline = (d: Date) => {
+    return `${spanishDays[d.getDay()]} ${d.getDate()} ${spanishMonthsShort[d.getMonth()]}`;
+  };
+
+  let taskDate = formatDateStr(now);
+  let deadlineDateLabel = formatDeadline(now);
 
   if (textLower.includes('pasado mañana')) {
-    taskDate = '2026-09-19';
-    deadlineDateLabel = 'Sábado 19 Sep';
+    const d = new Date(now);
+    d.setDate(d.getDate() + 2);
+    taskDate = formatDateStr(d);
+    deadlineDateLabel = formatDeadline(d);
   } else if (textLower.includes('mañana')) {
-    taskDate = '2026-09-18';
-    deadlineDateLabel = 'Viernes 18 Sep';
+    const d = new Date(now);
+    d.setDate(d.getDate() + 1);
+    taskDate = formatDateStr(d);
+    deadlineDateLabel = formatDeadline(d);
   } else if (textLower.includes('hoy')) {
-    taskDate = '2026-09-17';
-    deadlineDateLabel = 'Jueves 17 Sep';
+    taskDate = formatDateStr(now);
+    deadlineDateLabel = formatDeadline(now);
   } else {
     // Check weekdays
     for (const [dayKey, dayNum] of Object.entries(dayNames)) {
       if (textLower.includes(dayKey)) {
-        const todayDayNum = 4; // Thursday
+        const todayDayNum = now.getDay();
         let diff = dayNum - todayDayNum;
         if (diff <= 0) diff += 7;
-        const d = new Date(Date.UTC(2026, 8, 17 + diff));
-        taskDate = `2026-09-${d.getUTCDate().toString().padStart(2, '0')}`;
-        deadlineDateLabel = `${spanishDayNamesByIndex[dayNum]} ${d.getUTCDate()} Sep`;
+        const d = new Date(now);
+        d.setDate(d.getDate() + diff);
+        taskDate = formatDateStr(d);
+        deadlineDateLabel = formatDeadline(d);
         break;
       }
     }
