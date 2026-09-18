@@ -50,22 +50,44 @@ export function fromDbRow(row: any): TaskItem {
   };
 }
 
+// Hydration task detection filter
+export function isHydrationTask(task: TaskItem): boolean {
+  if (!task) return false;
+  const title = (task.title || '').toLowerCase();
+  const notes = (task.notes || '').toLowerCase();
+  if (title.includes('hidratac') || notes.includes('hidratac')) return true;
+  if (title.includes('agua a sorbos') || title.includes('sorbos constantes')) return true;
+  if (/(?:tomar[eé]|beber[eé]|beber).*(?:ml|litro|agua)/i.test(title)) return true;
+  if (/(?:ml|litro).*agua/i.test(title)) return true;
+  if (/^tomar[eé]\s+\d+\s*ml/i.test(title)) return true;
+  if (/^beber[eé]\s+/i.test(title)) return true;
+  return false;
+}
+
 // LocalStorage helpers
 export function getLocalTasks(userId?: string): TaskItem[] {
   try {
     const key = getStorageKey(userId);
     const saved = localStorage.getItem(key) || (!userId ? localStorage.getItem(BASE_STORAGE_KEY) || localStorage.getItem(LEGACY_KEY) : null);
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      const parsed: TaskItem[] = JSON.parse(saved);
+      const filtered = parsed.filter((t) => !isHydrationTask(t));
+      if (filtered.length !== parsed.length) {
+        saveLocalTasks(filtered, userId);
+      }
+      return filtered;
+    }
   } catch (err) {
     console.warn('Error reading from localStorage:', err);
   }
-  return userId ? [] : INITIAL_TASKS;
+  return userId ? [] : INITIAL_TASKS.filter((t) => !isHydrationTask(t));
 }
 
 export function saveLocalTasks(tasks: TaskItem[], userId?: string): void {
   try {
     const key = getStorageKey(userId);
-    localStorage.setItem(key, JSON.stringify(tasks));
+    const filtered = tasks.filter((t) => !isHydrationTask(t));
+    localStorage.setItem(key, JSON.stringify(filtered));
   } catch (err) {
     console.warn('Error saving to localStorage:', err);
   }
@@ -98,7 +120,12 @@ export async function loadTasks(userId?: string): Promise<{ tasks: TaskItem[]; i
     }
 
     if (data && data.length > 0) {
-      const items = data.map(fromDbRow);
+      const allItems = data.map(fromDbRow);
+      const items = allItems.filter((t) => !isHydrationTask(t));
+      const removed = allItems.filter((t) => isHydrationTask(t));
+      if (removed.length > 0) {
+        removed.forEach((r) => deleteTaskFromDb(r.id));
+      }
       saveLocalTasks(items, userId);
       return { tasks: items, isCloud: true };
     }

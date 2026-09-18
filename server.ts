@@ -70,7 +70,7 @@ function isRetryableGeminiError(error: any): boolean {
 async function executeWithGeminiFallback<T>(
   modelCandidates: string[],
   operation: (model: string) => Promise<T>,
-  timeoutMs = 15000
+  timeoutMs = 35000
 ): Promise<{ result: T; modelUsed: string }> {
   let lastError: any = null;
 
@@ -97,9 +97,13 @@ async function executeWithGeminiFallback<T>(
           msg.includes('spikes in demand') ||
           msg.includes('unavailable');
 
-        // If the model is experiencing high demand (503), immediately failover to the next candidate model
+        // If the model is experiencing high demand (503), retry once or failover
         if (isHighDemand) {
-          console.info(`[Gemini Failover] Modelo ${model} experimenta alta demanda temporal (503). Cambiando inmediatamente a modelo alternativo...`);
+          console.info(`[Gemini Failover] Modelo ${model} intento ${attempt}/${maxAttempts} experimenta alta demanda temporal (503).`);
+          if (attempt < maxAttempts) {
+            await new Promise((resolve) => setTimeout(resolve, 600));
+            continue;
+          }
           break;
         }
 
@@ -297,6 +301,217 @@ function extractTargetMonths(textLower: string, defaultYear?: number, defaultMon
   ];
 }
 
+// Automatically expands daily routines or recurring tasks across all days of the target period (month/range)
+function expandRecurrenceTasks(
+  tasks: any[],
+  input: string,
+  todayInfo = getTodayInfo()
+): any[] {
+  if (!tasks || tasks.length === 0) return tasks;
+
+  const textLower = (input || '').toLowerCase();
+  const spanishDayNamesFull = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
+  const dayMap: Record<string, number> = {
+    domingo: 0,
+    lunes: 1,
+    martes: 2,
+    miércoles: 3,
+    miercoles: 3,
+    jueves: 4,
+    viernes: 5,
+    sábado: 6,
+    sabado: 6,
+  };
+
+  const isDaily = /(?:todos\s+los\s+d[ií]as|cada\s+d[ií]a|diariamente|a\s+diario|rutina\s+diaria|rutina\s+de\s+todos\s+los\s+d[ií]as|rutina\s+de\s+hidrataci[oó]n|todas\s+las\s+mañanas|todas\s+las\s+tardes|todas\s+las\s+noches)/i.test(textLower);
+  const isWeekly = /(?:todas\s+las\s+semanas|cada\s+semana|semanalmente|plan\s+semanal|rutina\s+semanal|plan\s+de\s+comidas)/i.test(textLower);
+
+  const uniqueDates = new Set(tasks.map((t) => t.date).filter(Boolean));
+
+  // If already expanded across many dates (e.g. > 14 dates across multiple weeks), no need to expand again
+  if (uniqueDates.size > 14) {
+    return tasks;
+  }
+
+  // If not weekly and already has multiple distinct dates, return as is
+  if (!isWeekly && uniqueDates.size > 1) {
+    return tasks;
+  }
+
+  // Weekly plan expansion across the month:
+  if (isWeekly) {
+    const targetMonths = extractTargetMonths(textLower, todayInfo.year, todayInfo.monthIndex);
+    const templatesByDOW = new Map<number, any[]>();
+
+    for (const t of tasks) {
+      let dow = (t as any).dayOfWeek;
+      if (dow === undefined && t.date) {
+        const [y, m, d] = t.date.split('-').map(Number);
+        const dObj = new Date(Date.UTC(y, m - 1, d));
+        dow = dObj.getUTCDay();
+      }
+      if (dow !== undefined) {
+        if (!templatesByDOW.has(dow)) {
+          templatesByDOW.set(dow, []);
+        }
+        templatesByDOW.get(dow)!.push(t);
+      }
+    }
+
+    if (templatesByDOW.size > 0) {
+      const expandedWeekly: any[] = [];
+      for (const target of targetMonths) {
+        const daysInMonth = new Date(Date.UTC(target.year, target.monthIndex + 1, 0)).getUTCDate();
+        for (let day = 1; day <= daysInMonth; day++) {
+          const d = new Date(Date.UTC(target.year, target.monthIndex, day));
+          const dayDOW = d.getUTCDay();
+          const dayName = spanishDayNamesFull[dayDOW];
+          const monthNum = (target.monthIndex + 1).toString().padStart(2, '0');
+          const dayNum = day.toString().padStart(2, '0');
+          const dateStr = `${target.year}-${monthNum}-${dayNum}`;
+
+          const dayTemplates = templatesByDOW.get(dayDOW) || [];
+          dayTemplates.forEach((tmpl, tmplIdx) => {
+            const timeClean = tmpl.time || '12:00';
+            const endTimeClean = tmpl.endTime || computeEndTime(timeClean, tmpl.durationMinutes || 30);
+            const deadlineLabel = `${dayName} ${day} ${target.shortName}, ${timeClean} - ${endTimeClean}`;
+
+            expandedWeekly.push({
+              ...tmpl,
+              id: `task-recur-${dateStr}-${timeClean.replace(':', '')}-${tmplIdx}`,
+              date: dateStr,
+              time: timeClean,
+              endTime: endTimeClean,
+              extractedFields: {
+                ...(tmpl.extractedFields || {}),
+                deadlineLabel,
+                detectedTag: tmpl.extractedFields?.detectedTag || tmpl.category,
+              },
+            });
+          });
+        }
+      }
+      if (expandedWeekly.length > 0) {
+        return expandedWeekly;
+      }
+    }
+  }
+
+  // Check weekday range e.g. "de lunes a jueves", "de lunes a viernes"
+  let weekdayRange: number[] | null = null;
+  const dayRangeMatch = textLower.match(/de\s+([a-záéíóú]+)\s+a\s+([a-záéíóú]+)/i);
+  if (
+    dayRangeMatch &&
+    dayMap[dayRangeMatch[1].toLowerCase()] !== undefined &&
+    dayMap[dayRangeMatch[2].toLowerCase()] !== undefined
+  ) {
+    const sDay = dayMap[dayRangeMatch[1].toLowerCase()];
+    const eDay = dayMap[dayRangeMatch[2].toLowerCase()];
+    weekdayRange = [];
+    let cur = sDay;
+    while (true) {
+      weekdayRange.push(cur);
+      if (cur === eDay) break;
+      cur = (cur + 1) % 7;
+    }
+  }
+
+  // Check weekend / workdays
+  const isWeekend = /(?:los\s+)?fines?\s+de\s+semana/i.test(textLower);
+  const isWorkday = /(?:d[ií]as\s+laborables|entre\s+semana)/i.test(textLower);
+
+  // Check specific days: e.g. "cada martes y jueves", "los lunes y miércoles", "todos los viernes"
+  const specificDays = new Set<number>();
+  const cadaDayRegex = /(?:cada|todos\s+los|los)\s+([a-záéíóú]+(?:\s*(?:,|y)\s*[a-záéíóú]+)*)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = cadaDayRegex.exec(textLower)) !== null) {
+    const matchedPart = match[1].toLowerCase();
+    for (const [name, dNum] of Object.entries(dayMap)) {
+      const regex = new RegExp(`\\b${name}s?\\b`, 'i');
+      if (regex.test(matchedPart)) {
+        specificDays.add(dNum);
+      }
+    }
+  }
+
+  // Determine eligible days of the week
+  let eligibleDays: Set<number> | null = null;
+  if (weekdayRange && weekdayRange.length > 0) {
+    eligibleDays = new Set(weekdayRange);
+  } else if (isWeekend) {
+    eligibleDays = new Set([0, 6]);
+  } else if (isWorkday) {
+    eligibleDays = new Set([1, 2, 3, 4, 5]);
+  } else if (specificDays.size > 0) {
+    eligibleDays = specificDays;
+  } else if (isDaily) {
+    eligibleDays = new Set([0, 1, 2, 3, 4, 5, 6]);
+  }
+
+  // If no recurrence pattern was matched, return tasks as-is
+  if (!eligibleDays) {
+    return tasks;
+  }
+
+  // 2. Determine target months
+  const targetMonths = extractTargetMonths(textLower, todayInfo.year, todayInfo.monthIndex);
+
+  // 3. Determine start day within current month
+  const isStartingFromToday = /(?:desde\s+hoy|a\s+partir\s+de\s+hoy|el\s+resto\s+del\s+mes|lo\s+que\s+queda\s+de\s+mes)/i.test(textLower);
+  const isStartingFromTomorrow = /(?:desde\s+mañana|a\s+partir\s+de\s+mañana)/i.test(textLower);
+
+  const expanded: any[] = [];
+
+  for (const target of targetMonths) {
+    const daysInMonth = new Date(Date.UTC(target.year, target.monthIndex + 1, 0)).getUTCDate();
+    const isCurrentMonth = target.year === todayInfo.year && target.monthIndex === todayInfo.monthIndex;
+
+    let startDay = 1;
+    if (isCurrentMonth) {
+      if (isStartingFromTomorrow) {
+        startDay = Math.min(todayInfo.dayOfMonth + 1, daysInMonth);
+      } else if (isStartingFromToday) {
+        startDay = todayInfo.dayOfMonth;
+      } else {
+        startDay = 1;
+      }
+    }
+
+    for (let day = startDay; day <= daysInMonth; day++) {
+      const d = new Date(Date.UTC(target.year, target.monthIndex, day));
+      const dayOfWeek = d.getUTCDay(); // 0 = Sunday, 1 = Monday, ...
+      if (!eligibleDays.has(dayOfWeek)) continue;
+
+      const monthNum = (target.monthIndex + 1).toString().padStart(2, '0');
+      const dayNum = day.toString().padStart(2, '0');
+      const dateStr = `${target.year}-${monthNum}-${dayNum}`;
+      const dayName = spanishDayNamesFull[dayOfWeek];
+
+      tasks.forEach((tmpl, tmplIdx) => {
+        const timeClean = tmpl.time || '12:00';
+        const endTimeClean = tmpl.endTime || computeEndTime(timeClean, tmpl.durationMinutes || 30);
+        const deadlineLabel = `${dayName} ${day} ${target.shortName}, ${timeClean} - ${endTimeClean}`;
+
+        expanded.push({
+          ...tmpl,
+          id: `task-recur-${dateStr}-${timeClean.replace(':', '')}-${tmplIdx}`,
+          date: dateStr,
+          time: timeClean,
+          endTime: endTimeClean,
+          extractedFields: {
+            ...(tmpl.extractedFields || {}),
+            deadlineLabel,
+            detectedTag: tmpl.extractedFields?.detectedTag || tmpl.category,
+          },
+        });
+      });
+    }
+  }
+
+  return expanded.length > 0 ? expanded : tasks;
+}
+
 // Resilient heuristic parser in Spanish when Gemini API key is missing or offline
 function fallbackParseSpanish(input: string, sourceType: 'voice' | 'text' | 'vision') {
   const textClean = input.trim();
@@ -370,7 +585,7 @@ function fallbackParseSpanish(input: string, sourceType: 'voice' | 'text' | 'vis
   }
 
   // If recurring across days (e.g. "de lunes a jueves de 19:30 a 21:00")
-  if (recurringDays.length > 0) {
+  if (recurringDays.length > 0 && !textClean.includes(';') && !routineTheme) {
     let category = 'Sports/Karate';
     let detectedTag = 'Sports/Karate (Tag: Red)';
     let baseTitle = 'Entrenamiento de Karate';
@@ -450,16 +665,67 @@ function fallbackParseSpanish(input: string, sourceType: 'voice' | 'text' | 'vis
   const todayInfo = getTodayInfo();
   const baseDate = new Date();
 
-  // Split multi-task compound sentences: "..., y recuérdame ...", "y además", "y también", "y "
-  const rawSegments = textClean
-    .split(/(?:,|\.|\by además\b|\by también\b|\by recuérdame\b|\by luego\b|\by tengo que\b)/i)
+  // Check if text starts with an overall topic/routine header, e.g. "Debo seguir esta rutina de hidratación todos los días: ..."
+  let routineTheme = '';
+  const headerMatch = textClean.match(/^([^:\n]+):\s*(.+)$/s);
+  let contentToSplit = textClean;
+  if (headerMatch && /(?:de\s+\d{1,2}|a\s+las\s+\d{1,2}|\d{1,2}[.:]\d{2})/i.test(headerMatch[2])) {
+    const rawHeader = headerMatch[1].trim();
+    contentToSplit = headerMatch[2];
+    if (/hidrataci[oó]n|agua|beber/i.test(rawHeader)) {
+      routineTheme = 'Hidratación';
+    } else if (/estudio|clases|universidad/i.test(rawHeader)) {
+      routineTheme = 'Estudio';
+    } else if (/entrenamiento|gimnasio|ejercicio/i.test(rawHeader)) {
+      routineTheme = 'Entrenamiento';
+    }
+  }
+
+  // Split multi-task compound sentences: ";", ".", "y además", "y finalmente", etc.
+  const rawSegments = contentToSplit
+    .split(/(?:;|\.|\by además\b|\by también\b|\by recuérdame\b|\by luego\b|\by tengo que\b|\by finalmente\b|\by por último\b|\by por ultimo\b)/i)
     .map((s) => s.trim())
-    .filter((s) => s.length > 5);
+    .filter((s) => s.length > 3);
 
   const segmentsToProcess = rawSegments.length > 0 ? rawSegments : [textClean];
 
+  // Current week's Monday-anchored dates (e.g. Monday Sep 14 to Sunday Sep 20 for Friday Sep 18)
+  const baseCurrentDate = new Date(Date.UTC(todayInfo.year, todayInfo.monthIndex, todayInfo.dayOfMonth));
+  const currentDOW = todayInfo.dayOfWeek; // 5 = Friday
+  const diffToMonday = currentDOW === 0 ? -6 : 1 - currentDOW;
+  const mondayDate = new Date(baseCurrentDate.getTime() + diffToMonday * 24 * 60 * 60 * 1000);
+
+  const referenceWeekDates: Record<number, string> = {};
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(mondayDate.getTime() + i * 24 * 60 * 60 * 1000);
+    const y = d.getUTCFullYear();
+    const m = (d.getUTCMonth() + 1).toString().padStart(2, '0');
+    const day = d.getUTCDate().toString().padStart(2, '0');
+    const dow = d.getUTCDay(); // 1=Mon, 2=Tue, ..., 6=Sat, 0=Sun
+    referenceWeekDates[dow] = `${y}-${m}-${day}`;
+  }
+
+  let activeDayNum: number | null = null;
+  let activeDayName = '';
+
   segmentsToProcess.forEach((segment, idx) => {
     const segLower = segment.toLowerCase();
+
+    // Skip pure non-actionable introductory header (e.g. "Debo seguir este plan de comidas todas las semanas")
+    const hasAnyTime = /(?:\d{1,2}[.:]\d{2}|a\s+las\s+\d{1,2}|de\s+\d{1,2})/i.test(segLower);
+    if (!hasAnyTime && /^(?:debo seguir|plan de|rutina de|este plan|mi rutina)/i.test(segLower)) {
+      return;
+    }
+
+    // Check if segment introduces or changes the active day of the week
+    for (const [dName, dNum] of Object.entries(dayNames)) {
+      const dRegex = new RegExp(`\\b(?:el\\s+)?${dName}\\b`, 'i');
+      if (dRegex.test(segLower)) {
+        activeDayNum = dNum;
+        activeDayName = spanishDayNamesByIndex[dNum];
+        break;
+      }
+    }
 
     // 1. Detect Category
     let category = 'Personal';
@@ -509,19 +775,62 @@ function fallbackParseSpanish(input: string, sourceType: 'voice' | 'text' | 'vis
       segLower.includes('medico') ||
       segLower.includes('doctor') ||
       segLower.includes('fisio') ||
-      segLower.includes('salud')
+      segLower.includes('salud') ||
+      segLower.includes('hidratac') ||
+      segLower.includes('agua') ||
+      segLower.includes('beber') ||
+      segLower.includes('tomaré') ||
+      segLower.includes('tomare') ||
+      segLower.includes('ml') ||
+      segLower.includes('litro') ||
+      segLower.includes('desayun') ||
+      segLower.includes('cena') ||
+      segLower.includes('merienda') ||
+      segLower.includes('comida') ||
+      segLower.includes('almuerzo') ||
+      segLower.includes('comer') ||
+      segLower.includes('batido') ||
+      segLower.includes('proteína') ||
+      segLower.includes('proteina') ||
+      segLower.includes('avena') ||
+      segLower.includes('plátano') ||
+      segLower.includes('platano') ||
+      segLower.includes('creatina') ||
+      segLower.includes('arroz') ||
+      segLower.includes('pollo') ||
+      segLower.includes('carne') ||
+      segLower.includes('pasta') ||
+      segLower.includes('macarrones') ||
+      segLower.includes('patata') ||
+      segLower.includes('chocolate') ||
+      segLower.includes('tortilla') ||
+      segLower.includes('salmón') ||
+      segLower.includes('salmon') ||
+      segLower.includes('pescado') ||
+      segLower.includes('huevo') ||
+      segLower.includes('sándwich') ||
+      segLower.includes('sandwich') ||
+      segLower.includes('pan') ||
+      segLower.includes('fruta') ||
+      segLower.includes('manzana') ||
+      routineTheme === 'Hidratación'
     ) {
       category = 'Health';
       detectedTag = 'Salud (Tag: Emerald)';
     }
 
-    // 2. Extract Relative Date dynamically
+    // 2. Extract Date dynamically (inheriting active weekday if set)
     let taskDate = todayInfo.dateStr;
     let deadlineLabel = `Hoy (${todayInfo.dayName})`;
+    let dayOfWeekForTask = activeDayNum !== null ? activeDayNum : todayInfo.dayOfWeek;
 
-    if (segLower.includes('hoy')) {
+    if (activeDayNum !== null) {
+      taskDate = referenceWeekDates[activeDayNum] || todayInfo.dateStr;
+      deadlineLabel = activeDayName;
+    } else if (segLower.includes('hoy')) {
       taskDate = todayInfo.dateStr;
       deadlineLabel = `Hoy (${todayInfo.dayName})`;
+      dayOfWeekForTask = todayInfo.dayOfWeek;
     } else if (segLower.includes('pasado mañana')) {
       const d = new Date(baseDate);
       d.setDate(d.getDate() + 2);
@@ -531,6 +840,7 @@ function fallbackParseSpanish(input: string, sourceType: 'voice' | 'text' | 'vis
       taskDate = `${y}-${m}-${day}`;
       const spanishDays = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
       deadlineLabel = spanishDays[d.getDay()];
+      dayOfWeekForTask = d.getDay();
     } else if (segLower.includes('mañana')) {
       const d = new Date(baseDate);
       d.setDate(d.getDate() + 1);
@@ -540,28 +850,13 @@ function fallbackParseSpanish(input: string, sourceType: 'voice' | 'text' | 'vis
       taskDate = `${y}-${m}-${day}`;
       const spanishDays = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
       deadlineLabel = `Mañana (${spanishDays[d.getDay()]})`;
-    } else {
-      // Check explicit weekday mentions
-      for (const [dayName, targetDayNum] of Object.entries(dayNames)) {
-        if (segLower.includes(dayName)) {
-          const currentDayNum = todayInfo.dayOfWeek;
-          let diff = targetDayNum - currentDayNum;
-          if (diff <= 0) diff += 7; // next occurrence
-          const computedDate = new Date(baseDate.getTime() + diff * 24 * 60 * 60 * 1000);
-          const y = computedDate.getFullYear();
-          const m = (computedDate.getMonth() + 1).toString().padStart(2, '0');
-          const day = computedDate.getDate().toString().padStart(2, '0');
-          taskDate = `${y}-${m}-${day}`;
-          deadlineLabel = dayName.charAt(0).toUpperCase() + dayName.slice(1);
-          break;
-        }
-      }
+      dayOfWeekForTask = d.getDay();
     }
 
     // 3. Extract Time & Duration for this segment
-    let taskTime = extractedStartTime;
-    let endTime = extractedEndTime;
-    let durationMinutes = extractedDuration;
+    let taskTime = '12:00';
+    let endTime: string | undefined = undefined;
+    let durationMinutes = 30;
 
     const segTimeRange = segLower.match(/(?:de\s+)?(\d{1,2})[.:](\d{2})\s*(?:-|a|hasta)\s*(\d{1,2})[.:](\d{2})/i);
     if (segTimeRange) {
@@ -572,9 +867,9 @@ function fallbackParseSpanish(input: string, sourceType: 'voice' | 'text' | 'vis
       taskTime = `${sH.toString().padStart(2, '0')}:${sM.toString().padStart(2, '0')}`;
       endTime = `${eH.toString().padStart(2, '0')}:${eM.toString().padStart(2, '0')}`;
       const diff = (eH * 60 + eM) - (sH * 60 + sM);
-      durationMinutes = diff > 0 ? diff : 60;
+      durationMinutes = diff > 0 ? diff : 30;
     } else {
-      const timeMatch = segLower.match(/(?:a las|a la|alas)?\s*(\d{1,2})[.:](\d{2})\s*(h|horas|hrs|am|pm)?/);
+      const timeMatch = segLower.match(/(?:a las|a la|alas|de|a)?\s*(\d{1,2})[.:](\d{2})\s*(h|horas|hrs|am|pm)?/);
       if (timeMatch) {
         let hours = parseInt(timeMatch[1], 10);
         const minutes = timeMatch[2];
@@ -584,11 +879,15 @@ function fallbackParseSpanish(input: string, sourceType: 'voice' | 'text' | 'vis
         if (hours >= 0 && hours <= 23) {
           taskTime = `${hours.toString().padStart(2, '0')}:${minutes}`;
         }
+      } else {
+        taskTime = extractedStartTime;
       }
       const durMatch = segLower.match(/(\d+)\s*(?:hora|horas|h)/);
       if (durMatch) {
         durationMinutes = parseInt(durMatch[1], 10) * 60;
       } else if (segLower.includes('30 min') || segLower.includes('media hora')) {
+        durationMinutes = 30;
+      } else {
         durationMinutes = 30;
       }
       endTime = computeEndTime(taskTime, durationMinutes);
@@ -602,17 +901,23 @@ function fallbackParseSpanish(input: string, sourceType: 'voice' | 'text' | 'vis
 
     // 4. Generate Clean Title
     let title = segment
-      .replace(/^(añadir|crear|programar|recuérdame|recuerdame|tengo que|tengo)\s+/i, '')
-      .replace(/\b(mañana|hoy|el jueves|el viernes|el sábado|el domingo|el lunes|el martes|el miércoles)\b/gi, '')
-      .replace(/\ba las \d{1,2}[.:]\d{2}\b/gi, '')
-      .replace(/\bde \d{1,2}[.:]\d{2}\s*(?:-|a)\s*\d{1,2}[.:]\d{2}\b/gi, '')
+      .replace(/^(?:debo seguir[^\n:;]+:?|rutina de[^\n:;]+:?|este plan[^\n:;]+:?)\s*/gi, '')
+      .replace(/^(?:el\s+)?(?:lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado|domingo)\s+/gi, '')
+      .replace(/^(?:añadir|crear|programar|recuérdame|recuerdame|tengo que|tengo)\s+/gi, '')
+      .replace(/\b(?:a las|a la|alas)\s+\d{1,2}[.:]\d{2}(?:\s*hrs?|\s*horas)?\b/gi, '')
+      .replace(/\bde\s+\d{1,2}[.:]\d{2}\s*(?:-|a|hasta)\s*\d{1,2}[.:]\d{2}\b/gi, '')
       .replace(/\bde \d+ horas?\b/gi, '')
+      .replace(/^(?:,\s*)+/, '')
       .trim();
 
     if (title.length < 3) {
       title = segment.length > 50 ? segment.slice(0, 48) + '...' : segment;
     } else {
       title = title.charAt(0).toUpperCase() + title.slice(1);
+    }
+
+    if (routineTheme && !title.toLowerCase().includes(routineTheme.toLowerCase())) {
+      title = `${routineTheme}: ${title}`;
     }
 
     tasks.push({
@@ -627,6 +932,7 @@ function fallbackParseSpanish(input: string, sourceType: 'voice' | 'text' | 'vis
       notes: `Registrado automáticamente: "${segment}"`,
       sourceType,
       confidence: 0.95,
+      dayOfWeek: dayOfWeekForTask,
       extractedFields: {
         deadlineLabel,
         detectedTag,
@@ -634,7 +940,7 @@ function fallbackParseSpanish(input: string, sourceType: 'voice' | 'text' | 'vis
     });
   });
 
-  return tasks;
+  return expandRecurrenceTasks(tasks, input, todayInfo);
 }
 
 // Audio-to-Text Transcription Endpoint using Gemini with multi-model failover
@@ -660,9 +966,10 @@ app.post('/api/transcribe-audio', async (req, res) => {
 
       // Model candidate cascade for transcription:
       const transcriptionModels = [
-        'gemini-2.5-flash',
-        'gemini-2.0-flash',
-        'gemini-1.5-flash',
+        'gemini-3.1-flash-lite',
+        'gemini-3.6-flash',
+        'gemini-3.8-flash',
+        'gemini-flash-latest',
       ];
 
       try {
@@ -732,16 +1039,28 @@ Para cada tarea extraída, clasifica rigurosamente en una de estas categorías:
 - 'Academics' (para universidad, asignaturas, MATLAB, exámenes, código, clases)
 - 'Sports/Karate' (para artes marciales, karate, sesiones de gimnasio, hipertrofia, pesas, torneos)
 - 'Work' (para turnos de trabajo, bares, empleo, reuniones de negocio)
-- 'Personal' (para ocio, trámites, compras)
-- 'Health' (para médico, fisio, salud)
+- 'Personal' (para ocio, comidas, trámites, compras)
+- 'Health' (para médico, fisio, salud, hidratación, agua, nutrición, hábitos de bienestar, descanso)
 
-REGLAS CRÍTICAS DE HORARIOS, RECURRENCIA Y MESES:
-1. RANGOS HORARIOS (ej. "19.30-21.00", "19:30 a 21:00", "de 19.30 a 21.00"):
+REGLAS CRÍTICAS DE HORARIOS, RUTINAS Y RECURRENCIA:
+1. DESGLOSE DE RUTINAS, HÁBITOS O HORARIOS CON MÚLTIPLES FRANJAS (ej. "rutina de hidratación", "mi rutina diaria", horarios con múltiples horas separadas por ';' o comas):
+   - Si el texto describe una rutina o lista con múltiples franjas horarias (por ejemplo: "de 07:30 a 08:00 tomaré 400 ml...; de 09:00 a 13:00 beberé...; a las 17:30 tomaré..."):
+   - DEBES GENERAR UNA TAREA INDEPENDIENTE PARA CADA FRANJA HORARIA O MOMENTO ESPECIFICADO. NUNCA las combines en una sola tarea.
+   - Extrae para cada una:
+     * 'title': Título claro, corto y muy descriptivo (ej. "Hidratación: 400 ml al despertar y desayunar", "Hidratación: 750 ml - 1L en universidad", "Hidratación: 300 ml con comida", "Hidratación: 400 ml clases y merienda", "Hidratación: 250 ml pre-entrenamiento", "Hidratación: 750 ml - 1L entrenamiento", "Hidratación: 300 - 400 ml con la cena").
+     * 'category': 'Health' si es de hidratación/nutrición/salud, 'Academics' si es universidad/estudio, 'Sports/Karate' si es entrenamiento.
+     * 'detectedTag': 'Salud (Tag: Emerald)', 'Académico (Tag: Blue)', 'Sports/Karate (Tag: Red)', etc.
+     * 'time': hora de inicio en formato HH:mm 24 horas (ej. "07:30", "17:30").
+     * 'endTime': hora de finalización en formato HH:mm 24 horas (ej. "08:00", "13:00"). Si solo se menciona una hora (ej. "a las 17:30 tomaré..."), calcula un fin razonable de 15 o 30 minutos (ej. "18:00" o "17:45").
+     * 'durationMinutes': diferencia exacta en minutos entre inicio y fin.
+     * 'date': Para la extracción de plantillas de rutinas diarias o periódicas ("todos los días", "diariamente", "rutina diaria"), asigna la fecha base de hoy (${todayInfo.dateStr}). El servidor expandirá automáticamente la rutina a todos los días del calendario según el rango solicitado (septiembre, octubre, etc.).
+
+2. RANGOS HORARIOS GENERALES (ej. "19.30-21.00", "19:30 a 21:00", "de 19.30 a 21.00"):
    - 'time': hora de inicio en formato 'HH:mm' de 24 horas (ej. "19:30"). Si tiene punto como "19.30", normalízalo siempre a dos puntos "19:30".
    - 'endTime': hora de finalización en formato 'HH:mm' de 24 horas (ej. "21:00").
    - 'durationMinutes': diferencia exacta en minutos entre inicio y fin (ej. de 19:30 a 21:00 son 90 minutos).
 
-2. RECURRENCIA, RANGOS DE DÍAS Y MESES SOLICITADOS:
+3. RECURRENCIA, RANGOS DE DÍAS Y MESES SOLICITADOS:
    - Si el usuario indica un rango de días o recurrencia (ej. "de lunes a jueves de 19:30 a 21:00", "cada martes y jueves", "todos los viernes"):
      * COMPRUEBA SI EL USUARIO ESPECIFICA UNO O VARIOS MESES O UN RANGO TEMPORAL (ej. "durante todo septiembre y octubre", "en octubre y noviembre", "de septiembre a diciembre", "hasta finales de año", "las próximas semanas", "en octubre", etc.).
      * DEBES GENERAR UNA ENTRADA INDIVIDUAL PARA CADA DÍA QUE CUMPLA EL CRITERIO EN TODOS LOS MESES O RANGOS SOLICITADOS.
@@ -753,7 +1072,22 @@ REGLAS CRÍTICAS DE HORARIOS, RECURRENCIA Y MESES:
      * 'deadlineLabel' debe describir el día y horario legible con su mes correcto (ej. "Jueves 1 Oct, 19:30 - 21:00", "Lunes 19 Oct, 19:30 - 21:00").
      * 'detectedTag': ej. "Sports/Karate (Tag: Red)" o "Académico (Tag: Blue)".
 
-3. Devuelve estrictamente un array JSON con las tareas encontradas.`;
+4. PLANES SEMANALES RECURRENTES O MENÚS SEMANALES (ej. "plan de comidas todas las semanas", "todas las semanas", "menú semanal", planes con "El lunes... El martes... El miércoles..."):
+   - Si el usuario define un plan o menú semanal con actividades para diferentes días de la semana:
+     * DEBES EXTRAER ABSOLUTAMENTE TODAS LAS ACTIVIDADES DE LOS 7 DÍAS DE LA SEMANA (Lunes, Martes, Miércoles, Jueves, Viernes, Sábado y Domingo). NUNCA omitas ningún día de la semana.
+     * Para representar la semana de referencia actual (Lunes 14 Sep a Domingo 20 Sep de 2026), asigna cada día a su fecha correspondiente de esta semana:
+       - Lunes: '${todayInfo.year}-09-14'
+       - Martes: '${todayInfo.year}-09-15'
+       - Miércoles: '${todayInfo.year}-09-16'
+       - Jueves: '${todayInfo.year}-09-17'
+       - Viernes: '${todayInfo.year}-09-18' (hoy)
+       - Sábado: '${todayInfo.year}-09-19'
+       - Domingo: '${todayInfo.year}-09-20'
+     * Clasifica comidas, nutrición, dietas, desayunos, almuerzos, meriendas o cenas en la categoría 'Health' con 'Salud (Tag: Emerald)'.
+     * 'durationMinutes': asigna 30 minutos si solo se menciona la hora de inicio (ej. '08:30' -> endTime: '09:00').
+     * El servidor se encargará de replicar automáticamente el plan semanal a todas las semanas del mes o periodo solicitado.
+
+5. Devuelve estrictamente un array JSON con las tareas encontradas.`;
 
         let contents: any[] = [];
         let systemPromptToUse = systemPrompt;
@@ -820,9 +1154,10 @@ Devuelve un array JSON con todos los eventos encontrados en la imagen de calenda
 
         // Model candidate cascade: official production models first
         const parseModelCandidates = [
-          'gemini-2.5-flash',
-          'gemini-2.0-flash',
-          'gemini-1.5-flash',
+          'gemini-3.1-flash-lite',
+          'gemini-3.6-flash',
+          'gemini-3.8-flash',
+          'gemini-flash-latest',
         ];
 
         const { result: response, modelUsed } = await executeWithGeminiFallback(
@@ -859,7 +1194,8 @@ Devuelve un array JSON con todos los eventos encontrados en la imagen de calenda
                 },
               },
             });
-          }
+          },
+          35000
         );
 
         const rawText = response.text || '[]';
@@ -915,10 +1251,12 @@ Devuelve un array JSON con todos los eventos encontrados en la imagen de calenda
           };
         });
 
+        const finalTasks = expandRecurrenceTasks(extractedTasks, text || '', todayInfo);
+
         return res.json({
           sourceType: type,
           originalInput: text || 'Imagen escaneada',
-          extractedTasks,
+          extractedTasks: finalTasks,
           modelUsed,
           processingTimeMs: Date.now() - startTime,
         });

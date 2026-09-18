@@ -26,6 +26,7 @@ import { TaskItem, CategoryType } from '../types';
 import { CATEGORIES, getCategoryMeta } from '../data/categories';
 import { RealTimeClockState } from '../hooks/useRealTimeClock';
 import { NextActivityCard } from './NextActivityCard';
+import { DailyWaterTracker } from './DailyWaterTracker';
 
 interface DailyDashboardProps {
   tasks: TaskItem[];
@@ -201,6 +202,9 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
         tasks={tasks}
         onToggleTaskComplete={onToggleTaskComplete}
       />
+
+      {/* Control Diario de Hidratación con Reinicio Automático y Objetivo Personalizable */}
+      <DailyWaterTracker dateStr={clock.dateStr} />
 
       {/* Header: Title & View Switcher */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">

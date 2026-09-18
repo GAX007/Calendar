@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { TaskItem } from './types';
 import { DailyDashboard } from './components/DailyDashboard';
+import { DailyWaterTracker } from './components/DailyWaterTracker';
 import { OmniInputBar } from './components/OmniInputBar';
 import { SmartApprovalModal } from './components/SmartApprovalModal';
 import { VisionScannerModal } from './components/VisionScannerModal';
@@ -34,6 +35,7 @@ import {
   deleteTaskFromDb,
   toggleTaskCompleteInDb,
   subscribeToTaskChanges,
+  isHydrationTask,
 } from './services/taskService';
 import { isSupabaseConfigured } from './lib/supabase';
 
@@ -123,6 +125,23 @@ function CalendarApp() {
   useEffect(() => {
     saveLocalTasks(tasks, user?.id);
   }, [tasks, user?.id]);
+
+  // Purge any legacy/routine hydration tasks from memory, localStorage and Supabase
+  useEffect(() => {
+    setTasks((prev) => {
+      const filtered = prev.filter((t) => !isHydrationTask(t));
+      if (filtered.length !== prev.length) {
+        const count = prev.length - filtered.length;
+        saveLocalTasks(filtered, user?.id);
+        const removed = prev.filter(isHydrationTask);
+        removed.forEach((t) => deleteTaskFromDb(t.id));
+        showToast(
+          `Se ${count === 1 ? 'ha eliminado 1 tarea' : `han eliminado ${count} tareas`} de hidratación del calendario para usar el nuevo widget de agua.`
+        );
+      }
+      return filtered;
+    });
+  }, [user?.id]);
 
   const showToast = (message: string) => {
     setToastMessage(message);
@@ -299,8 +318,11 @@ function CalendarApp() {
             </div>
           </div>
 
-          {/* Quick actions, Manual Add & User Avatar */}
-          <div className="flex items-center gap-2 sm:gap-2.5">
+          {/* Quick actions, Hydration pill, Manual Add & User Avatar */}
+          <div className="flex items-center gap-1.5 sm:gap-2.5">
+            {/* Quick Hydration Pill Widget */}
+            <DailyWaterTracker dateStr={clock.dateStr} isCompact={true} />
+
             {/* Manual Task Creation Button */}
             <button
               id="header-btn-add-task"

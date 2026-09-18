@@ -42,6 +42,10 @@ export const SmartApprovalModal: React.FC<SmartApprovalModalProps> = ({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isEditModeActive, setIsEditModeActive] = useState<boolean>(false);
 
+  const uniqueDatesCount = React.useMemo(() => {
+    return new Set(editableTasks.map((t) => t.date)).size;
+  }, [editableTasks]);
+
   // Sync state if props change
   React.useEffect(() => {
     setEditableTasks(initialTasks);
@@ -121,6 +125,12 @@ export const SmartApprovalModal: React.FC<SmartApprovalModalProps> = ({
                         <Check className="w-3 h-3 text-emerald-400" />
                         Datos Listos
                       </span>
+                      {uniqueDatesCount > 1 && (
+                        <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-mono px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                          <Calendar className="w-3 h-3 text-indigo-400" />
+                          Programado para {uniqueDatesCount} días
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-slate-400 mt-0.5">
                       Revisa la fecha, horario y categoría antes de sincronizar con tu calendario.
@@ -361,6 +371,7 @@ export const SmartApprovalModal: React.FC<SmartApprovalModalProps> = ({
                 </button>
                 <span className="text-slate-500">
                   {editableTasks.length} {editableTasks.length === 1 ? 'tarea detectada' : 'tareas detectadas'}
+                  {uniqueDatesCount > 1 ? ` (${uniqueDatesCount} días)` : ''}
                 </span>
               </div>
 
