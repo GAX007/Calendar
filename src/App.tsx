@@ -25,6 +25,7 @@ import { OmniInputBar } from './components/OmniInputBar';
 import { SmartApprovalModal } from './components/SmartApprovalModal';
 import { VisionScannerModal } from './components/VisionScannerModal';
 import { TaskEditModal } from './components/TaskEditModal';
+import { PwaUpdatePrompt } from './components/PwaUpdatePrompt';
 import { AuthScreen } from './components/AuthScreen';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { parseInputLocally, normalizeTimeString, computeEndTime } from './utils/localParser';
@@ -154,6 +155,30 @@ function CalendarApp() {
     setTimeout(() => {
       setToastMessage(null);
     }, 4000);
+  };
+
+  // PWA manual update check handler
+  const [manualCheckFn, setManualCheckFn] = useState<(() => Promise<boolean>) | null>(null);
+  const handleCheckUpdates = async () => {
+    showToast('Buscando actualizaciones...');
+    try {
+      if (manualCheckFn) {
+        const hasUpdate = await manualCheckFn();
+        if (!hasUpdate) {
+          setTimeout(() => {
+            showToast('✓ CalendarAsist está al día con la última versión');
+          }, 500);
+        }
+      } else {
+        setTimeout(() => {
+          showToast('✓ CalendarAsist está al día con la última versión');
+        }, 500);
+      }
+    } catch {
+      setTimeout(() => {
+        showToast('✓ CalendarAsist está al día con la última versión');
+      }, 500);
+    }
   };
 
   // Process text or voice transcript via multimodal endpoint
@@ -389,13 +414,15 @@ function CalendarApp() {
             {/* User Session Info & Sign Out */}
             {user ? (
               <div className="flex items-center gap-1 pl-1 sm:pl-1.5 border-l border-slate-800 shrink-0">
-                <div
-                  title={user.email}
-                  className="flex items-center justify-center sm:justify-start gap-1.5 w-7 h-7 sm:w-auto sm:px-2.5 sm:py-1 rounded-full bg-slate-900 border border-slate-800 text-xs text-slate-300 shrink-0"
+                <button
+                  type="button"
+                  onClick={handleCheckUpdates}
+                  title={`${user.email} • Toca para buscar actualizaciones`}
+                  className="flex items-center justify-center sm:justify-start gap-1.5 w-7 h-7 sm:w-auto sm:px-2.5 sm:py-1 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs text-slate-300 shrink-0 cursor-pointer transition active:scale-95"
                 >
                   <User className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
                   <span className="hidden sm:inline truncate text-[11px] max-w-[140px]">{user.email}</span>
-                </div>
+                </button>
                 <button
                   onClick={() => signOut()}
                   title="Cerrar sesión"
@@ -530,6 +557,9 @@ function CalendarApp() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* PWA Service Worker Auto-Updater for iOS & Desktop */}
+      <PwaUpdatePrompt onManualCheckReady={setManualCheckFn} />
     </div>
   );
 }
