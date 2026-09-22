@@ -49,3 +49,28 @@ export interface VisionSchedulePreset {
   thumbnailBadge: string;
   sampleExtractedTasks: TaskItem[];
 }
+
+export interface ExerciseItem {
+  id: string;
+  name: string; // 1. Ejercicio (ej. Press de Banca Plano con Barra)
+  muscleGroup: string; // Grupo muscular (ej. Pecho, Espalda, Pierna, Hombro, Bíceps, Tríceps, Core)
+  setsReps: string; // 2. Series x Repes (ej. 4 x 8-10)
+  weight: string; // 3. Peso (ej. 80 kg)
+  transfer: string; // 4. Transferencia (ej. Potencia en golpeo tsuki / empuje de cadera)
+  execution: string; // 5. Ejecución (ej. Tempo excéntrico 3-0-1, escápulas retraídas, pausa 1s en esternón)
+  completedSets?: boolean[]; // Checkbox interactivo por serie para modo entrenamiento
+  notes?: string;
+  restSeconds?: number;
+}
+
+export interface GymRoutine {
+  id: string;
+  title: string; // ej. "Día A: Empuje & Potencia de Golpeo"
+  subtitle?: string; // ej. "Pecho, Hombro y Tríceps"
+  targetDays?: string[]; // ej. ["Lunes", "Jueves"]
+  estimatedMinutes?: number; // ej. 60
+  focus?: string; // ej. "Hipertrofia & Transferencia a Karate"
+  exercises: ExerciseItem[];
+  updatedAt?: string;
+}
+

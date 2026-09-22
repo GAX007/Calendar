@@ -21,6 +21,7 @@ import {
   Activity,
   Flame,
   Radio,
+  Dumbbell,
 } from 'lucide-react';
 import { TaskItem, CategoryType } from '../types';
 import { CATEGORIES, getCategoryMeta } from '../data/categories';
@@ -36,7 +37,17 @@ interface DailyDashboardProps {
   onEditTaskRequest: (task: TaskItem) => void;
   onOpenVisionModal: () => void;
   onAddNewTask?: (date?: string) => void;
+  onOpenGymRoutine?: (routineId?: string) => void;
 }
+
+const isGymRelated = (task: TaskItem): boolean => {
+  if (task.category === 'Sports/Karate') return true;
+  const titleLow = (task.title || '').toLowerCase();
+  const notesLow = (task.notes || '').toLowerCase();
+  return ['gym', 'gimnasio', 'pesas', 'rutina', 'entreno', 'fuerza', 'pierna', 'pecho', 'espalda', 'tríceps', 'bíceps', 'press', 'kumite'].some(
+    (k) => titleLow.includes(k) || notesLow.includes(k)
+  );
+};
 
 export const DailyDashboard: React.FC<DailyDashboardProps> = ({
   tasks,
@@ -46,6 +57,7 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
   onEditTaskRequest,
   onOpenVisionModal,
   onAddNewTask,
+  onOpenGymRoutine,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [activeDate, setActiveDate] = useState<string>(clock.dateStr);
@@ -201,6 +213,7 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
         clock={clock}
         tasks={tasks}
         onToggleTaskComplete={onToggleTaskComplete}
+        onOpenGymRoutine={onOpenGymRoutine}
       />
 
       {/* Control Diario de Hidratación con Reinicio Automático y Objetivo Personalizable */}
@@ -305,7 +318,7 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+        <div className="grid grid-cols-4 sm:grid-cols-7 gap-x-1.5 gap-y-3 sm:gap-2">
           {calendarDays.map((day) => {
             const isSelected = activeDate === day.date;
             const dayTaskCount = tasks.filter((t) => t.date === day.date).length;
@@ -649,6 +662,22 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                                     {meta.label} ({meta.tagColor})
                                   </span>
 
+                                  {/* Gym Routine shortcut button */}
+                                  {onOpenGymRoutine && isGymRelated(task) && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onOpenGymRoutine();
+                                      }}
+                                      className="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 hover:bg-rose-500/30 transition cursor-pointer active:scale-95"
+                                      title="Abrir detalles de la rutina en el módulo Gym"
+                                    >
+                                      <Dumbbell className="w-2.5 h-2.5 text-rose-400" />
+                                      <span>Ver Rutina Gym</span>
+                                    </button>
+                                  )}
+
                                   {/* Origin Pill */}
                                   {task.sourceType === 'vision' && (
                                     <span className="inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
@@ -826,6 +855,20 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                         >
                           {meta.label}
                         </span>
+                        {onOpenGymRoutine && isGymRelated(task) && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenGymRoutine();
+                            }}
+                            className="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 hover:bg-rose-500/30 transition cursor-pointer active:scale-95"
+                            title="Abrir detalles de la rutina en el módulo Gym"
+                          >
+                            <Dumbbell className="w-3 h-3 text-rose-400" />
+                            <span>Ver Rutina Gym</span>
+                          </button>
+                        )}
                       </div>
                       <p className="text-xs text-slate-400 mt-1 font-mono">
                         Duración: {task.durationMinutes} minutos &bull; {task.notes || 'Sin notas adicionales'}

@@ -62,31 +62,110 @@ export const DailyWaterTracker: React.FC<DailyWaterTrackerProps> = ({
   // Compact Pill mode (e.g. for header)
   if (isCompact) {
     return (
-      <div className={`relative flex items-center gap-1.5 p-1 rounded-full bg-slate-900 border ${
-        isCompleted ? 'border-emerald-500/50 bg-emerald-950/30' : 'border-cyan-500/40 bg-slate-900/90'
-      } text-xs ${className}`}>
-        <button
-          type="button"
-          onClick={handleOpenEditGoal}
-          className="flex items-center gap-1.5 px-2 py-0.5 text-cyan-300 hover:text-cyan-200 transition cursor-pointer"
-          title="Consumo de agua hoy. Haz clic para cambiar tu objetivo."
+      <>
+        <div
+          className={`relative flex items-center gap-1 sm:gap-1.5 p-0.5 sm:p-1 rounded-full bg-slate-900 border ${
+            isCompleted
+              ? 'border-emerald-500/50 bg-emerald-950/30'
+              : 'border-cyan-500/40 bg-slate-900/90'
+          } text-xs shrink-0 ${className}`}
         >
-          <Droplets className={`w-3.5 h-3.5 ${isCompleted ? 'text-emerald-400' : 'text-cyan-400'}`} />
-          <span className="font-bold font-mono">
-            {formatLiters(intakeLiters)}/{formatLiters(goalLiters)}L
-          </span>
-        </button>
+          <button
+            type="button"
+            onClick={handleOpenEditGoal}
+            className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-0.5 text-cyan-300 hover:text-cyan-200 transition cursor-pointer shrink-0"
+            title="Consumo de agua hoy. Pulsa para cambiar tu objetivo."
+          >
+            <Droplets className={`w-3.5 h-3.5 shrink-0 ${isCompleted ? 'text-emerald-400' : 'text-cyan-400'}`} />
+            <span className="font-bold font-mono text-[11px] sm:text-xs">
+              {formatLiters(intakeLiters)}
+              <span className="hidden sm:inline">/{formatLiters(goalLiters)}</span>L
+            </span>
+          </button>
 
-        {/* Quick + button */}
-        <button
-          type="button"
-          onClick={() => addWater(0.25)}
-          className="w-6 h-6 rounded-full bg-cyan-600 hover:bg-cyan-500 text-white flex items-center justify-center transition active:scale-90 cursor-pointer shadow-sm shadow-cyan-600/30"
-          title="Añadir 1 vaso (+250 ml)"
-        >
-          <Plus className="w-3.5 h-3.5" />
-        </button>
-      </div>
+          {/* Quick + button */}
+          <button
+            type="button"
+            onClick={() => addWater(0.25)}
+            className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-cyan-600 hover:bg-cyan-500 text-white flex items-center justify-center transition active:scale-90 cursor-pointer shadow-sm shadow-cyan-600/30 shrink-0"
+            title="Añadir 1 vaso (+250 ml)"
+          >
+            <Plus className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+          </button>
+        </div>
+
+        {/* Edit Goal Modal when triggered from compact header pill */}
+        <AnimatePresence>
+          {isEditingGoal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="w-full max-w-sm p-5 rounded-2xl bg-slate-900 border border-cyan-500/40 shadow-2xl flex flex-col gap-4"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-cyan-300 font-bold text-sm">
+                    <Droplets className="w-4 h-4 text-cyan-400" />
+                    <span>Objetivo Diario de Agua</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingGoal(false)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-white transition cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <p className="text-xs text-slate-300">
+                  Selecciona tu objetivo diario en litros o escribe una cantidad personalizada:
+                </p>
+
+                <div className="grid grid-cols-3 gap-2">
+                  {PRESET_GOALS.map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => handleSaveGoal(preset)}
+                      className={`px-2.5 py-1.5 rounded-xl border text-xs font-mono font-bold transition cursor-pointer ${
+                        goalLiters === preset
+                          ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-black shadow-sm'
+                          : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:border-cyan-500/50'
+                      }`}
+                    >
+                      {preset} L
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2 pt-2 border-t border-slate-800">
+                  <span className="text-xs text-slate-400">Personalizado:</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0.5"
+                    max="10.0"
+                    value={tempGoalInput}
+                    onChange={(e) => setTempGoalInput(e.target.value)}
+                    className="w-20 px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-white text-xs font-mono font-bold focus:outline-none focus:border-cyan-400"
+                    placeholder="3.5"
+                  />
+                  <span className="text-xs text-slate-400 font-mono">Litros</span>
+                  <button
+                    type="button"
+                    onClick={() => handleSaveGoal()}
+                    className="ml-auto px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold flex items-center gap-1 transition cursor-pointer"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Guardar</span>
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+      </>
     );
   }
 

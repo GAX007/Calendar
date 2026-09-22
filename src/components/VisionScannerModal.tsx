@@ -238,10 +238,10 @@ export const VisionScannerModal: React.FC<VisionScannerModalProps> = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
           transition={{ duration: 0.18 }}
-          className="w-full max-w-md bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl overflow-hidden"
+          className="w-full max-w-md bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
         >
           {/* Header */}
-          <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between">
+          <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
                 <Camera className="w-4 h-4" />
@@ -265,7 +265,7 @@ export const VisionScannerModal: React.FC<VisionScannerModalProps> = ({
           </div>
 
           {/* Body */}
-          <div className="p-5 sm:p-6">
+          <div className="p-5 sm:p-6 overflow-y-auto">
             {/* STATE 1: IDLE / UPLOAD */}
             {status === 'idle' && (
               <div className="flex flex-col items-center">

@@ -429,6 +429,22 @@ export function parseInputLocally(
     }
   }
 
+  // Single or multi-task compound sentences (e.g. routines separated by ";", ".", "y finalmente", etc.)
+  let routineTheme = '';
+  const headerMatch = textClean.match(/^([^:\n]+):\s*(.+)$/s);
+  let contentToSplit = textClean;
+  if (headerMatch && /(?:de\s+\d{1,2}|a\s+las\s+\d{1,2}|\d{1,2}[.:]\d{2})/i.test(headerMatch[2])) {
+    const rawHeader = headerMatch[1].trim();
+    contentToSplit = headerMatch[2];
+    if (/hidrataci[oó]n|agua|beber/i.test(rawHeader)) {
+      routineTheme = 'Hidratación';
+    } else if (/estudio|clases|universidad/i.test(rawHeader)) {
+      routineTheme = 'Estudio';
+    } else if (/entrenamiento|gimnasio|ejercicio/i.test(rawHeader)) {
+      routineTheme = 'Entrenamiento';
+    }
+  }
+
   if (recurringDays.length > 0 && !textClean.includes(';') && !routineTheme) {
     let category: CategoryType = 'Sports/Karate';
     let detectedTag = 'Sports/Karate (Tag: Red)';
@@ -519,22 +535,6 @@ export function parseInputLocally(
     }
 
     if (tasks.length > 0) return tasks;
-  }
-
-  // Single or multi-task compound sentences (e.g. routines separated by ";", ".", "y finalmente", etc.)
-  let routineTheme = '';
-  const headerMatch = textClean.match(/^([^:\n]+):\s*(.+)$/s);
-  let contentToSplit = textClean;
-  if (headerMatch && /(?:de\s+\d{1,2}|a\s+las\s+\d{1,2}|\d{1,2}[.:]\d{2})/i.test(headerMatch[2])) {
-    const rawHeader = headerMatch[1].trim();
-    contentToSplit = headerMatch[2];
-    if (/hidrataci[oó]n|agua|beber/i.test(rawHeader)) {
-      routineTheme = 'Hidratación';
-    } else if (/estudio|clases|universidad/i.test(rawHeader)) {
-      routineTheme = 'Estudio';
-    } else if (/entrenamiento|gimnasio|ejercicio/i.test(rawHeader)) {
-      routineTheme = 'Entrenamiento';
-    }
   }
 
   const rawSegments = contentToSplit

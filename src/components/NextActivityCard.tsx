@@ -8,6 +8,7 @@ import {
   Flame,
   Radio,
   Check,
+  Dumbbell,
 } from 'lucide-react';
 import { TaskItem } from '../types';
 import { getCategoryMeta } from '../data/categories';
@@ -17,12 +18,14 @@ interface NextActivityCardProps {
   clock: RealTimeClockState;
   tasks: TaskItem[];
   onToggleTaskComplete?: (taskId: string) => void;
+  onOpenGymRoutine?: (routineId?: string) => void;
 }
 
 export const NextActivityCard: React.FC<NextActivityCardProps> = ({
   clock,
   tasks,
   onToggleTaskComplete,
+  onOpenGymRoutine,
 }) => {
   // Tasks for today
   const todayTasks = tasks.filter((t) => t.date === clock.dateStr);
@@ -189,9 +192,33 @@ export const NextActivityCard: React.FC<NextActivityCardProps> = ({
           </div>
         </div>
 
-        {/* Right Side: Quick Action (Checkmark / Complete) */}
-        {onToggleTaskComplete && (
-          <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+        {/* Right Side: Quick Action (Checkmark / Complete, Gym Routine) */}
+        <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+          {onOpenGymRoutine && (
+            (() => {
+              const titleLow = (currentOrNext.title || '').toLowerCase();
+              const notesLow = (currentOrNext.notes || '').toLowerCase();
+              const isGym =
+                currentOrNext.category === 'Sports/Karate' ||
+                ['gym', 'gimnasio', 'pesas', 'rutina', 'entreno', 'fuerza', 'pierna', 'pecho', 'espalda'].some(
+                  (k) => titleLow.includes(k) || notesLow.includes(k)
+                );
+              if (!isGym) return null;
+              return (
+                <button
+                  type="button"
+                  onClick={() => onOpenGymRoutine()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-500/40 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-bold transition cursor-pointer shadow-sm active:scale-95"
+                  title="Abrir detalles de la rutina en el módulo de Gym"
+                >
+                  <Dumbbell className="w-4 h-4 text-rose-400" />
+                  <span>Ver Rutina</span>
+                </button>
+              );
+            })()
+          )}
+
+          {onToggleTaskComplete && (
             <button
               id="next-activity-btn-complete"
               onClick={() => onToggleTaskComplete(currentOrNext.id)}
@@ -201,8 +228,8 @@ export const NextActivityCard: React.FC<NextActivityCardProps> = ({
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
               <span>Marcar lista</span>
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

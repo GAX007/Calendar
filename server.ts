@@ -584,6 +584,22 @@ function fallbackParseSpanish(input: string, sourceType: 'voice' | 'text' | 'vis
     }
   }
 
+  // Check if text starts with an overall topic/routine header, e.g. "Debo seguir esta rutina de hidratación todos los días: ..."
+  let routineTheme = '';
+  const headerMatch = textClean.match(/^([^:\n]+):\s*(.+)$/s);
+  let contentToSplit = textClean;
+  if (headerMatch && /(?:de\s+\d{1,2}|a\s+las\s+\d{1,2}|\d{1,2}[.:]\d{2})/i.test(headerMatch[2])) {
+    const rawHeader = headerMatch[1].trim();
+    contentToSplit = headerMatch[2];
+    if (/hidrataci[oó]n|agua|beber/i.test(rawHeader)) {
+      routineTheme = 'Hidratación';
+    } else if (/estudio|clases|universidad/i.test(rawHeader)) {
+      routineTheme = 'Estudio';
+    } else if (/entrenamiento|gimnasio|ejercicio/i.test(rawHeader)) {
+      routineTheme = 'Entrenamiento';
+    }
+  }
+
   // If recurring across days (e.g. "de lunes a jueves de 19:30 a 21:00")
   if (recurringDays.length > 0 && !textClean.includes(';') && !routineTheme) {
     let category = 'Sports/Karate';
@@ -664,22 +680,6 @@ function fallbackParseSpanish(input: string, sourceType: 'voice' | 'text' | 'vis
   // Determine base dates relative to current live date
   const todayInfo = getTodayInfo();
   const baseDate = new Date();
-
-  // Check if text starts with an overall topic/routine header, e.g. "Debo seguir esta rutina de hidratación todos los días: ..."
-  let routineTheme = '';
-  const headerMatch = textClean.match(/^([^:\n]+):\s*(.+)$/s);
-  let contentToSplit = textClean;
-  if (headerMatch && /(?:de\s+\d{1,2}|a\s+las\s+\d{1,2}|\d{1,2}[.:]\d{2})/i.test(headerMatch[2])) {
-    const rawHeader = headerMatch[1].trim();
-    contentToSplit = headerMatch[2];
-    if (/hidrataci[oó]n|agua|beber/i.test(rawHeader)) {
-      routineTheme = 'Hidratación';
-    } else if (/estudio|clases|universidad/i.test(rawHeader)) {
-      routineTheme = 'Estudio';
-    } else if (/entrenamiento|gimnasio|ejercicio/i.test(rawHeader)) {
-      routineTheme = 'Entrenamiento';
-    }
-  }
 
   // Split multi-task compound sentences: ";", ".", "y además", "y finalmente", etc.
   const rawSegments = contentToSplit

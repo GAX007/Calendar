@@ -47,25 +47,25 @@ export const OmniInputBar: React.FC<OmniInputBarProps> = ({
         className="pointer-events-auto"
       >
         {/* Subtle quick trigger chip right above floating bar */}
-        <div className="flex items-center justify-center gap-1.5 sm:gap-2 mb-2">
+        <div className="flex items-center justify-center gap-1.5 sm:gap-2 mb-2 px-2 max-w-full">
           {onOpenNewTaskModal && (
             <button
               id="chip-trigger-manual-add"
               onClick={onOpenNewTaskModal}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/90 backdrop-blur-md border border-indigo-500/30 text-indigo-300 hover:text-indigo-200 hover:bg-slate-850 text-[11px] font-semibold transition shadow-md shadow-slate-950/40 cursor-pointer active:scale-95 whitespace-nowrap"
+              className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 rounded-full bg-slate-900/95 backdrop-blur-md border border-indigo-500/30 text-indigo-300 hover:text-indigo-200 hover:bg-slate-850 text-[10px] sm:text-[11px] font-semibold transition shadow-md shadow-slate-950/40 cursor-pointer active:scale-95 whitespace-nowrap shrink-0"
             >
               <PlusCircle className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-              <span>Añadir Manualmente</span>
+              <span>Añadir Manual</span>
             </button>
           )}
 
           <button
             id="chip-trigger-vision"
             onClick={onOpenVisionModal}
-            className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/90 backdrop-blur-md border border-cyan-500/30 text-cyan-300 hover:text-cyan-200 hover:bg-slate-850 text-[11px] font-semibold transition shadow-md shadow-slate-950/40 cursor-pointer active:scale-95 whitespace-nowrap"
+            className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 rounded-full bg-slate-900/95 backdrop-blur-md border border-cyan-500/30 text-cyan-300 hover:text-cyan-200 hover:bg-slate-850 text-[10px] sm:text-[11px] font-semibold transition shadow-md shadow-slate-950/40 cursor-pointer active:scale-95 whitespace-nowrap shrink-0"
           >
             <Camera className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-            <span>Escanear Foto u Horario</span>
+            <span>Escanear Foto</span>
           </button>
         </div>
 

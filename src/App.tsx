@@ -15,9 +15,11 @@ import {
   PlusCircle,
   User,
   LogOut,
+  Dumbbell,
 } from 'lucide-react';
 import { TaskItem } from './types';
 import { DailyDashboard } from './components/DailyDashboard';
+import { GymModule } from './components/GymModule';
 import { DailyWaterTracker } from './components/DailyWaterTracker';
 import { OmniInputBar } from './components/OmniInputBar';
 import { SmartApprovalModal } from './components/SmartApprovalModal';
@@ -47,6 +49,10 @@ function CalendarApp() {
   const [tasks, setTasks] = useState<TaskItem[]>(() => getLocalTasks(user?.id));
   const [isCloudConnected, setIsCloudConnected] = useState<boolean>(false);
   const [isLoadingDb, setIsLoadingDb] = useState<boolean>(true);
+
+  // Active module tab ('agenda' | 'gym')
+  const [activeTab, setActiveTab] = useState<'agenda' | 'gym'>('agenda');
+  const [selectedGymRoutineId, setSelectedGymRoutineId] = useState<string | undefined>(undefined);
 
   // Modal states
   const [isVisionModalOpen, setIsVisionModalOpen] = useState<boolean>(false);
@@ -302,64 +308,98 @@ function CalendarApp() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500/30 selection:text-indigo-200">
       {/* Top Navigation Bar */}
-      <header className="sticky top-0 z-30 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/80">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-600/20">
-              <Calendar className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="font-extrabold text-sm sm:text-base text-white tracking-tight">
+      <header className="sticky top-0 z-30 bg-slate-950/85 backdrop-blur-md border-b border-slate-800/80">
+        <div className="max-w-5xl mx-auto px-2.5 sm:px-6 h-14 flex items-center justify-between gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-600/20">
+                {activeTab === 'gym' ? (
+                  <Dumbbell className="w-4 h-4 text-rose-200" />
+                ) : (
+                  <Calendar className="w-4 h-4" />
+                )}
+              </div>
+              <span className="font-extrabold text-sm sm:text-base text-white tracking-tight hidden md:inline">
                 CalendarAsist
               </span>
-              <span className="hidden sm:inline-block ml-2 text-[11px] text-slate-400 font-medium">
-                Agenda Personal
-              </span>
             </div>
+
+            {/* Navigation Tabs Switcher */}
+            <nav className="flex items-center p-0.5 sm:p-1 bg-slate-900 border border-slate-800 rounded-xl shrink-0">
+              <button
+                id="tab-btn-agenda"
+                type="button"
+                onClick={() => setActiveTab('agenda')}
+                className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  activeTab === 'agenda'
+                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                <span>Agenda</span>
+              </button>
+              <button
+                id="tab-btn-gym"
+                type="button"
+                onClick={() => setActiveTab('gym')}
+                className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  activeTab === 'gym'
+                    ? 'bg-rose-600 text-white shadow-sm shadow-rose-600/30'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Dumbbell className="w-3.5 h-3.5" />
+                <span>Gym<span className="hidden sm:inline"> & Rutinas</span></span>
+              </button>
+            </nav>
           </div>
 
           {/* Quick actions, Hydration pill, Manual Add & User Avatar */}
-          <div className="flex items-center gap-1.5 sm:gap-2.5">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {/* Quick Hydration Pill Widget */}
             <DailyWaterTracker dateStr={clock.dateStr} isCompact={true} />
 
-            {/* Manual Task Creation Button */}
-            <button
-              id="header-btn-add-task"
-              onClick={() => handleOpenNewTaskModal()}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm shadow-indigo-600/30 transition cursor-pointer active:scale-95"
-              title="Añadir tarea manualmente"
-            >
-              <PlusCircle className="w-3.5 h-3.5 shrink-0" />
-              <span>Nueva tarea</span>
-            </button>
+            {/* Manual Task Creation Button (shown on Agenda tab) */}
+            {activeTab === 'agenda' && (
+              <>
+                <button
+                  id="header-btn-add-task"
+                  onClick={() => handleOpenNewTaskModal()}
+                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm shadow-indigo-600/30 transition cursor-pointer active:scale-95"
+                  title="Añadir tarea manualmente"
+                >
+                  <PlusCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>Nueva tarea</span>
+                </button>
 
-            <button
-              id="header-btn-quick-vision-demo"
-              onClick={() => {
-                setIsVisionModalOpen(true);
-              }}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 border border-slate-700/80 text-xs text-slate-300 hover:text-white hover:border-slate-600 transition cursor-pointer"
-            >
-              <Camera className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="hidden sm:inline">Escanear foto</span>
-              <span className="sm:hidden">Foto</span>
-            </button>
+                <button
+                  id="header-btn-quick-vision-demo"
+                  onClick={() => {
+                    setIsVisionModalOpen(true);
+                  }}
+                  className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 border border-slate-700/80 text-xs text-slate-300 hover:text-white hover:border-slate-600 transition cursor-pointer"
+                >
+                  <Camera className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Foto</span>
+                </button>
+              </>
+            )}
 
             {/* User Session Info & Sign Out */}
             {user ? (
-              <div className="flex items-center gap-1 pl-1.5 border-l border-slate-800">
+              <div className="flex items-center gap-1 pl-1 sm:pl-1.5 border-l border-slate-800 shrink-0">
                 <div
                   title={user.email}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800 text-xs text-slate-300 max-w-[120px] sm:max-w-[180px]"
+                  className="flex items-center justify-center sm:justify-start gap-1.5 w-7 h-7 sm:w-auto sm:px-2.5 sm:py-1 rounded-full bg-slate-900 border border-slate-800 text-xs text-slate-300 shrink-0"
                 >
                   <User className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                  <span className="truncate text-[11px]">{user.email}</span>
+                  <span className="hidden sm:inline truncate text-[11px] max-w-[140px]">{user.email}</span>
                 </div>
                 <button
                   onClick={() => signOut()}
                   title="Cerrar sesión"
-                  className="p-1.5 rounded-full text-slate-400 hover:text-red-400 hover:bg-slate-900 transition cursor-pointer"
+                  className="w-7 h-7 sm:w-auto p-1.5 rounded-full text-slate-400 hover:text-red-400 hover:bg-slate-900 transition cursor-pointer flex items-center justify-center shrink-0"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                 </button>
@@ -368,7 +408,7 @@ function CalendarApp() {
               <button
                 onClick={() => signOut()}
                 title="Iniciar sesión con una cuenta privada"
-                className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-indigo-600/20 border border-indigo-500/40 text-indigo-300 text-xs hover:bg-indigo-600/30 transition cursor-pointer"
+                className="flex items-center gap-1 px-2 py-1 sm:px-2.5 rounded-full bg-indigo-600/20 border border-indigo-500/40 text-indigo-300 text-xs hover:bg-indigo-600/30 transition cursor-pointer shrink-0"
               >
                 <User className="w-3 h-3" />
                 <span>Login</span>
@@ -378,20 +418,38 @@ function CalendarApp() {
         </div>
       </header>
 
-      {/* Main Content: Daily Dashboard */}
+      {/* Main Content: Daily Dashboard or Gym Module */}
       <main className="flex-1">
-        <DailyDashboard
-          tasks={tasks}
-          clock={clock}
-          onToggleTaskComplete={handleToggleTaskComplete}
-          onDeleteTask={handleDeleteTask}
-          onEditTaskRequest={(task) => {
-            setIsNewTask(false);
-            setEditingTask(task);
-          }}
-          onOpenVisionModal={() => setIsVisionModalOpen(true)}
-          onAddNewTask={(date) => handleOpenNewTaskModal(date)}
-        />
+        {activeTab === 'agenda' ? (
+          <DailyDashboard
+            tasks={tasks}
+            clock={clock}
+            onToggleTaskComplete={handleToggleTaskComplete}
+            onDeleteTask={handleDeleteTask}
+            onEditTaskRequest={(task) => {
+              setIsNewTask(false);
+              setEditingTask(task);
+            }}
+            onOpenVisionModal={() => setIsVisionModalOpen(true)}
+            onAddNewTask={(date) => handleOpenNewTaskModal(date)}
+            onOpenGymRoutine={(routineId) => {
+              setSelectedGymRoutineId(routineId);
+              setActiveTab('gym');
+            }}
+          />
+        ) : (
+          <GymModule
+            clock={clock}
+            userId={user?.id}
+            userEmail={user?.email}
+            initialRoutineId={selectedGymRoutineId}
+            onClose={() => setActiveTab('agenda')}
+            onScheduleRoutineInCalendar={(task) => {
+              handleApproveAndAddTasks([task]);
+              setActiveTab('agenda');
+            }}
+          />
+        )}
       </main>
 
       {/* Discreet Scroll-To-Top Floating Button */}
@@ -405,21 +463,27 @@ function CalendarApp() {
             onClick={handleScrollToTop}
             title="Volver arriba"
             aria-label="Volver arriba"
-            className="fixed bottom-24 right-5 sm:right-8 z-40 p-2.5 rounded-full bg-slate-900/90 hover:bg-indigo-600 text-slate-400 hover:text-white border border-slate-700/80 shadow-lg shadow-black/50 backdrop-blur-sm transition-colors cursor-pointer group"
+            className={`fixed ${
+              activeTab === 'agenda'
+                ? 'bottom-[calc(9.5rem+env(safe-area-inset-bottom,0px))] sm:bottom-28'
+                : 'bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] sm:bottom-24'
+            } right-3.5 sm:right-8 z-50 p-2.5 sm:p-3 rounded-full bg-slate-900/95 hover:bg-indigo-600 text-slate-300 hover:text-white border border-slate-700/90 shadow-xl shadow-black/60 backdrop-blur-md transition-all cursor-pointer group active:scale-95`}
           >
             <ArrowUp className="w-4 h-4 transition-transform group-hover:-translate-y-0.5" />
           </motion.button>
         )}
       </AnimatePresence>
 
-      {/* Floating Omni-Input Bar (Voice & Text) */}
-      <OmniInputBar
-        onOpenVisionModal={() => setIsVisionModalOpen(true)}
-        onOpenNewTaskModal={() => handleOpenNewTaskModal()}
-        onSubmitText={(text) => handleProcessInput(text, 'text')}
-        onProcessInput={(text, source) => handleProcessInput(text, source || 'text')}
-        isProcessing={isProcessing}
-      />
+      {/* Floating Omni-Input Bar (Voice & Text) - only active on agenda */}
+      {activeTab === 'agenda' && (
+        <OmniInputBar
+          onOpenVisionModal={() => setIsVisionModalOpen(true)}
+          onOpenNewTaskModal={() => handleOpenNewTaskModal()}
+          onSubmitText={(text) => handleProcessInput(text, 'text')}
+          onProcessInput={(text, source) => handleProcessInput(text, source || 'text')}
+          isProcessing={isProcessing}
+        />
+      )}
 
       {/* Smart Approval Confirmation Card */}
       <SmartApprovalModal
