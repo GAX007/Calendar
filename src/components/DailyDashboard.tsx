@@ -49,6 +49,20 @@ const isGymRelated = (task: TaskItem): boolean => {
   );
 };
 
+const getRoutineIdForTask = (task: TaskItem): string => {
+  const text = `${task.title} ${task.notes || ''}`.toLowerCase();
+  if (text.includes('pierna') || text.includes('lunes') || text.includes('cadera') || text.includes('golpeo') || text.includes('sentadilla')) {
+    return 'routine-lunes-pierna-cadera-golpeo';
+  }
+  if (text.includes('torso') || text.includes('miércoles') || text.includes('miercoles') || text.includes('cuello') || text.includes('cervical') || text.includes('banca')) {
+    return 'routine-miercoles-torso-cuello';
+  }
+  if (text.includes('híbrido') || text.includes('hibrido') || text.includes('viernes') || text.includes('sábado') || text.includes('sabado') || text.includes('posterior') || text.includes('core') || text.includes('muerto')) {
+    return 'routine-viernes-sabado-hibrido-core';
+  }
+  return 'routine-lunes-pierna-cadera-golpeo';
+};
+
 export const DailyDashboard: React.FC<DailyDashboardProps> = ({
   tasks,
   clock,
@@ -206,6 +220,51 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
   const completedCount = tasks.filter((t) => t.completed).length;
   const aiExtractedCount = tasks.filter((t) => t.sourceType !== 'manual').length;
 
+  // Dynamic routine banner for today
+  const todayRoutineInfo = useMemo(() => {
+    const day = clock.dayName;
+    if (day === 'Lunes') {
+      return {
+        routineId: 'routine-lunes-pierna-cadera-golpeo',
+        badge: 'Rutina de Hoy • Lunes',
+        title: 'LUNES: Foco Pierna (Fuerza Base y Cadera) + Activación de Golpeo',
+        subtitle: '6 ejercicios: Balón medicinal, Landmine Gyaku Tsuki, Sentadilla (100-105kg), Hip Thrust, Cuádriceps y Bici Keiser',
+        duration: '~65 min',
+        isTrainingDay: true,
+      };
+    }
+    if (day === 'Miércoles') {
+      return {
+        routineId: 'routine-miercoles-torso-cuello',
+        badge: 'Rutina de Hoy • Miércoles',
+        title: 'MIÉRCOLES: Foco Torso (Fuerza) + Blindaje Cervical',
+        subtitle: '5 ejercicios: Saltos balísticos, Press Banca (55-60kg), Press Militar, Remo y Blindaje Cervical',
+        duration: '~60 min',
+        isTrainingDay: true,
+      };
+    }
+    if (day === 'Viernes' || day === 'Sábado') {
+      return {
+        routineId: 'routine-viernes-sabado-hibrido-core',
+        badge: `Rutina de Hoy • ${day}`,
+        title: 'VIERNES o SÁBADO: Día Híbrido (Cadena Posterior y Volumen) + Core',
+        subtitle: '5 ejercicios: Peso Muerto Rumano (90kg), Zancadas atrás, Press Inclinado, Jalón al Pecho y Core Pallof',
+        duration: '~65 min',
+        isTrainingDay: true,
+      };
+    }
+    const nextSession = day === 'Martes' ? 'Miércoles (Foco Torso + Cuello)' : day === 'Jueves' ? 'Viernes (Día Híbrido + Core)' : 'Lunes (Foco Pierna + Golpeo)';
+    const nextRoutineId = day === 'Martes' ? 'routine-miercoles-torso-cuello' : day === 'Jueves' ? 'routine-viernes-sabado-hibrido-core' : 'routine-lunes-pierna-cadera-golpeo';
+    return {
+      routineId: nextRoutineId,
+      badge: `Día de Descanso / Técnico • ${day}`,
+      title: `Próxima sesión: ${nextSession}`,
+      subtitle: 'Consulta y entrena tus 3 rutinas oficiales de fuerza en cualquier momento',
+      duration: '60-65 min',
+      isTrainingDay: false,
+    };
+  }, [clock.dayName]);
+
   return (
     <div className="w-full max-w-5xl mx-auto px-3 sm:px-6 pt-4 sm:pt-6 pb-[calc(10rem+env(safe-area-inset-bottom,0px))] sm:pb-40 flex flex-col gap-5 sm:gap-6">
       {/* Próxima Actividad / Actividad en Curso */}
@@ -218,6 +277,48 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
 
       {/* Control Diario de Hidratación con Reinicio Automático y Objetivo Personalizable */}
       <DailyWaterTracker dateStr={clock.dateStr} />
+
+      {/* Acceso Directo a la Rutina de Gym Actualizada */}
+      {onOpenGymRoutine && (
+        <div className="rounded-2xl border border-rose-500/40 bg-gradient-to-r from-rose-950/40 via-slate-900 to-slate-900/90 p-4 sm:p-5 shadow-xl shadow-rose-950/20 backdrop-blur-sm relative overflow-hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3.5 min-w-0">
+              <div className="w-11 h-11 rounded-2xl bg-rose-600/20 border border-rose-500/50 flex items-center justify-center text-rose-400 shrink-0 shadow-inner">
+                <Dumbbell className="w-5 h-5 animate-pulse" />
+              </div>
+              <div className="flex flex-col gap-0.5 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-mono font-bold uppercase tracking-wider ${
+                    todayRoutineInfo.isTrainingDay
+                      ? 'bg-rose-500/20 border-rose-500/50 text-rose-300'
+                      : 'bg-slate-800 border-slate-700 text-slate-300'
+                  }`}>
+                    {todayRoutineInfo.badge}
+                  </span>
+                  <span className="text-xs text-slate-400 font-mono hidden sm:inline">&bull; {todayRoutineInfo.duration}</span>
+                </div>
+                <h3 className="text-sm sm:text-base font-bold text-white tracking-tight mt-0.5 truncate">
+                  {todayRoutineInfo.title}
+                </h3>
+                <p className="text-xs text-slate-400 truncate">
+                  {todayRoutineInfo.subtitle}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+              <button
+                type="button"
+                onClick={() => onOpenGymRoutine(todayRoutineInfo.routineId)}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-md shadow-rose-600/30 transition cursor-pointer active:scale-95"
+              >
+                <Dumbbell className="w-4 h-4" />
+                <span>Ver Rutina de Gym</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Header: Title & View Switcher */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
@@ -668,7 +769,7 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                                       type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        onOpenGymRoutine();
+                                        onOpenGymRoutine(getRoutineIdForTask(task));
                                       }}
                                       className="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 hover:bg-rose-500/30 transition cursor-pointer active:scale-95"
                                       title="Abrir detalles de la rutina en el módulo Gym"
@@ -860,7 +961,7 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              onOpenGymRoutine();
+                              onOpenGymRoutine(getRoutineIdForTask(task));
                             }}
                             className="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 hover:bg-rose-500/30 transition cursor-pointer active:scale-95"
                             title="Abrir detalles de la rutina en el módulo Gym"

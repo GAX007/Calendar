@@ -204,10 +204,25 @@ export const NextActivityCard: React.FC<NextActivityCardProps> = ({
                   (k) => titleLow.includes(k) || notesLow.includes(k)
                 );
               if (!isGym) return null;
+
+              const getRoutineId = () => {
+                const combined = `${titleLow} ${notesLow}`;
+                if (combined.includes('pierna') || combined.includes('cadera') || combined.includes('golpeo') || combined.includes('lunes') || combined.includes('sentadilla')) {
+                  return 'routine-lunes-pierna-cadera-golpeo';
+                }
+                if (combined.includes('torso') || combined.includes('cuello') || combined.includes('cervical') || combined.includes('miercoles') || combined.includes('miércoles') || combined.includes('banca')) {
+                  return 'routine-miercoles-torso-cuello';
+                }
+                if (combined.includes('híbrido') || combined.includes('hibrido') || combined.includes('posterior') || combined.includes('core') || combined.includes('viernes') || combined.includes('sabado') || combined.includes('sábado') || combined.includes('muerto')) {
+                  return 'routine-viernes-sabado-hibrido-core';
+                }
+                return 'routine-lunes-pierna-cadera-golpeo';
+              };
+
               return (
                 <button
                   type="button"
-                  onClick={() => onOpenGymRoutine()}
+                  onClick={() => onOpenGymRoutine(getRoutineId())}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-500/40 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-bold transition cursor-pointer shadow-sm active:scale-95"
                   title="Abrir detalles de la rutina en el módulo de Gym"
                 >

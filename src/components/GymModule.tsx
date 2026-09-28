@@ -38,6 +38,7 @@ import {
   resetWorkoutSession,
   subscribeToGymChanges,
   reorderExercise,
+  resetToOfficialRoutines,
 } from '../services/gymService';
 import { RealTimeClockState } from '../hooks/useRealTimeClock';
 
@@ -578,6 +579,21 @@ export const GymModule: React.FC<GymModuleProps> = ({
                 <span>Volver a Agenda</span>
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('¿Restablecer todas las rutinas a la versión oficial actualizada (Lunes, Miércoles, Viernes/Sábado)?')) {
+                  const updated = resetToOfficialRoutines(userId, userEmail);
+                  setRoutines(updated);
+                  setActiveRoutineId(updated[0]?.id || '');
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800/90 hover:bg-rose-950/40 text-slate-300 hover:text-rose-300 font-medium text-xs border border-slate-700 hover:border-rose-500/50 transition cursor-pointer"
+              title="Restablecer rutinas oficiales actualizadas"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-rose-400" />
+              <span className="hidden sm:inline">Restablecer Oficial</span>
+            </button>
             <button
               type="button"
               onClick={() => setIsCreatingRoutine(true)}

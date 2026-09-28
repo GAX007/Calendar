@@ -2,6 +2,8 @@ import { GymRoutine, ExerciseItem } from '../types';
 import { INITIAL_GYM_ROUTINES } from '../data/initialGymRoutines';
 
 const BASE_GYM_STORAGE_KEY = 'omniagenda_gym_routines';
+const GYM_ROUTINES_VERSION = '2026-09-28-v1';
+const GYM_VERSION_KEY = 'omniagenda_gym_version';
 const GYM_CHANGE_EVENT = 'omniagenda_gym_routines_updated';
 
 function getGymStorageKey(userId?: string, userEmail?: string): string {
@@ -33,8 +35,26 @@ export function subscribeToGymChanges(listener: GymListener): () => void {
   };
 }
 
+export function resetToOfficialRoutines(userId?: string, userEmail?: string): GymRoutine[] {
+  saveLocalGymRoutines(INITIAL_GYM_ROUTINES, userId, userEmail);
+  try {
+    localStorage.setItem(GYM_VERSION_KEY, GYM_ROUTINES_VERSION);
+  } catch {}
+  return INITIAL_GYM_ROUTINES;
+}
+
 export function getLocalGymRoutines(userId?: string, userEmail?: string): GymRoutine[] {
   try {
+    const cachedVersion = localStorage.getItem(GYM_VERSION_KEY);
+    // If not matching the current updated routine version, force upgrade to Xavier's new official routines
+    if (cachedVersion !== GYM_ROUTINES_VERSION) {
+      saveLocalGymRoutines(INITIAL_GYM_ROUTINES, userId, userEmail);
+      try {
+        localStorage.setItem(GYM_VERSION_KEY, GYM_ROUTINES_VERSION);
+      } catch {}
+      return INITIAL_GYM_ROUTINES;
+    }
+
     const candidateKeys = [
       userEmail ? `${BASE_GYM_STORAGE_KEY}_${userEmail.toLowerCase().trim()}` : null,
       userId ? `${BASE_GYM_STORAGE_KEY}_${userId}` : null,
@@ -48,13 +68,15 @@ export function getLocalGymRoutines(userId?: string, userEmail?: string): GymRou
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // If the cached routines are the old generic templates, auto-upgrade to Xavier's routines
+          // If the cached routines are the old generic templates or outdated routines, auto-upgrade
           const isLegacy = parsed.some(
             (r: any) =>
               r.id === 'routine-empuje' ||
               r.id === 'routine-tiron' ||
               r.id === 'routine-pierna' ||
-              r.id === 'routine-core'
+              r.id === 'routine-core' ||
+              r.id === 'routine-lunes-pierna-pecho' ||
+              r.updatedAt !== '2026-09-28'
           );
           if (!isLegacy) {
             return parsed;
@@ -72,6 +94,7 @@ export function getLocalGymRoutines(userId?: string, userEmail?: string): GymRou
     localStorage.setItem(targetKey, JSON.stringify(INITIAL_GYM_ROUTINES));
     localStorage.setItem(`${BASE_GYM_STORAGE_KEY}_xaviervarteniuc@gmail.com`, JSON.stringify(INITIAL_GYM_ROUTINES));
     localStorage.setItem(BASE_GYM_STORAGE_KEY, JSON.stringify(INITIAL_GYM_ROUTINES));
+    localStorage.setItem(GYM_VERSION_KEY, GYM_ROUTINES_VERSION);
   } catch {}
 
   return INITIAL_GYM_ROUTINES;
@@ -90,6 +113,7 @@ export function saveLocalGymRoutines(
     }
     localStorage.setItem(`${BASE_GYM_STORAGE_KEY}_xaviervarteniuc@gmail.com`, JSON.stringify(routines));
     localStorage.setItem(BASE_GYM_STORAGE_KEY, JSON.stringify(routines));
+    localStorage.setItem(GYM_VERSION_KEY, GYM_ROUTINES_VERSION);
     emitGymChange();
   } catch (err) {
     console.warn('Error saving gym routines to localStorage:', err);
