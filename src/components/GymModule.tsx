@@ -28,6 +28,9 @@ import {
   ChevronDown,
   ArrowUpDown,
   GripVertical,
+  Volume2,
+  VolumeX,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { GymRoutine, ExerciseItem, TaskItem } from '../types';
 import {
@@ -41,6 +44,19 @@ import {
   resetToOfficialRoutines,
 } from '../services/gymService';
 import { RealTimeClockState } from '../hooks/useRealTimeClock';
+import GymAudioEngine, {
+  GymSoundMode,
+  getSavedGymSoundMode,
+  saveGymSoundMode,
+  enableBackgroundAudioKeepAlive,
+  disableBackgroundAudioKeepAlive,
+  updateMediaSession,
+  requestNotificationPermission,
+  sendTimerFinishedNotification,
+  createBackgroundTimerWorker,
+  BackgroundTimerController,
+  GYM_TIMER_TARGET_STORAGE_KEY,
+} from '../utils/gymAudio';
 
 interface GymModuleProps {
   clock: RealTimeClockState;
@@ -406,7 +422,35 @@ export const GymModule: React.FC<GymModuleProps> = ({
   // Rest Timer State
   const [timerSeconds, setTimerSeconds] = useState<number>(0);
   const [isTimerRunning, setIsTimerRunning] = useState<boolean>(false);
-  const [timerPreset, setTimerPreset] = useState<number>(90);
+  const [timerPreset, setTimerPreset] = useState<number>(120);
+
+  // Modals for workout reset confirmation & mobile countdown timer picker
+  const [showResetConfirmModal, setShowResetConfirmModal] = useState<boolean>(false);
+  const [isTimerPickerOpen, setIsTimerPickerOpen] = useState<boolean>(false);
+  const [pickerMinutes, setPickerMinutes] = useState<number>(2);
+  const [pickerSeconds, setPickerSeconds] = useState<number>(0);
+  const [soundMode, setSoundMode] = useState<GymSoundMode>(() => getSavedGymSoundMode());
+
+  // Background timer references (wall-clock timestamp & Web Worker)
+  const targetEndTimeRef = useRef<number | null>(null);
+  const timerSecondsRef = useRef<number>(0);
+  const soundModeRef = useRef<GymSoundMode>(soundMode);
+  const isTimerRunningRef = useRef<boolean>(false);
+  const lastSoundSecondRef = useRef<number | null>(null);
+  const workerRef = useRef<BackgroundTimerController | null>(null);
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    soundModeRef.current = soundMode;
+  }, [soundMode]);
+
+  useEffect(() => {
+    isTimerRunningRef.current = isTimerRunning;
+  }, [isTimerRunning]);
+
+  useEffect(() => {
+    timerSecondsRef.current = timerSeconds;
+  }, [timerSeconds]);
 
   // Subscribe to external/local changes
   useEffect(() => {
@@ -428,33 +472,178 @@ export const GymModule: React.FC<GymModuleProps> = ({
     return routines.find((r) => r.id === activeRoutineId) || routines[0] || null;
   }, [routines, activeRoutineId]);
 
-  // Timer countdown
+  // Background resilient timer engine (Web Worker + Date.now() timestamp + Keep-Alive audio)
   useEffect(() => {
-    let interval: any = null;
-    if (isTimerRunning && timerSeconds > 0) {
-      interval = setInterval(() => {
-        setTimerSeconds((prev) => prev - 1);
-      }, 1000);
-    } else if (timerSeconds === 0 && isTimerRunning) {
-      setIsTimerRunning(false);
+    // Check if there was an active timer target in localStorage
+    const savedTarget = localStorage.getItem(GYM_TIMER_TARGET_STORAGE_KEY);
+    if (savedTarget) {
+      const targetNum = parseInt(savedTarget, 10);
+      const remaining = Math.max(0, Math.ceil((targetNum - Date.now()) / 1000));
+      if (remaining > 0) {
+        targetEndTimeRef.current = targetNum;
+        timerSecondsRef.current = remaining;
+        setTimerSeconds(remaining);
+        setIsTimerRunning(true);
+        setIsWorkoutMode(true);
+        enableBackgroundAudioKeepAlive();
+        updateMediaSession(remaining, true);
+      } else {
+        localStorage.removeItem(GYM_TIMER_TARGET_STORAGE_KEY);
+      }
     }
-    return () => clearInterval(interval);
-  }, [isTimerRunning, timerSeconds]);
+
+    // Initialize Web Worker for background ticking
+    const worker = createBackgroundTimerWorker(() => {
+      const target = targetEndTimeRef.current;
+      if (!target || !isTimerRunningRef.current) return;
+
+      const now = Date.now();
+      const remaining = Math.max(0, Math.ceil((target - now) / 1000));
+
+      updateMediaSession(remaining, true);
+
+      if (remaining !== timerSecondsRef.current) {
+        timerSecondsRef.current = remaining;
+        setTimerSeconds(remaining);
+
+        // Sound & Haptic countdown at 5, 4, 3, 2, 1
+        if (remaining >= 1 && remaining <= 5) {
+          if (lastSoundSecondRef.current !== remaining) {
+            lastSoundSecondRef.current = remaining;
+            GymAudioEngine.playCountdown(remaining, soundModeRef.current);
+            if ('vibrate' in navigator) {
+              navigator.vibrate(80);
+            }
+          }
+        } else if (remaining === 0) {
+          if (lastSoundSecondRef.current !== 0) {
+            lastSoundSecondRef.current = 0;
+            GymAudioEngine.playFinished(soundModeRef.current);
+            sendTimerFinishedNotification();
+
+            targetEndTimeRef.current = null;
+            localStorage.removeItem(GYM_TIMER_TARGET_STORAGE_KEY);
+            setIsTimerRunning(false);
+            disableBackgroundAudioKeepAlive();
+            updateMediaSession(0, false);
+            workerRef.current?.stop();
+          }
+        }
+      }
+    });
+
+    workerRef.current = worker;
+    if (targetEndTimeRef.current && isTimerRunningRef.current) {
+      worker.start();
+    }
+
+    // Refresh UI immediately whenever user returns to tab from WhatsApp or lock screen
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && targetEndTimeRef.current) {
+        const remaining = Math.max(0, Math.ceil((targetEndTimeRef.current - Date.now()) / 1000));
+        timerSecondsRef.current = remaining;
+        setTimerSeconds(remaining);
+
+        if (remaining <= 0) {
+          if (lastSoundSecondRef.current !== 0) {
+            lastSoundSecondRef.current = 0;
+            GymAudioEngine.playFinished(soundModeRef.current);
+            sendTimerFinishedNotification();
+          }
+          setIsTimerRunning(false);
+          targetEndTimeRef.current = null;
+          localStorage.removeItem(GYM_TIMER_TARGET_STORAGE_KEY);
+          disableBackgroundAudioKeepAlive();
+          updateMediaSession(0, false);
+          workerRef.current?.stop();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      worker.destroy();
+      disableBackgroundAudioKeepAlive();
+    };
+  }, []);
 
   const startRestTimer = (seconds: number) => {
+    GymAudioEngine.getAudioContext();
+    requestNotificationPermission();
+    enableBackgroundAudioKeepAlive();
+
+    const target = Date.now() + seconds * 1000;
+    targetEndTimeRef.current = target;
+    localStorage.setItem(GYM_TIMER_TARGET_STORAGE_KEY, String(target));
+
+    lastSoundSecondRef.current = null;
+    timerSecondsRef.current = seconds;
     setTimerPreset(seconds);
     setTimerSeconds(seconds);
     setIsTimerRunning(true);
+    setIsWorkoutMode(true);
+
+    updateMediaSession(seconds, true);
+    workerRef.current?.start();
   };
 
-  const handleStartTimer = (seconds: number) => {
-    setTimerSeconds(seconds);
-    setIsTimerRunning(true);
+  const handleStartTimer = (seconds: number) => startRestTimer(seconds);
+
+  const handleTogglePlayPause = () => {
+    GymAudioEngine.getAudioContext();
+    if (isTimerRunning) {
+      // Pause
+      const remaining = targetEndTimeRef.current
+        ? Math.max(0, Math.ceil((targetEndTimeRef.current - Date.now()) / 1000))
+        : timerSeconds;
+
+      targetEndTimeRef.current = null;
+      localStorage.removeItem(GYM_TIMER_TARGET_STORAGE_KEY);
+      disableBackgroundAudioKeepAlive();
+      updateMediaSession(remaining, false);
+      workerRef.current?.stop();
+
+      timerSecondsRef.current = remaining;
+      setTimerSeconds(remaining);
+      setIsTimerRunning(false);
+    } else {
+      // Start or Resume
+      const secToRun = timerSeconds > 0 ? timerSeconds : timerPreset || 120;
+      startRestTimer(secToRun);
+    }
   };
 
   const handleResetTimer = () => {
+    targetEndTimeRef.current = null;
+    localStorage.removeItem(GYM_TIMER_TARGET_STORAGE_KEY);
+    disableBackgroundAudioKeepAlive();
+    updateMediaSession(0, false);
+    workerRef.current?.stop();
+
+    timerSecondsRef.current = 0;
     setTimerSeconds(0);
     setIsTimerRunning(false);
+    lastSoundSecondRef.current = null;
+  };
+
+  const toggleSoundMode = () => {
+    const modes: GymSoundMode[] = ['both', 'beeps', 'voice', 'muted'];
+    const nextIdx = (modes.indexOf(soundMode) + 1) % modes.length;
+    const nextMode = modes[nextIdx];
+    setSoundMode(nextMode);
+    saveGymSoundMode(nextMode);
+    if (nextMode !== 'muted') {
+      GymAudioEngine.testPreview(nextMode);
+    }
+  };
+
+  const openTimerPicker = () => {
+    const initialSec = timerSeconds > 0 ? timerSeconds : timerPreset || 120;
+    setPickerMinutes(Math.floor(initialSec / 60));
+    setPickerSeconds(initialSec % 60);
+    setIsTimerPickerOpen(true);
   };
 
   // Quick weight inline edit
@@ -689,6 +878,19 @@ export const GymModule: React.FC<GymModuleProps> = ({
                 <span>{isWorkoutMode ? 'Modo Gym: Activo' : 'Entrenar Ahora'}</span>
               </button>
 
+              {/* Reset workout if completed sets exist and workout mode is closed */}
+              {workoutStats.completedSets > 0 && !isWorkoutMode && (
+                <button
+                  type="button"
+                  onClick={() => setShowResetConfirmModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 hover:border-rose-500 hover:text-rose-300 text-xs text-slate-300 font-mono transition cursor-pointer"
+                  title="Reiniciar entreno y volver a empezar de 0"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Reiniciar entreno</span>
+                </button>
+              )}
+
               {/* Schedule in Calendar */}
               {onScheduleRoutineInCalendar && (
                 <button
@@ -756,61 +958,124 @@ export const GymModule: React.FC<GymModuleProps> = ({
                   </div>
                 </div>
 
-                {/* Rest Timer */}
-                <div className="flex items-center gap-3 shrink-0 bg-slate-900 border border-slate-800 p-2 rounded-xl">
-                  <div className="flex items-center gap-2 font-mono">
-                    <Timer className={`w-4 h-4 ${isTimerRunning ? 'text-amber-400 animate-spin' : 'text-slate-400'}`} />
-                    <span className="text-sm font-bold text-white min-w-[45px]">
-                      {Math.floor(timerSeconds / 60)}:{(timerSeconds % 60).toString().padStart(2, '0')}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-1">
-                    {[60, 90, 120].map((sec) => (
-                      <button
-                        key={sec}
-                        type="button"
-                        onClick={() => startRestTimer(sec)}
-                        className={`px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold border transition cursor-pointer ${
-                          timerPreset === sec && timerSeconds > 0
-                            ? 'bg-rose-600 text-white border-rose-500'
-                            : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
-                        }`}
-                      >
-                        {sec}s
-                      </button>
-                    ))}
-
-                    <button
-                      type="button"
-                      onClick={() => setIsTimerRunning((prev) => !prev)}
-                      className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
-                      title={isTimerRunning ? 'Pausar cronómetro' : 'Reanudar cronómetro'}
-                    >
-                      {isTimerRunning ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsTimerRunning(false);
-                        setTimerSeconds(0);
-                      }}
-                      className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-rose-400 transition"
-                      title="Reiniciar cronómetro"
-                    >
-                      <RotateCcw className="w-3 h-3" />
-                    </button>
-                  </div>
-
-                  {/* Reset session button */}
+                {/* Rest Timer & Session Controls */}
+                <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 shrink-0 bg-slate-900/95 border border-slate-800 p-2 sm:p-2.5 rounded-2xl shadow-lg">
+                  {/* Digital Clock Display with Click to Customize */}
                   <button
                     type="button"
-                    onClick={() => resetWorkoutSession(activeRoutine.id, userId, userEmail)}
-                    className="ml-2 px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-750 text-[10px] font-mono text-slate-400 hover:text-white transition"
-                    title="Reiniciar checks de series para empezar de nuevo"
+                    onClick={openTimerPicker}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-rose-500/50 transition cursor-pointer font-mono group"
+                    title="Pulsar para personalizar el tiempo como en el móvil (1, 2, 3 min o más)"
                   >
-                    Reiniciar sesión
+                    <Timer className={`w-4 h-4 ${isTimerRunning ? 'text-amber-400 animate-spin' : 'text-rose-400 group-hover:scale-110'} transition-transform`} />
+                    <span className="text-sm sm:text-base font-black text-white tracking-wider">
+                      {Math.floor(timerSeconds / 60).toString().padStart(2, '0')}:{(timerSeconds % 60).toString().padStart(2, '0')}
+                    </span>
+                    <SlidersHorizontal className="w-3 h-3 text-slate-500 group-hover:text-rose-400 transition-colors" />
+                  </button>
+
+                  {/* Minute Presets (1, 2, 3 min o más) */}
+                  <div className="flex items-center gap-1">
+                    {[
+                      { label: '1 min', sec: 60 },
+                      { label: '2 min', sec: 120 },
+                      { label: '3 min', sec: 180 },
+                    ].map((item) => {
+                      const isActive = (timerSeconds === item.sec && isTimerRunning) || (timerSeconds === 0 && timerPreset === item.sec);
+                      return (
+                        <button
+                          key={item.sec}
+                          type="button"
+                          onClick={() => startRestTimer(item.sec)}
+                          className={`px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold border transition cursor-pointer ${
+                            isActive
+                              ? 'bg-rose-600 text-white border-rose-500 shadow-md shadow-rose-600/30'
+                              : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white hover:border-slate-600'
+                          }`}
+                          title={`Descanso de ${item.label}`}
+                        >
+                          {item.label}
+                        </button>
+                      );
+                    })}
+
+                    {/* Custom Pill if preset is not 1, 2 or 3 min */}
+                    {timerPreset !== 60 && timerPreset !== 120 && timerPreset !== 180 && (
+                      <button
+                        type="button"
+                        onClick={() => startRestTimer(timerPreset)}
+                        className="px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold border bg-rose-600 text-white border-rose-500 shadow-md shadow-rose-600/30 transition cursor-pointer"
+                        title={`Descanso configurado: ${Math.floor(timerPreset / 60)}m ${timerPreset % 60 ? `${timerPreset % 60}s` : ''}`}
+                      >
+                        {Math.floor(timerPreset / 60)}m{timerPreset % 60 ? ` ${timerPreset % 60}s` : ''}
+                      </button>
+                    )}
+
+                    {/* Mobile-Style Customizer Button */}
+                    <button
+                      type="button"
+                      onClick={openTimerPicker}
+                      className="px-2.5 py-1.5 rounded-xl bg-slate-800/90 border border-slate-700 hover:border-rose-500/50 hover:bg-slate-750 text-slate-300 hover:text-rose-300 text-xs font-mono font-semibold transition cursor-pointer flex items-center gap-1"
+                      title="Personalizar tiempo de cuenta atrás como en el móvil (minutos y segundos)"
+                    >
+                      <span>+ Más</span>
+                    </button>
+                  </div>
+
+                  {/* Play / Pause Button */}
+                  <button
+                    type="button"
+                    onClick={handleTogglePlayPause}
+                    className="p-1.5 sm:p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 transition cursor-pointer border border-slate-700"
+                    title={isTimerRunning ? 'Pausar cronómetro' : 'Iniciar / Reanudar cronómetro'}
+                  >
+                    {isTimerRunning ? <Pause className="w-3.5 h-3.5 text-amber-400" /> : <Play className="w-3.5 h-3.5 text-emerald-400" />}
+                  </button>
+
+                  {/* Reset Timer Button */}
+                  <button
+                    type="button"
+                    onClick={handleResetTimer}
+                    className="p-1.5 sm:p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-rose-400 transition cursor-pointer border border-slate-700"
+                    title="Reiniciar cronómetro"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                  </button>
+
+                  {/* Sound Mode Toggle */}
+                  <button
+                    type="button"
+                    onClick={toggleSoundMode}
+                    className={`p-1.5 sm:p-2 rounded-xl border transition cursor-pointer relative ${
+                      soundMode !== 'muted'
+                        ? 'bg-slate-800 border-slate-700 text-rose-400 hover:bg-slate-750'
+                        : 'bg-slate-850 border-slate-800 text-slate-500 hover:text-slate-400'
+                    }`}
+                    title={`Sonido: ${
+                      soundMode === 'both'
+                        ? 'Pitidos + Voz (5, 4, 3, 2, 1 y piiii)'
+                        : soundMode === 'beeps'
+                        ? 'Solo Pitidos (5, 4, 3, 2, 1 y piiii)'
+                        : soundMode === 'voice'
+                        ? 'Solo Voz (5, 4, 3, 2, 1 y ¡Tiempo!)'
+                        : 'Silenciado'
+                    } (Clic para cambiar modo)`}
+                  >
+                    {soundMode === 'muted' ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 text-rose-400" />}
+                    {soundMode !== 'muted' && (
+                      <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400" />
+                    )}
+                  </button>
+
+                  {/* Reset workout session button with confirmation dialog */}
+                  <button
+                    type="button"
+                    onClick={() => setShowResetConfirmModal(true)}
+                    className="ml-auto sm:ml-2 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-rose-950/40 text-xs font-mono text-slate-300 hover:text-rose-300 border border-slate-700 hover:border-rose-500/50 transition cursor-pointer"
+                    title="Reiniciar entreno (volver a empezar de 0)"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-rose-400" />
+                    <span>Reiniciar entreno</span>
                   </button>
                 </div>
               </motion.div>
@@ -1358,6 +1623,294 @@ export const GymModule: React.FC<GymModuleProps> = ({
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ========================================================================= */}
+      {/* MODAL 4: CONFIRM REINICIAR ENTRENO                                        */}
+      {/* ========================================================================= */}
+      <AnimatePresence>
+        {showResetConfirmModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 12 }}
+              className="w-full max-w-md bg-slate-900 border border-rose-500/40 rounded-3xl shadow-2xl overflow-hidden p-6 flex flex-col gap-4 relative"
+            >
+              <div className="w-14 h-14 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 mx-auto shadow-inner">
+                <RotateCcw className="w-7 h-7 text-rose-400" />
+              </div>
+
+              <div className="text-center">
+                <h3 className="text-lg sm:text-xl font-black text-white tracking-tight">
+                  ¿Seguro que quieres reiniciar el entreno?
+                </h3>
+                <p className="text-sm text-slate-300 mt-2.5 leading-relaxed">
+                  Empezarás de 0 otra vez. Se desmarcarán todas las series de los ejercicios de esta rutina para que puedas realizar tu entrenamiento desde el principio.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3 mt-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowResetConfirmModal(false)}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-bold transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (activeRoutine) {
+                      resetWorkoutSession(activeRoutine.id, userId, userEmail);
+                      handleResetTimer();
+                    }
+                    setShowResetConfirmModal(false);
+                  }}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-600/30 transition cursor-pointer active:scale-95 flex items-center justify-center gap-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Sí, reiniciar de 0</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ========================================================================= */}
+      {/* MODAL 5: MOBILE COUNTDOWN TIMER PICKER (RELOJ DE CUENTA ATRÁS DEL MÓVIL)  */}
+      {/* ========================================================================= */}
+      <AnimatePresence>
+        {isTimerPickerOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 12 }}
+              className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-5 sm:p-6 flex flex-col gap-5 relative overflow-hidden"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400">
+                    <Timer className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-base text-white">Temporizador de Descanso</h3>
+                    <p className="text-[11px] text-slate-400 font-mono">Personaliza minutos y segundos como en el móvil</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsTimerPickerOpen(false)}
+                  className="p-1 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Big Digital Display like smartphone clock countdown */}
+              <div className="flex flex-col items-center justify-center py-4 px-6 rounded-2xl bg-slate-950 border border-slate-800/80 shadow-inner">
+                <div className="font-mono text-5xl sm:text-6xl font-black text-rose-400 tracking-wider flex items-center gap-2">
+                  <span>{pickerMinutes.toString().padStart(2, '0')}</span>
+                  <span className="text-slate-600 animate-pulse">:</span>
+                  <span>{pickerSeconds.toString().padStart(2, '0')}</span>
+                </div>
+                <div className="flex items-center gap-12 text-[11px] font-mono uppercase text-slate-400 font-bold mt-1">
+                  <span>Minutos</span>
+                  <span>Segundos</span>
+                </div>
+              </div>
+
+              {/* Dual Column Stepper / Controls */}
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                {/* Minutos column */}
+                <div className="flex flex-col gap-2 p-3 rounded-2xl bg-slate-850/60 border border-slate-800">
+                  <span className="text-xs font-mono font-bold text-slate-300 text-center uppercase tracking-wide">
+                    Minutos
+                  </span>
+                  <div className="flex items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPickerMinutes((m) => Math.max(0, m - 1))}
+                      className="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-mono font-bold text-lg flex items-center justify-center active:scale-95 transition cursor-pointer"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      min={0}
+                      max={59}
+                      value={pickerMinutes}
+                      onChange={(e) => setPickerMinutes(Math.max(0, Math.min(59, parseInt(e.target.value, 10) || 0)))}
+                      className="w-14 h-10 text-center font-mono font-extrabold text-lg bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-rose-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setPickerMinutes((m) => Math.min(59, m + 1))}
+                      className="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-mono font-bold text-lg flex items-center justify-center active:scale-95 transition cursor-pointer"
+                    >
+                      +
+                    </button>
+                  </div>
+                  {/* Quick minute chips */}
+                  <div className="flex flex-wrap gap-1 justify-center mt-1">
+                    {[1, 2, 3, 4, 5].map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => {
+                          setPickerMinutes(m);
+                          setPickerSeconds(0);
+                        }}
+                        className={`px-2 py-1 rounded-lg text-[11px] font-mono font-bold transition cursor-pointer ${
+                          pickerMinutes === m && pickerSeconds === 0
+                            ? 'bg-rose-600 text-white'
+                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                        }`}
+                      >
+                        {m}m
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Segundos column */}
+                <div className="flex flex-col gap-2 p-3 rounded-2xl bg-slate-850/60 border border-slate-800">
+                  <span className="text-xs font-mono font-bold text-slate-300 text-center uppercase tracking-wide">
+                    Segundos
+                  </span>
+                  <div className="flex items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPickerSeconds((s) => Math.max(0, s - 5))}
+                      className="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-mono font-bold text-lg flex items-center justify-center active:scale-95 transition cursor-pointer"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      min={0}
+                      max={59}
+                      step={5}
+                      value={pickerSeconds}
+                      onChange={(e) => setPickerSeconds(Math.max(0, Math.min(59, parseInt(e.target.value, 10) || 0)))}
+                      className="w-14 h-10 text-center font-mono font-extrabold text-lg bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-rose-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setPickerSeconds((s) => Math.min(59, s + 5))}
+                      className="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-mono font-bold text-lg flex items-center justify-center active:scale-95 transition cursor-pointer"
+                    >
+                      +
+                    </button>
+                  </div>
+                  {/* Quick second chips */}
+                  <div className="flex flex-wrap gap-1 justify-center mt-1">
+                    {[0, 15, 30, 45].map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setPickerSeconds(s)}
+                        className={`px-2 py-1 rounded-lg text-[11px] font-mono font-bold transition cursor-pointer ${
+                          pickerSeconds === s
+                            ? 'bg-rose-600 text-white'
+                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                        }`}
+                      >
+                        {s.toString().padStart(2, '0')}s
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Sound Settings Card */}
+              <div className="p-3 rounded-2xl bg-slate-850/60 border border-slate-800 flex flex-col gap-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-mono font-bold text-slate-300 flex items-center gap-1.5">
+                    <Volume2 className="w-3.5 h-3.5 text-rose-400" />
+                    Sonidos de Cuenta Atrás (a los 5s)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => GymAudioEngine.testPreview(soundMode)}
+                    className="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-[10px] font-mono text-rose-300 transition cursor-pointer border border-slate-700"
+                  >
+                    🔊 Probar sonido
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                  {[
+                    { id: 'both', label: 'Pitidos + Voz' },
+                    { id: 'beeps', label: 'Solo Pitidos' },
+                    { id: 'voice', label: 'Solo Voz' },
+                    { id: 'muted', label: 'Silenciado' },
+                  ].map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => {
+                        const m = opt.id as GymSoundMode;
+                        setSoundMode(m);
+                        saveGymSoundMode(m);
+                      }}
+                      className={`px-2 py-1.5 rounded-xl text-[10px] font-mono font-bold border transition cursor-pointer text-center ${
+                        soundMode === opt.id
+                          ? 'bg-rose-600 border-rose-500 text-white shadow-sm'
+                          : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                  Cuenta atrás a los 5 segundos (5, 4, 3, 2, 1) y pitido largo ("piiii") al finalizar.
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsTimerPickerOpen(false)}
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const total = pickerMinutes * 60 + pickerSeconds;
+                    if (total > 0) {
+                      setTimerPreset(total);
+                      setIsTimerPickerOpen(false);
+                    }
+                  }}
+                  className="flex-1 px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-bold border border-slate-700 hover:border-slate-600 transition cursor-pointer text-center"
+                >
+                  Fijar descanso ({pickerMinutes}m {pickerSeconds ? `${pickerSeconds}s` : ''})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const total = pickerMinutes * 60 + pickerSeconds;
+                    if (total > 0) {
+                      startRestTimer(total);
+                      setIsTimerPickerOpen(false);
+                    }
+                  }}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-600/30 transition cursor-pointer active:scale-95 flex items-center justify-center gap-1.5"
+                >
+                  <Play className="w-3.5 h-3.5" />
+                  <span>Iniciar ahora</span>
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
