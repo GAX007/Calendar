@@ -91,28 +91,97 @@ function writeLocalData(data: MoodleDataSchema): void {
   }
 }
 
+export interface SupabaseDiagnostics {
+  conectado: boolean;
+  tiene_url: boolean;
+  origen_url: string;
+  tiene_key: boolean;
+  tipo_key: string;
+  error: string | null;
+}
+
+export async function getSupabaseDiagnostics(): Promise<SupabaseDiagnostics> {
+  const urlSource = process.env.SUPABASE_URL
+    ? 'SUPABASE_URL'
+    : process.env.VITE_SUPABASE_URL
+    ? 'VITE_SUPABASE_URL'
+    : 'ninguno';
+  const url = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
+
+  let keyType = 'ninguno';
+  let key = '';
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    keyType = 'service_role';
+    key = process.env.SUPABASE_SERVICE_ROLE_KEY.trim();
+  } else if (process.env.SUPABASE_ANON_KEY) {
+    keyType = 'anon';
+    key = process.env.SUPABASE_ANON_KEY.trim();
+  } else if (process.env.VITE_SUPABASE_ANON_KEY) {
+    keyType = 'anon';
+    key = process.env.VITE_SUPABASE_ANON_KEY.trim();
+  }
+
+  if (!url || !key) {
+    return {
+      conectado: false,
+      tiene_url: Boolean(url),
+      origen_url: urlSource,
+      tiene_key: Boolean(key),
+      tipo_key: keyType,
+      error: !url ? 'Falta SUPABASE_URL / VITE_SUPABASE_URL en servidor' : 'Falta SUPABASE_SERVICE_ROLE_KEY / VITE_SUPABASE_ANON_KEY',
+    };
+  }
+
+  const client = getSupabaseClient();
+  if (!client) {
+    return {
+      conectado: false,
+      tiene_url: true,
+      origen_url: urlSource,
+      tiene_key: true,
+      tipo_key: keyType,
+      error: 'No se pudo instanciar createClient con las credenciales',
+    };
+  }
+
+  try {
+    const { error } = await client.from('entregas').select('uid').limit(1);
+    if (error) {
+      return {
+        conectado: false,
+        tiene_url: true,
+        origen_url: urlSource,
+        tiene_key: true,
+        tipo_key: keyType,
+        error: error.message,
+      };
+    }
+    return {
+      conectado: true,
+      tiene_url: true,
+      origen_url: urlSource,
+      tiene_key: true,
+      tipo_key: keyType,
+      error: null,
+    };
+  } catch (err: any) {
+    return {
+      conectado: false,
+      tiene_url: true,
+      origen_url: urlSource,
+      tiene_key: true,
+      tipo_key: keyType,
+      error: err?.message || 'Error de conexión a Supabase',
+    };
+  }
+}
+
 /**
  * Check whether Supabase tables are ready and accessible
  */
 async function canUseSupabase(): Promise<boolean> {
-  if (supabaseTablesExist !== null) return supabaseTablesExist;
-  const client = getSupabaseClient();
-  if (!client) {
-    supabaseTablesExist = false;
-    return false;
-  }
-  try {
-    const { error } = await client.from('entregas').select('uid').limit(1);
-    if (error) {
-      supabaseTablesExist = false;
-      return false;
-    }
-    supabaseTablesExist = true;
-    return true;
-  } catch {
-    supabaseTablesExist = false;
-    return false;
-  }
+  const diag = await getSupabaseDiagnostics();
+  return diag.conectado;
 }
 
 export class MoodleStore {

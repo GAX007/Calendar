@@ -129,6 +129,8 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
         let failureText = `Última sync: Falló (${res.error || 'error desconocido'})`;
         if (res.error === 'url_no_configurada') {
           failureText = 'Última sync: Falló (URL no configurada en Netlify)';
+        } else if (res.error?.startsWith('supabase_desconectado')) {
+          failureText = `Última sync: Falló en BD (${res.pasos?.supabase?.error || 'Supabase desconectado'})`;
         } else if (res.error === 'descarga_fallida') {
           const httpCode = res.pasos?.descarga?.estado_http;
           failureText = `Última sync: Falló en descarga ${httpCode ? `(HTTP ${httpCode})` : ''}`.trim();
@@ -576,14 +578,25 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
             <p className="text-sm">Cargando entregas...</p>
           </div>
         ) : entregasFiltradas.length === 0 ? (
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-12 text-center text-slate-400 space-y-2">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-12 text-center text-slate-400 space-y-3">
             <CalendarDays className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600" />
             <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
               No hay entregas para mostrar con los filtros seleccionados
             </p>
-            <p className="text-xs text-slate-500">
-              Prueba a cambiar los filtros o haz clic en «Sincronizar ahora».
+            <p className="text-xs text-slate-500 max-w-md mx-auto">
+              {entregas.length > 0
+                ? `Hay ${entregas.length} entregas cargadas en la aplicación, pero no coinciden con los filtros actuales (asignatura "${filtroAsignatura}", estado "${filtroEstado}" o filtro de grupo).`
+                : 'No se encontraron entregas en la base de datos. Pulsa en «Sincronizar ahora» para importar desde Moodle.'}
             </p>
+            {filtroAsignatura !== 'todas' && (
+              <button
+                type="button"
+                onClick={() => setFiltroAsignatura('todas')}
+                className="mt-2 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold text-xs hover:bg-indigo-100 transition cursor-pointer"
+              >
+                Restablecer a "Todas las asignaturas"
+              </button>
+            )}
           </div>
         ) : (
           entregasFiltradas.map((entrega) => {

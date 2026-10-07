@@ -49,6 +49,14 @@ export interface MoodleSyncPasos {
   };
   eventos_parseados: number;
   ocultos_por_grupo: number;
+  supabase?: {
+    conectado: boolean;
+    tiene_url: boolean;
+    origen_url: string;
+    tiene_key: boolean;
+    tipo_key: string;
+    error: string | null;
+  };
   upsert: {
     nuevos: number;
     actualizados: number;

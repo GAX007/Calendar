@@ -1,7 +1,7 @@
 import https from 'https';
 import http from 'http';
 import { parseMoodleICS, formatToMadridTime } from '../utils/moodleIcsParser';
-import { MoodleStore } from './moodleStore';
+import { MoodleStore, getSupabaseDiagnostics } from './moodleStore';
 import {
   EntregaItem,
   CambioItem,
@@ -248,6 +248,39 @@ export async function syncMoodleDeliverables(options?: {
     const parsedEvents = parseMoodleICS(icsContent, misGrupos);
     pasos.eventos_parseados = parsedEvents.length;
     pasos.ocultos_por_grupo = parsedEvents.filter((e) => e.oculta_por_grupo).length;
+
+    // Diagnosticar conexión a Supabase
+    const supabaseDiag = await getSupabaseDiagnostics();
+    pasos.supabase = supabaseDiag;
+
+    const isServerless = Boolean(
+      process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT
+    );
+
+    // En servidor/Netlify Functions no se puede usar fallback local efímero
+    if (isServerless && !supabaseDiag.conectado) {
+      const errorMsg = `supabase_desconectado: ${supabaseDiag.error || 'Base de datos no accesible'}`;
+      const failureLog: SyncLogItem = {
+        id: `sync-${Date.now()}`,
+        fecha: syncDate,
+        ok: false,
+        nuevos: 0,
+        actualizados: 0,
+        borrados: 0,
+        error: errorMsg,
+      };
+      await MoodleStore.insertSyncLog({ ...failureLog, detalles: pasos });
+      return {
+        ok: false,
+        error: errorMsg,
+        pasos,
+        nuevos: 0,
+        actualizados: 0,
+        borrados: 0,
+        cambiosCount: 0,
+        fecha: syncDate,
+      };
+    }
 
     // Asegurar asignaturas iniciales
     await MoodleStore.ensureInitialAsignaturas();
