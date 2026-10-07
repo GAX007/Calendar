@@ -19,32 +19,60 @@ interface MoodleDataSchema {
 
 let supabaseClient: SupabaseClient | null = null;
 let supabaseTablesExist: boolean | null = null;
+let supabaseInitError: string | null = null;
+
+function sanitizeEnvValue(val?: string): string {
+  if (!val) return '';
+  return val
+    .trim()
+    .replace(/^["'`]+/, '')
+    .replace(/["'`]+$/, '')
+    .trim();
+}
 
 function getSupabaseClient(): SupabaseClient | null {
   if (supabaseClient) return supabaseClient;
-  const url = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
-  // En backend/funciones serverless siempre priorizamos la clave de rol de servicio para escribir con RLS
-  const key = (
+  const rawUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+  const rawKey =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.SUPABASE_ANON_KEY ||
     process.env.VITE_SUPABASE_ANON_KEY ||
-    ''
-  ).trim();
+    '';
 
-  if (url && key && url.startsWith('https://') && !url.includes('tu-proyecto') && !url.includes('YOUR_SUPABASE_URL')) {
-    try {
-      supabaseClient = createClient(url, key, {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-        },
-      });
-      return supabaseClient;
-    } catch {
-      return null;
-    }
+  const url = sanitizeEnvValue(rawUrl);
+  const key = sanitizeEnvValue(rawKey);
+
+  if (!url) {
+    supabaseInitError = 'URL de Supabase no encontrada en variables de entorno';
+    return null;
   }
-  return null;
+  if (!key) {
+    supabaseInitError = 'Clave de Supabase no encontrada en variables de entorno';
+    return null;
+  }
+  if (!url.startsWith('https://') && !url.startsWith('http://')) {
+    supabaseInitError = `URL de Supabase inválida: "${url.substring(0, 15)}" (debe empezar por https://)`;
+    return null;
+  }
+  if (url.includes('tu-proyecto') || url.includes('YOUR_SUPABASE_URL')) {
+    supabaseInitError = 'La URL de Supabase contiene el placeholder por defecto';
+    return null;
+  }
+
+  try {
+    supabaseClient = createClient(url, key, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+    supabaseInitError = null;
+    return supabaseClient;
+  } catch (err: any) {
+    supabaseInitError = `Error en createClient: ${err?.message || err}`;
+    console.error('[MoodleStore] Error instanciando createClient:', supabaseInitError);
+    return null;
+  }
 }
 
 // Local store file path (safe across restarts in Node / Netlify dev / serverless)
@@ -106,20 +134,21 @@ export async function getSupabaseDiagnostics(): Promise<SupabaseDiagnostics> {
     : process.env.VITE_SUPABASE_URL
     ? 'VITE_SUPABASE_URL'
     : 'ninguno';
-  const url = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
+  const url = sanitizeEnvValue(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '');
 
   let keyType = 'ninguno';
-  let key = '';
+  let rawKey = '';
   if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
     keyType = 'service_role';
-    key = process.env.SUPABASE_SERVICE_ROLE_KEY.trim();
+    rawKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   } else if (process.env.SUPABASE_ANON_KEY) {
     keyType = 'anon';
-    key = process.env.SUPABASE_ANON_KEY.trim();
+    rawKey = process.env.SUPABASE_ANON_KEY;
   } else if (process.env.VITE_SUPABASE_ANON_KEY) {
     keyType = 'anon';
-    key = process.env.VITE_SUPABASE_ANON_KEY.trim();
+    rawKey = process.env.VITE_SUPABASE_ANON_KEY;
   }
+  const key = sanitizeEnvValue(rawKey);
 
   if (!url || !key) {
     return {
@@ -140,7 +169,7 @@ export async function getSupabaseDiagnostics(): Promise<SupabaseDiagnostics> {
       origen_url: urlSource,
       tiene_key: true,
       tipo_key: keyType,
-      error: 'No se pudo instanciar createClient con las credenciales',
+      error: supabaseInitError || 'No se pudo instanciar createClient con las credenciales',
     };
   }
 
