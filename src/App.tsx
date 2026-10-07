@@ -16,10 +16,18 @@ import {
   User,
   LogOut,
   Dumbbell,
+  GraduationCap,
+  Menu,
 } from 'lucide-react';
 import { TaskItem } from './types';
 import { DailyDashboard } from './components/DailyDashboard';
+import { GoogleCalendarView } from './components/GoogleCalendarView';
+import { GoogleCalendarSyncModal } from './components/GoogleCalendarSyncModal';
+import { CalendarLinkModal } from './components/CalendarLinkModal';
+import { NavigationDrawer } from './components/NavigationDrawer';
+import { NextActivityCard } from './components/NextActivityCard';
 import { GymModule } from './components/GymModule';
+import { UniversityModule } from './components/UniversityModule';
 import { DailyWaterTracker } from './components/DailyWaterTracker';
 import { OmniInputBar } from './components/OmniInputBar';
 import { SmartApprovalModal } from './components/SmartApprovalModal';
@@ -28,8 +36,10 @@ import { TaskEditModal } from './components/TaskEditModal';
 import { PwaUpdatePrompt } from './components/PwaUpdatePrompt';
 import { AuthScreen } from './components/AuthScreen';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { parseInputLocally, normalizeTimeString, computeEndTime } from './utils/localParser';
 import { useRealTimeClock } from './hooks/useRealTimeClock';
+import { syncLiveGoogleCalendar, getEffectiveCalendarUrl } from './services/googleCalendarService';
 import {
   getLocalTasks,
   loadTasks,
@@ -51,8 +61,8 @@ function CalendarApp() {
   const [isCloudConnected, setIsCloudConnected] = useState<boolean>(false);
   const [isLoadingDb, setIsLoadingDb] = useState<boolean>(true);
 
-  // Active module tab ('agenda' | 'gym')
-  const [activeTab, setActiveTab] = useState<'agenda' | 'gym'>('agenda');
+  // Active module tab ('agenda' | 'university' | 'gym')
+  const [activeTab, setActiveTab] = useState<'agenda' | 'university' | 'gym'>('agenda');
   const [selectedGymRoutineId, setSelectedGymRoutineId] = useState<string | undefined>(undefined);
 
   // Modal states
@@ -60,6 +70,9 @@ function CalendarApp() {
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState<boolean>(false);
   const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
   const [isNewTask, setIsNewTask] = useState<boolean>(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState<boolean>(false);
+  const [isLinkCalendarModalOpen, setIsLinkCalendarModalOpen] = useState<boolean>(false);
 
   // Staged tasks for Confirmation Card
   const [stagedApprovalTasks, setStagedApprovalTasks] = useState<TaskItem[]>([]);
@@ -142,9 +155,6 @@ function CalendarApp() {
         saveLocalTasks(filtered, user?.id);
         const removed = prev.filter(isHydrationTask);
         removed.forEach((t) => deleteTaskFromDb(t.id));
-        showToast(
-          `Se ${count === 1 ? 'ha eliminado 1 tarea' : `han eliminado ${count} tareas`} de hidratación del calendario para usar el nuevo widget de agua.`
-        );
       }
       return filtered;
     });
@@ -157,6 +167,59 @@ function CalendarApp() {
     }, 4000);
   };
 
+  // Auto-sync Google Calendar feed on startup, when focusing tab, and periodically
+  useEffect(() => {
+    let isMounted = true;
+
+    const performAutoSync = async (silent = true) => {
+      // Security and privacy isolation:
+      // Only sync if user has an effective calendar configured (or Xavier's university calendar)
+      const userEmail = (user?.email || '').toLowerCase().trim();
+      const effectiveUrl = getEffectiveCalendarUrl(user?.id, userEmail);
+
+      if (!effectiveUrl) {
+        return;
+      }
+
+      try {
+        const res = await syncLiveGoogleCalendar(user?.id, userEmail);
+        if (res.success && res.tasks.length > 0 && isMounted) {
+          setTasks((prev) => {
+            const newIds = new Set(res.tasks.map((t) => t.id));
+            const retained = prev.filter((t) => !newIds.has(t.id));
+            return [...res.tasks, ...retained];
+          });
+          upsertTasks(res.tasks, user?.id);
+          if (!silent) {
+            showToast(`✓ Google Calendar sincronizado (${res.tasks.length} eventos)`);
+          }
+        }
+      } catch (err) {
+        console.warn('Auto-sync Google Calendar warning:', err);
+      }
+    };
+
+    // 1. Initial sync upon entering the app
+    performAutoSync(true);
+
+    // 2. Sync on window focus (when user returns to the tab)
+    const handleFocus = () => {
+      performAutoSync(true);
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // 3. Periodic recurring sync every 15 minutes
+    const interval = setInterval(() => {
+      performAutoSync(true);
+    }, 15 * 60 * 1000);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
+  }, [user?.id]);
+
   // PWA manual update check handler
   const [manualCheckFn, setManualCheckFn] = useState<(() => Promise<boolean>) | null>(null);
   const handleCheckUpdates = async () => {
@@ -166,17 +229,17 @@ function CalendarApp() {
         const hasUpdate = await manualCheckFn();
         if (!hasUpdate) {
           setTimeout(() => {
-            showToast('✓ CalendarAsist está al día con la última versión');
+            showToast('✓ CalendarAsist está al día');
           }, 500);
         }
       } else {
         setTimeout(() => {
-          showToast('✓ CalendarAsist está al día con la última versión');
+          showToast('✓ CalendarAsist está al día');
         }, 500);
       }
     } catch {
       setTimeout(() => {
-        showToast('✓ CalendarAsist está al día con la última versión');
+        showToast('✓ CalendarAsist está al día');
       }, 500);
     }
   };
@@ -285,14 +348,19 @@ function CalendarApp() {
     showToast('Tarea eliminada del calendario.');
   };
 
-  const handleOpenNewTaskModal = (targetDate?: string) => {
+  const handleOpenNewTaskModal = (targetDate?: string, targetTime?: string) => {
+    const time = targetTime || '12:00';
+    const [h, m] = time.split(':').map(Number);
+    const endH = ((h + 1) % 24).toString().padStart(2, '0');
+    const endTime = `${endH}:${(m || 0).toString().padStart(2, '0')}`;
+
     const newTask: TaskItem = {
       id: `manual-${Date.now()}`,
       title: '',
       category: 'Academics',
       date: targetDate || clock.dateStr,
-      time: '12:00',
-      endTime: '13:00',
+      time,
+      endTime,
       durationMinutes: 60,
       priority: 'media',
       notes: '',
@@ -319,9 +387,9 @@ function CalendarApp() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-slate-400 gap-3 font-sans">
-        <div className="w-10 h-10 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
-        <span className="text-xs text-slate-500 font-medium">Iniciando CalendarAsist...</span>
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center text-slate-500 gap-3 font-sans">
+        <div className="w-10 h-10 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
+        <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">Iniciando CalendarAsist...</span>
       </div>
     );
   }
@@ -331,151 +399,122 @@ function CalendarApp() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500/30 selection:text-indigo-200">
-      {/* Top Navigation Bar */}
-      <header className="sticky top-0 z-30 bg-slate-950/85 backdrop-blur-md border-b border-slate-800/80">
-        <div className="max-w-5xl mx-auto px-2.5 sm:px-6 h-14 flex items-center justify-between gap-1.5 sm:gap-2">
-          <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-600/20">
-                {activeTab === 'gym' ? (
-                  <Dumbbell className="w-4 h-4 text-rose-200" />
-                ) : (
-                  <Calendar className="w-4 h-4" />
-                )}
-              </div>
-              <span className="font-extrabold text-sm sm:text-base text-white tracking-tight hidden md:inline">
-                CalendarAsist
-              </span>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
+      {/* Collapsible Left Navigation Drawer (Opens and closes to maximize space) */}
+      <NavigationDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        clock={clock}
+        user={user}
+        signOut={signOut}
+        onOpenNewTaskModal={() => handleOpenNewTaskModal()}
+        onOpenVisionModal={() => setIsVisionModalOpen(true)}
+        onOpenLinkCalendarModal={() => setIsLinkCalendarModalOpen(true)}
+        onCheckUpdates={handleCheckUpdates}
+      />
+
+      {/* Top Floating Control Bar (No top header; maximizes space; discrete menu toggle on left) */}
+      <div className="fixed top-3 inset-x-3 sm:top-4 sm:inset-x-6 z-40 flex items-center justify-between pointer-events-none">
+        {/* Left: Discrete 3-lines menu button */}
+        <button
+          id="btn-open-navigation-drawer"
+          type="button"
+          onClick={() => setIsDrawerOpen(true)}
+          className="pointer-events-auto p-2 sm:p-2.5 rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:white hover:bg-slate-100 dark:hover:bg-slate-800 shadow-xs transition cursor-pointer active:scale-95"
+          title="Menú de navegación"
+          aria-label="Abrir menú"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
+        {/* Right: Quick action (Nueva tarea) */}
+        <div className="pointer-events-auto flex items-center gap-2">
+          <button
+            onClick={() => handleOpenNewTaskModal()}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs hover:shadow-md transition cursor-pointer active:scale-95"
+            title="Crear nueva tarea o actividad"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>Nueva Tarea</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content: Google Calendar View, University Module, or Gym Module */}
+      <main className="flex-1 pt-14 sm:pt-16">
+        {activeTab === 'agenda' ? (
+          <div className="max-w-6xl mx-auto px-2.5 sm:px-6 pb-28 flex flex-col gap-4">
+            {/* Top Cards: Next activity reminder & Daily Hydration Tracker */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <NextActivityCard
+                tasks={tasks}
+                clock={clock}
+                onToggleTaskComplete={handleToggleTaskComplete}
+                onOpenNewTaskModal={() => handleOpenNewTaskModal()}
+                onOpenGymRoutine={(routineId) => {
+                  setSelectedGymRoutineId(routineId);
+                  setActiveTab('gym');
+                }}
+              />
+
+              <DailyWaterTracker dateStr={clock.dateStr} />
             </div>
 
-            {/* Navigation Tabs Switcher */}
-            <nav className="flex items-center p-0.5 sm:p-1 bg-slate-900 border border-slate-800 rounded-xl shrink-0">
-              <button
-                id="tab-btn-agenda"
-                type="button"
-                onClick={() => setActiveTab('agenda')}
-                className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  activeTab === 'agenda'
-                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Calendar className="w-3.5 h-3.5" />
-                <span>Agenda</span>
-              </button>
-              <button
-                id="tab-btn-gym"
-                type="button"
-                onClick={() => setActiveTab('gym')}
-                className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  activeTab === 'gym'
-                    ? 'bg-rose-600 text-white shadow-sm shadow-rose-600/30'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Dumbbell className="w-3.5 h-3.5" />
-                <span>Gym<span className="hidden sm:inline"> & Rutinas</span></span>
-              </button>
-            </nav>
+            {/* Google Calendar Time-Grid System */}
+            <GoogleCalendarView
+              tasks={tasks}
+              clock={clock}
+              userId={user?.id}
+              userEmail={user?.email}
+              onToggleTaskComplete={handleToggleTaskComplete}
+              onDeleteTask={handleDeleteTask}
+              onEditTaskRequest={(task) => {
+                setIsNewTask(false);
+                setEditingTask(task);
+              }}
+              onAddNewTask={(date, time) => handleOpenNewTaskModal(date, time)}
+              onOpenLinkCalendarModal={() => setIsLinkCalendarModalOpen(true)}
+              onOpenGymRoutine={(routineId) => {
+                setSelectedGymRoutineId(routineId);
+                setActiveTab('gym');
+              }}
+              onLiveSyncSuccess={(newTasks) => {
+                setTasks((prev) => {
+                  const newIds = new Set(newTasks.map((t) => t.id));
+                  const retained = prev.filter((t) => !newIds.has(t.id));
+                  return [...newTasks, ...retained];
+                });
+                upsertTasks(newTasks, user?.id);
+                showToast(`¡${newTasks.length} eventos sincronizados en directo desde Google Calendar!`);
+              }}
+              showToast={showToast}
+            />
           </div>
-
-          {/* Quick actions, Hydration pill, Manual Add & User Avatar */}
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-            {/* Quick Hydration Pill Widget */}
-            <DailyWaterTracker dateStr={clock.dateStr} isCompact={true} />
-
-            {/* Manual Task Creation Button (shown on Agenda tab) */}
-            {activeTab === 'agenda' && (
-              <>
-                <button
-                  id="header-btn-add-task"
-                  onClick={() => handleOpenNewTaskModal()}
-                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm shadow-indigo-600/30 transition cursor-pointer active:scale-95"
-                  title="Añadir tarea manualmente"
-                >
-                  <PlusCircle className="w-3.5 h-3.5 shrink-0" />
-                  <span>Nueva tarea</span>
-                </button>
-
-                <button
-                  id="header-btn-quick-vision-demo"
-                  onClick={() => {
-                    setIsVisionModalOpen(true);
-                  }}
-                  className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 border border-slate-700/80 text-xs text-slate-300 hover:text-white hover:border-slate-600 transition cursor-pointer"
-                >
-                  <Camera className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>Foto</span>
-                </button>
-              </>
-            )}
-
-            {/* User Session Info & Sign Out */}
-            {user ? (
-              <div className="flex items-center gap-1 pl-1 sm:pl-1.5 border-l border-slate-800 shrink-0">
-                <button
-                  type="button"
-                  onClick={handleCheckUpdates}
-                  title={`${user.email} • Toca para buscar actualizaciones`}
-                  className="flex items-center justify-center sm:justify-start gap-1.5 w-7 h-7 sm:w-auto sm:px-2.5 sm:py-1 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs text-slate-300 shrink-0 cursor-pointer transition active:scale-95"
-                >
-                  <User className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                  <span className="hidden sm:inline truncate text-[11px] max-w-[140px]">{user.email}</span>
-                </button>
-                <button
-                  onClick={() => signOut()}
-                  title="Cerrar sesión"
-                  className="w-7 h-7 sm:w-auto p-1.5 rounded-full text-slate-400 hover:text-red-400 hover:bg-slate-900 transition cursor-pointer flex items-center justify-center shrink-0"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => signOut()}
-                title="Iniciar sesión con una cuenta privada"
-                className="flex items-center gap-1 px-2 py-1 sm:px-2.5 rounded-full bg-indigo-600/20 border border-indigo-500/40 text-indigo-300 text-xs hover:bg-indigo-600/30 transition cursor-pointer shrink-0"
-              >
-                <User className="w-3 h-3" />
-                <span>Login</span>
-              </button>
-            )}
+        ) : activeTab === 'university' ? (
+          <div className="pb-28">
+            <UniversityModule
+              clock={clock}
+              userId={user?.id}
+              onScheduleHomeworkInCalendar={(task) => handleApproveAndAddTasks([task])}
+              showToast={showToast}
+            />
           </div>
-        </div>
-      </header>
-
-      {/* Main Content: Daily Dashboard or Gym Module */}
-      <main className="flex-1">
-        {activeTab === 'agenda' ? (
-          <DailyDashboard
-            tasks={tasks}
-            clock={clock}
-            onToggleTaskComplete={handleToggleTaskComplete}
-            onDeleteTask={handleDeleteTask}
-            onEditTaskRequest={(task) => {
-              setIsNewTask(false);
-              setEditingTask(task);
-            }}
-            onOpenVisionModal={() => setIsVisionModalOpen(true)}
-            onAddNewTask={(date) => handleOpenNewTaskModal(date)}
-            onOpenGymRoutine={(routineId) => {
-              setSelectedGymRoutineId(routineId);
-              setActiveTab('gym');
-            }}
-          />
         ) : (
-          <GymModule
-            clock={clock}
-            userId={user?.id}
-            userEmail={user?.email}
-            initialRoutineId={selectedGymRoutineId}
-            onClose={() => setActiveTab('agenda')}
-            onScheduleRoutineInCalendar={(task) => {
-              handleApproveAndAddTasks([task]);
-              setActiveTab('agenda');
-            }}
-          />
+          <div className="pb-28">
+            <GymModule
+              clock={clock}
+              userId={user?.id}
+              userEmail={user?.email}
+              initialRoutineId={selectedGymRoutineId}
+              onClose={() => setActiveTab('agenda')}
+              onScheduleRoutineInCalendar={(task) => {
+                handleApproveAndAddTasks([task]);
+                setActiveTab('agenda');
+              }}
+            />
+          </div>
         )}
       </main>
 
@@ -494,14 +533,14 @@ function CalendarApp() {
               activeTab === 'agenda'
                 ? 'bottom-[calc(9.5rem+env(safe-area-inset-bottom,0px))] sm:bottom-28'
                 : 'bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] sm:bottom-24'
-            } right-3.5 sm:right-8 z-50 p-2.5 sm:p-3 rounded-full bg-slate-900/95 hover:bg-indigo-600 text-slate-300 hover:text-white border border-slate-700/90 shadow-xl shadow-black/60 backdrop-blur-md transition-all cursor-pointer group active:scale-95`}
+            } right-3.5 sm:right-8 z-50 p-2.5 sm:p-3 rounded-full bg-white dark:bg-slate-900 hover:bg-indigo-600 hover:text-white text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-lg backdrop-blur-md transition-all cursor-pointer group active:scale-95`}
           >
             <ArrowUp className="w-4 h-4 transition-transform group-hover:-translate-y-0.5" />
           </motion.button>
         )}
       </AnimatePresence>
 
-      {/* Floating Omni-Input Bar (Voice & Text) - only active on agenda */}
+      {/* Floating Omni-Input Bar (only on agenda) */}
       {activeTab === 'agenda' && (
         <OmniInputBar
           onOpenVisionModal={() => setIsVisionModalOpen(true)}
@@ -522,12 +561,42 @@ function CalendarApp() {
         onApproveAndAdd={handleApproveAndAddTasks}
       />
 
-      {/* Vision Feature UI (Scanning a Schedule / Split-screen concept) */}
+      {/* Vision Scanner Modal */}
       <VisionScannerModal
         isOpen={isVisionModalOpen}
         onClose={() => setIsVisionModalOpen(false)}
         onApproveTasks={handleApproveVisionTasks}
         onSendToApprovalCard={handleSendVisionToApproval}
+      />
+
+      {/* Google Calendar Sync & Import/Export Modal */}
+      <GoogleCalendarSyncModal
+        isOpen={isSyncModalOpen}
+        onClose={() => setIsSyncModalOpen(false)}
+        tasks={tasks}
+        onImportTasks={(importedTasks) => {
+          setTasks((prev) => [...importedTasks, ...prev]);
+          upsertTasks(importedTasks, user?.id);
+          showToast(`¡${importedTasks.length} eventos sincronizados exitosamente!`);
+        }}
+        showToast={showToast}
+      />
+
+      {/* User Personal Google Calendar (.ics) Link Modal */}
+      <CalendarLinkModal
+        isOpen={isLinkCalendarModalOpen}
+        onClose={() => setIsLinkCalendarModalOpen(false)}
+        userId={user?.id}
+        userEmail={user?.email}
+        onSyncSuccess={(newTasks) => {
+          setTasks((prev) => {
+            const newIds = new Set(newTasks.map((t) => t.id));
+            const retained = prev.filter((t) => !newIds.has(t.id));
+            return [...newTasks, ...retained];
+          });
+          upsertTasks(newTasks, user?.id);
+        }}
+        showToast={showToast}
       />
 
       {/* Task Edit Modal for Dashboard items */}
@@ -550,15 +619,15 @@ function CalendarApp() {
             initial={{ opacity: 0, y: 30, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed top-16 right-4 z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-slate-900 border border-emerald-500/40 text-emerald-200 text-xs font-semibold shadow-xl shadow-slate-950/80"
+            className="fixed top-16 right-4 z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-semibold shadow-xl border border-slate-800 dark:border-slate-200"
           >
-            <Check className="w-4 h-4 text-emerald-400" />
+            <Check className="w-4 h-4 text-emerald-400 dark:text-emerald-600" />
             <span>{toastMessage}</span>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* PWA Service Worker Auto-Updater for iOS & Desktop */}
+      {/* PWA Service Worker Auto-Updater */}
       <PwaUpdatePrompt onManualCheckReady={setManualCheckFn} />
     </div>
   );
@@ -566,8 +635,10 @@ function CalendarApp() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <CalendarApp />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <CalendarApp />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

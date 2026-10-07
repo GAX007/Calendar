@@ -46,15 +46,15 @@ export const OmniInputBar: React.FC<OmniInputBarProps> = ({
         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
         className="pointer-events-auto"
       >
-        {/* Subtle quick trigger chip right above floating bar */}
+        {/* Quick trigger chips */}
         <div className="flex items-center justify-center gap-1.5 sm:gap-2 mb-2 px-2 max-w-full">
           {onOpenNewTaskModal && (
             <button
               id="chip-trigger-manual-add"
               onClick={onOpenNewTaskModal}
-              className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 rounded-full bg-slate-900/95 backdrop-blur-md border border-indigo-500/30 text-indigo-300 hover:text-indigo-200 hover:bg-slate-850 text-[10px] sm:text-[11px] font-semibold transition shadow-md shadow-slate-950/40 cursor-pointer active:scale-95 whitespace-nowrap shrink-0"
+              className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 text-indigo-600 dark:text-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-850 text-xs font-semibold transition shadow-xs cursor-pointer active:scale-95 whitespace-nowrap shrink-0"
             >
-              <PlusCircle className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+              <PlusCircle className="w-3.5 h-3.5" />
               <span>Añadir Manual</span>
             </button>
           )}
@@ -62,24 +62,21 @@ export const OmniInputBar: React.FC<OmniInputBarProps> = ({
           <button
             id="chip-trigger-vision"
             onClick={onOpenVisionModal}
-            className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 rounded-full bg-slate-900/95 backdrop-blur-md border border-cyan-500/30 text-cyan-300 hover:text-cyan-200 hover:bg-slate-850 text-[10px] sm:text-[11px] font-semibold transition shadow-md shadow-slate-950/40 cursor-pointer active:scale-95 whitespace-nowrap shrink-0"
+            className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 text-sky-600 dark:text-sky-400 hover:bg-slate-50 dark:hover:bg-slate-850 text-xs font-semibold transition shadow-xs cursor-pointer active:scale-95 whitespace-nowrap shrink-0"
           >
-            <Camera className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+            <Camera className="w-3.5 h-3.5" />
             <span>Escanear Foto</span>
           </button>
         </div>
 
-        {/* The Omni-Input Bar (Clean iOS / Modern style) */}
+        {/* The Omni-Input Bar (Clean modern style) */}
         <div
-          className={`relative rounded-2xl sm:rounded-full bg-slate-900/95 backdrop-blur-xl border transition-all duration-300 shadow-2xl ${
+          className={`relative rounded-2xl sm:rounded-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border transition-all duration-300 shadow-lg ${
             isFocused
-              ? 'border-indigo-500/60 ring-2 ring-indigo-500/20 shadow-indigo-950/50'
-              : 'border-slate-700/70 shadow-slate-950/70 hover:border-slate-600'
+              ? 'border-indigo-500 ring-2 ring-indigo-500/20'
+              : 'border-slate-200/90 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600'
           }`}
         >
-          {/* Subtle bottom border shimmer */}
-          <div className="absolute -inset-px rounded-2xl sm:rounded-full bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-slate-700/20 -z-10 blur-[1px] opacity-70" />
-
           <div className="flex items-center gap-1 sm:gap-2 p-1.5 sm:px-3 sm:py-2">
             {/* Action: Manual Add Button */}
             {onOpenNewTaskModal && (
@@ -87,11 +84,10 @@ export const OmniInputBar: React.FC<OmniInputBarProps> = ({
                 id="omni-btn-manual-add"
                 onClick={onOpenNewTaskModal}
                 title="Añadir tarea manualmente"
-                className="relative w-9 h-9 sm:w-8 sm:h-8 rounded-xl sm:rounded-full text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 active:scale-95 transition cursor-pointer flex items-center justify-center shrink-0 group"
+                className="w-9 h-9 sm:w-8 sm:h-8 rounded-xl sm:rounded-full text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 active:scale-95 transition cursor-pointer flex items-center justify-center shrink-0"
                 aria-label="Añadir tarea manualmente"
               >
-                <PlusCircle className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-indigo-400 group-hover:scale-110 transition-transform" />
-                <span className="sr-only">Añadir manual</span>
+                <PlusCircle className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
               </button>
             )}
 
@@ -100,16 +96,15 @@ export const OmniInputBar: React.FC<OmniInputBarProps> = ({
               id="omni-btn-camera"
               onClick={onOpenVisionModal}
               title="Escanear foto u horario"
-              className="relative w-9 h-9 sm:w-8 sm:h-8 rounded-xl sm:rounded-full text-slate-300 hover:text-cyan-400 hover:bg-cyan-500/10 active:scale-95 transition cursor-pointer flex items-center justify-center shrink-0 group"
+              className="w-9 h-9 sm:w-8 sm:h-8 rounded-xl sm:rounded-full text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/40 active:scale-95 transition cursor-pointer flex items-center justify-center shrink-0"
               aria-label="Escanear foto"
             >
-              <Camera className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-cyan-400 group-hover:scale-110 transition-transform" />
-              <span className="sr-only">Cámara</span>
+              <Camera className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
             </button>
 
             {/* Action: Text input field */}
             <div className="flex-1 flex items-center gap-2 min-w-0 px-1 sm:px-2">
-              <Keyboard className="w-4 h-4 text-slate-500 hidden sm:block shrink-0" />
+              <Keyboard className="w-4 h-4 text-slate-400 hidden sm:block shrink-0" />
               <input
                 id="omni-text-input"
                 type="text"
@@ -118,25 +113,25 @@ export const OmniInputBar: React.FC<OmniInputBarProps> = ({
                 onFocus={() => setIsFocused(true)}
                 onBlur={() => setIsFocused(false)}
                 onKeyDown={handleKeyDown}
-                placeholder="Escribe tus tareas (ej: Mañana reunión 10am)..."
-                className="w-full bg-transparent text-sm text-slate-100 placeholder:text-slate-500 outline-none font-sans"
+                placeholder="Escribe tus tareas (ej: Mañana clase 10am, entrega viernes)..."
+                className="w-full bg-transparent text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none font-sans"
               />
             </div>
 
-            {/* Send / Process button */}
+            {/* Send button */}
             <button
               id="omni-btn-send"
               onClick={handleSend}
               disabled={!inputText.trim() || isProcessing}
-              className={`w-10 h-10 sm:w-9 sm:h-9 rounded-xl sm:rounded-full transition cursor-pointer flex items-center justify-center shrink-0 ${
+              className={`w-9 h-9 rounded-xl sm:rounded-full transition cursor-pointer flex items-center justify-center shrink-0 ${
                 inputText.trim()
-                  ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md shadow-indigo-500/30 hover:brightness-110 active:scale-95'
-                  : 'text-slate-600 bg-slate-800/50 cursor-not-allowed'
+                  ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs active:scale-95'
+                  : 'text-slate-400 bg-slate-100 dark:bg-slate-800 cursor-not-allowed'
               }`}
               aria-label="Guardar tarea"
             >
               {isProcessing ? (
-                <div className="w-4 h-4 border-2 border-slate-400 border-t-white rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-white/60 border-t-white rounded-full animate-spin" />
               ) : (
                 <Send className="w-4 h-4" />
               )}

@@ -8,6 +8,10 @@ export interface CategoryMeta {
   bgClass: string;
   borderClass: string;
   dotColor: string;
+  cardBg?: string;
+  cardBorder?: string;
+  leftBar?: string;
+  hoverBg?: string;
 }
 
 export interface TaskItem {
@@ -72,5 +76,42 @@ export interface GymRoutine {
   focus?: string; // ej. "Hipertrofia & Transferencia a Karate"
   exercises: ExerciseItem[];
   updatedAt?: string;
+}
+
+// -------------------------------------------------------------
+// University & Homework Tracker Module Types
+// -------------------------------------------------------------
+export type HomeworkStatus = 'pendiente' | 'en_progreso' | 'entregado';
+export type HomeworkType = 'practica' | 'ejercicios' | 'proyecto' | 'examen' | 'lectura' | 'otro';
+export type HomeworkPriority = 'alta' | 'media' | 'baja';
+
+export interface UniversitySubject {
+  id: string;
+  name: string; // ej. "Arquitectura de Computadores"
+  code: string; // ej. "ARQ"
+  color: string; // 'indigo' | 'blue' | 'emerald' | 'amber' | 'rose' | 'purple' | 'cyan'
+  professor?: string;
+  classroom?: string;
+  credits?: number;
+  semester?: string;
+  notes?: string;
+}
+
+export interface UniversityHomework {
+  id: string;
+  subjectId: string;
+  title: string;
+  dueDate: string; // YYYY-MM-DD
+  dueTime: string; // HH:mm
+  type: HomeworkType;
+  priority: HomeworkPriority;
+  status: HomeworkStatus;
+  description?: string;
+  weightPercentage?: number; // e.g. 15%
+  estimatedHours?: number;
+  grade?: string; // e.g. "9.5 / 10"
+  completedAt?: string;
+  calendarTaskId?: string; // Linked task in daily agenda
+  createdAt: string;
 }
 

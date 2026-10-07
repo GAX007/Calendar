@@ -62,18 +62,18 @@ export const NextActivityCard: React.FC<NextActivityCardProps> = ({
     return (
       <div
         id="next-activity-card"
-        className="w-full rounded-2xl border border-slate-800 bg-slate-900/60 p-4 sm:p-5 flex items-center justify-between gap-4"
+        className="w-full rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-4 sm:p-5 flex items-center justify-between gap-4 shadow-xs"
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
             <Check className="w-5 h-5" />
           </div>
           <div>
-            <h4 className="text-sm sm:text-base font-bold text-white">
+            <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
               Todas las actividades al día
             </h4>
-            <p className="text-xs text-slate-400">
-              No tienes actividades pendientes programadas en tu agenda.
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              No tienes actividades pendientes programadas para este momento en tu agenda.
             </p>
           </div>
         </div>
@@ -105,31 +105,33 @@ export const NextActivityCard: React.FC<NextActivityCardProps> = ({
     const m = minsUntil % 60;
     timeDetailLabel = `Comienza en ${h > 0 ? `${h}h ` : ''}${m} min`;
   } else if (currentOrNext.date !== clock.dateStr) {
-    // Future day label
+    // Dynamic month formatting
     const [y, m, d] = currentOrNext.date.split('-').map(Number);
     const daysWeek = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    const monthsShort = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
     const dateObj = new Date(Date.UTC(y, m - 1, d));
     const dayName = daysWeek[dateObj.getUTCDay()];
-    timeDetailLabel = `${dayName} ${d} Sep a las ${currentOrNext.time}`;
+    const monthName = monthsShort[m - 1] || 'Mes';
+    timeDetailLabel = `${dayName} ${d} ${monthName} a las ${currentOrNext.time}`;
   }
 
   return (
     <div
       id="next-activity-card"
-      className={`w-full rounded-2xl border transition-all duration-300 p-4 sm:p-5 shadow-lg backdrop-blur-sm ${
+      className={`w-full rounded-2xl border transition-all duration-300 p-4 sm:p-5 shadow-xs ${
         isOngoing
-          ? 'bg-gradient-to-r from-rose-950/40 via-slate-900 to-slate-900/90 border-rose-500/50 shadow-rose-950/30 ring-1 ring-rose-500/20'
-          : 'bg-gradient-to-r from-indigo-950/30 via-slate-900 to-slate-900/90 border-indigo-500/40 shadow-indigo-950/20'
+          ? 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-200 dark:border-rose-500/40 border-l-4 border-l-rose-500 ring-1 ring-rose-200 dark:ring-rose-500/20'
+          : `${meta.cardBg || 'bg-slate-50 dark:bg-slate-900'} ${meta.cardBorder || 'border-slate-200/90 dark:border-slate-800'} border-l-4 ${meta.leftBar || 'border-l-indigo-500'} hover:shadow-sm`
       }`}
     >
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         {/* Left Side: Tag, Title, Metadata */}
         <div className="flex items-start sm:items-center gap-3.5 min-w-0">
           <div
-            className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border shadow-inner ${
+            className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border ${
               isOngoing
-                ? 'bg-rose-500/20 border-rose-500/40 text-rose-400'
-                : 'bg-indigo-500/20 border-indigo-500/40 text-indigo-400'
+                ? 'bg-rose-100 dark:bg-rose-500/20 border-rose-200 dark:border-rose-500/40 text-rose-600 dark:text-rose-400'
+                : 'bg-indigo-50 dark:bg-indigo-500/20 border-indigo-200 dark:border-indigo-500/40 text-indigo-600 dark:text-indigo-400'
             }`}
           >
             {isOngoing ? (
@@ -143,24 +145,24 @@ export const NextActivityCard: React.FC<NextActivityCardProps> = ({
             {/* Top row: Status Badge + Category Tag */}
             <div className="flex flex-wrap items-center gap-2">
               <span
-                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider border ${
+                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
                   isOngoing
-                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                    : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+                    ? 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/40'
+                    : 'bg-indigo-50 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-500/40'
                 }`}
               >
-                {isOngoing && <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping" />}
+                {isOngoing && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />}
                 {isOngoing ? 'En curso ahora' : 'Próxima actividad'}
               </span>
 
               <span
                 className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${meta.bgClass} ${meta.colorClass} ${meta.borderClass}`}
               >
-                {meta.label} ({meta.tagColor})
+                {meta.label}
               </span>
 
               {timeDetailLabel && (
-                <span className="text-xs font-mono font-medium text-amber-300 hidden sm:inline">
+                <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 hidden sm:inline">
                   &bull; {timeDetailLabel}
                 </span>
               )}
@@ -168,23 +170,23 @@ export const NextActivityCard: React.FC<NextActivityCardProps> = ({
 
             {/* Task Title */}
             <div className="flex items-center gap-2">
-              <h3 className="text-base sm:text-lg font-bold text-white tracking-tight truncate">
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight truncate">
                 {currentOrNext.title}
               </h3>
             </div>
 
             {/* Sub-label for mobile or extra notes */}
-            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 font-mono">
-              <span className="flex items-center gap-1 text-slate-300">
-                <Clock className="w-3.5 h-3.5 text-indigo-400" />
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+              <span className="flex items-center gap-1 text-slate-700 dark:text-slate-300 font-medium">
+                <Clock className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                 {currentOrNext.time}
                 {currentOrNext.endTime ? ` - ${currentOrNext.endTime}` : ''}
               </span>
-              <span className="sm:hidden text-amber-300 font-medium">
+              <span className="sm:hidden text-amber-600 dark:text-amber-400 font-semibold">
                 &bull; {timeDetailLabel}
               </span>
               {currentOrNext.notes && (
-                <span className="text-slate-500 hidden md:inline truncate max-w-md">
+                <span className="text-slate-400 dark:text-slate-500 hidden md:inline truncate max-w-md">
                   &mdash; {currentOrNext.notes}
                 </span>
               )}
@@ -223,10 +225,10 @@ export const NextActivityCard: React.FC<NextActivityCardProps> = ({
                 <button
                   type="button"
                   onClick={() => onOpenGymRoutine(getRoutineId())}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-500/40 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-bold transition cursor-pointer shadow-sm active:scale-95"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-500/40 bg-rose-50 dark:bg-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-500/30 text-rose-700 dark:text-rose-300 text-xs font-bold transition cursor-pointer shadow-xs active:scale-95"
                   title="Abrir detalles de la rutina en el módulo de Gym"
                 >
-                  <Dumbbell className="w-4 h-4 text-rose-400" />
+                  <Dumbbell className="w-4 h-4 text-rose-600 dark:text-rose-400" />
                   <span>Ver Rutina</span>
                 </button>
               );
@@ -237,10 +239,10 @@ export const NextActivityCard: React.FC<NextActivityCardProps> = ({
             <button
               id="next-activity-btn-complete"
               onClick={() => onToggleTaskComplete(currentOrNext.id)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-emerald-600/20 hover:border-emerald-500 hover:text-emerald-300 text-xs font-semibold text-slate-300 transition cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 hover:bg-emerald-50 dark:bg-slate-800 dark:hover:bg-emerald-950/40 hover:border-emerald-300 dark:hover:border-emerald-600 hover:text-emerald-700 dark:hover:text-emerald-300 text-xs font-semibold text-slate-700 dark:text-slate-300 transition cursor-pointer active:scale-95"
               title="Marcar como completada"
             >
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <span>Marcar lista</span>
             </button>
           )}

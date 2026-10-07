@@ -39,20 +39,20 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-2xl text-slate-100 my-auto max-h-[92dvh] overflow-y-auto"
+          className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-6 shadow-2xl text-slate-900 dark:text-slate-100 my-auto max-h-[92dvh] overflow-y-auto"
         >
-          <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-            <h3 className="font-bold text-white text-base">
+          <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+            <h3 className="font-bold text-slate-900 dark:text-white text-base">
               {isNew ? 'Añadir Nueva Tarea' : 'Modificar Tarea'}
             </h3>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
             >
               <X className="w-5 h-5" />
             </button>
@@ -60,23 +60,23 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-4">
             <div>
-              <label className="text-xs font-semibold text-slate-300">Título / Nombre</label>
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Título / Nombre</label>
               <input
                 type="text"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 required
-                className="w-full mt-1.5 px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-indigo-500"
+                className="w-full mt-1.5 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-semibold text-slate-300">Categoría</label>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Categoría</label>
                 <select
                   value={formData.category}
                   onChange={(e) => setFormData({ ...formData, category: e.target.value as CategoryType })}
-                  className="w-full mt-1.5 px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full mt-1.5 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                 >
                   {Object.keys(CATEGORIES).map((catKey) => (
                     <option key={catKey} value={catKey}>
@@ -87,11 +87,11 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-300">Prioridad</label>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Prioridad</label>
                 <select
                   value={formData.priority}
                   onChange={(e) => setFormData({ ...formData, priority: e.target.value as 'alta' | 'media' | 'baja' })}
-                  className="w-full mt-1.5 px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full mt-1.5 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                 >
                   <option value="alta">Alta</option>
                   <option value="media">Media</option>
@@ -102,17 +102,17 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="text-xs font-semibold text-slate-300">Fecha</label>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Fecha</label>
                 <input
                   type="date"
                   value={formData.date}
                   onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  className="w-full mt-1.5 px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full mt-1.5 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-300">Hora Inicio</label>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Hora Inicio</label>
                 <input
                   type="time"
                   value={formData.time}
@@ -127,12 +127,12 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                     }
                     setFormData({ ...formData, time: newStart, durationMinutes: newDur });
                   }}
-                  className="w-full mt-1.5 px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full mt-1.5 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-300">Hora Fin</label>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Hora Fin</label>
                 <input
                   type="time"
                   value={formData.endTime || ''}
@@ -147,23 +147,23 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                     }
                     setFormData({ ...formData, endTime: newEnd, durationMinutes: newDur });
                   }}
-                  className="w-full mt-1.5 px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full mt-1.5 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-slate-300">Notas / Ubicación</label>
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Notas / Ubicación</label>
               <textarea
                 rows={2}
                 value={formData.notes || ''}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 placeholder="Notas adicionales, detalles o ubicación..."
-                className="w-full mt-1.5 px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                className="w-full mt-1.5 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
 
-            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
               {!isNew ? (
                 <button
                   type="button"
@@ -171,7 +171,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                     onDelete(formData.id);
                     onClose();
                   }}
-                  className="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1.5 p-1 transition cursor-pointer"
+                  className="text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 flex items-center gap-1.5 p-1 transition cursor-pointer"
                 >
                   <Trash2 className="w-4 h-4" />
                   Eliminar tarea
@@ -184,15 +184,15 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-3.5 py-2 rounded-xl text-xs text-slate-400 hover:text-white transition cursor-pointer"
+                  className="px-3.5 py-2 rounded-xl text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/30 transition cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition cursor-pointer"
                 >
-                  {isNew ? 'Crear Tarea' : 'Guardar'}
+                  {isNew ? 'Crear Tarea' : 'Guardar Cambios'}
                 </button>
               </div>
             </div>

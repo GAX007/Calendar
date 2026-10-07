@@ -5,11 +5,7 @@ import {
   Plus,
   Minus,
   RotateCcw,
-  Pencil,
-  Check,
-  X,
   Sparkles,
-  Waves,
 } from 'lucide-react';
 import { useHydrationTracker } from '../hooks/useHydrationTracker';
 
@@ -35,441 +31,273 @@ export const DailyWaterTracker: React.FC<DailyWaterTrackerProps> = ({
     setGoal,
   } = useHydrationTracker(dateStr);
 
-  const [isEditingGoal, setIsEditingGoal] = useState<boolean>(false);
-  const [tempGoalInput, setTempGoalInput] = useState<string>(goalLiters.toString());
   const [showResetConfirm, setShowResetConfirm] = useState<boolean>(false);
+  const [showGoalPresets, setShowGoalPresets] = useState<boolean>(false);
 
-  const PRESET_GOALS = [2.0, 2.5, 3.0, 3.5, 4.0, 5.0];
+  // Common goal presets in liters
+  const PRESET_GOALS = [1.5, 2.0, 2.5, 3.0, 3.5];
 
-  const handleOpenEditGoal = () => {
-    setTempGoalInput(goalLiters.toString());
-    setIsEditingGoal(true);
-  };
-
-  const handleSaveGoal = (val?: number) => {
-    const target = val ?? parseFloat(tempGoalInput.replace(',', '.'));
-    if (!isNaN(target) && target > 0) {
-      setGoal(target);
-      setIsEditingGoal(false);
-    }
-  };
-
-  // Format liters cleanly: 1 -> "1", 1.5 -> "1.5", 1.25 -> "1.25"
   const formatLiters = (num: number) => {
     return (Math.round(num * 100) / 100).toFixed(2).replace(/\.?0+$/, '');
   };
 
-  // Compact Pill mode (e.g. for header)
+  const handleAdjustGoal = (delta: number) => {
+    const next = Math.max(0.5, Math.min(6.0, Math.round((goalLiters + delta) * 100) / 100));
+    setGoal(next);
+  };
+
+  // Compact Pill mode (e.g. for small headers)
   if (isCompact) {
     return (
-      <>
-        <div
-          className={`relative flex items-center gap-1 sm:gap-1.5 p-0.5 sm:p-1 rounded-full bg-slate-900 border ${
-            isCompleted
-              ? 'border-emerald-500/50 bg-emerald-950/30'
-              : 'border-cyan-500/40 bg-slate-900/90'
-          } text-xs shrink-0 ${className}`}
+      <div
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-2xl border ${
+          isCompleted
+            ? 'border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300'
+            : 'border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300'
+        } text-xs font-semibold shrink-0 ${className}`}
+      >
+        <Droplets className={`w-3.5 h-3.5 shrink-0 ${isCompleted ? 'text-emerald-600' : 'text-sky-600'}`} />
+        <span>{formatLiters(intakeLiters)} / {formatLiters(goalLiters)}L</span>
+        <button
+          type="button"
+          onClick={() => addWater(0.25)}
+          className="ml-1 w-5 h-5 rounded-full bg-sky-600 hover:bg-sky-500 text-white flex items-center justify-center transition active:scale-90 cursor-pointer shadow-2xs"
+          title="Añadir 250 ml"
         >
-          <button
-            type="button"
-            onClick={handleOpenEditGoal}
-            className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-0.5 text-cyan-300 hover:text-cyan-200 transition cursor-pointer shrink-0"
-            title="Consumo de agua hoy. Pulsa para cambiar tu objetivo."
-          >
-            <Droplets className={`w-3.5 h-3.5 shrink-0 ${isCompleted ? 'text-emerald-400' : 'text-cyan-400'}`} />
-            <span className="font-bold font-mono text-[11px] sm:text-xs">
-              {formatLiters(intakeLiters)}
-              <span className="hidden sm:inline">/{formatLiters(goalLiters)}</span>L
-            </span>
-          </button>
-
-          {/* Quick + button */}
-          <button
-            type="button"
-            onClick={() => addWater(0.25)}
-            className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-cyan-600 hover:bg-cyan-500 text-white flex items-center justify-center transition active:scale-90 cursor-pointer shadow-sm shadow-cyan-600/30 shrink-0"
-            title="Añadir 1 vaso (+250 ml)"
-          >
-            <Plus className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-          </button>
-        </div>
-
-        {/* Edit Goal Modal when triggered from compact header pill */}
-        <AnimatePresence>
-          {isEditingGoal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="w-full max-w-sm p-5 rounded-2xl bg-slate-900 border border-cyan-500/40 shadow-2xl flex flex-col gap-4"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-cyan-300 font-bold text-sm">
-                    <Droplets className="w-4 h-4 text-cyan-400" />
-                    <span>Objetivo Diario de Agua</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsEditingGoal(false)}
-                    className="p-1 rounded-lg text-slate-400 hover:text-white transition cursor-pointer"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <p className="text-xs text-slate-300">
-                  Selecciona tu objetivo diario en litros o escribe una cantidad personalizada:
-                </p>
-
-                <div className="grid grid-cols-3 gap-2">
-                  {PRESET_GOALS.map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => handleSaveGoal(preset)}
-                      className={`px-2.5 py-1.5 rounded-xl border text-xs font-mono font-bold transition cursor-pointer ${
-                        goalLiters === preset
-                          ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-black shadow-sm'
-                          : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:border-cyan-500/50'
-                      }`}
-                    >
-                      {preset} L
-                    </button>
-                  ))}
-                </div>
-
-                <div className="flex items-center gap-2 pt-2 border-t border-slate-800">
-                  <span className="text-xs text-slate-400">Personalizado:</span>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0.5"
-                    max="10.0"
-                    value={tempGoalInput}
-                    onChange={(e) => setTempGoalInput(e.target.value)}
-                    className="w-20 px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-white text-xs font-mono font-bold focus:outline-none focus:border-cyan-400"
-                    placeholder="3.5"
-                  />
-                  <span className="text-xs text-slate-400 font-mono">Litros</span>
-                  <button
-                    type="button"
-                    onClick={() => handleSaveGoal()}
-                    className="ml-auto px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold flex items-center gap-1 transition cursor-pointer"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Guardar</span>
-                  </button>
-                </div>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
-      </>
+          <Plus className="w-3 h-3" />
+        </button>
+      </div>
     );
   }
 
-  // Full Card Mode (for Daily Dashboard)
+  // Full Card Mode (Matches NextActivityCard & GoogleCalendarView design)
   return (
     <div
       id="daily-water-tracker-card"
-      className={`w-full rounded-2xl border transition-all duration-300 p-4 sm:p-5 shadow-lg backdrop-blur-sm relative overflow-hidden ${
-        isCompleted
-          ? 'bg-gradient-to-r from-emerald-950/40 via-slate-900 to-slate-900/90 border-emerald-500/50 shadow-emerald-950/30 ring-1 ring-emerald-500/20'
-          : 'bg-gradient-to-r from-cyan-950/30 via-slate-900 to-slate-900/90 border-cyan-500/40 shadow-cyan-950/20'
-      } ${className}`}
+      className={`w-full rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 transition-all duration-300 p-4 sm:p-5 shadow-xs border-l-4 ${
+        isCompleted ? 'border-l-emerald-500' : 'border-l-sky-500'
+      } flex flex-col justify-between gap-3.5 ${className}`}
     >
-      {/* Subtle liquid backdrop glow */}
-      <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-cyan-500/10 blur-2xl pointer-events-none" />
-
-      <div className="flex flex-col gap-4">
-        {/* Top Header row */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div
-              className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border shadow-inner ${
-                isCompleted
-                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
-                  : 'bg-cyan-500/20 border-cyan-500/40 text-cyan-400'
-              }`}
-            >
-              <Droplets className="w-5 h-5 animate-pulse" />
-            </div>
-
-            <div>
-              <div className="flex items-center gap-2">
-                <span
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider border ${
-                    isCompleted
-                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                      : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
-                  }`}
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
-                  Control de Hidratación
-                </span>
-
-                <span className="text-[10px] font-mono text-slate-400 hidden sm:inline">
-                  &bull; Se reinicia cada día
-                </span>
-              </div>
-
-              <h3 className="text-base sm:text-lg font-bold text-white tracking-tight mt-0.5">
-                Seguimiento de Agua Diario
-              </h3>
-            </div>
+      {/* Top Header: Title & Límite Stepper */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2.5">
+          <div
+            className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
+              isCompleted
+                ? 'bg-emerald-50 dark:bg-emerald-500/20 border-emerald-200 dark:border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+                : 'bg-sky-50 dark:bg-sky-500/20 border-sky-200 dark:border-sky-500/40 text-sky-600 dark:text-sky-400'
+            }`}
+          >
+            <Droplets className="w-5 h-5" />
           </div>
-
-          {/* Right Action: Edit Goal & Reset */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <button
-              type="button"
-              onClick={handleOpenEditGoal}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800/80 hover:bg-slate-750 text-xs text-slate-300 hover:text-white transition cursor-pointer"
-              title="Modificar objetivo diario (ej. 2L, 3.5L, 5L)"
-            >
-              <Pencil className="w-3 h-3 text-cyan-400" />
-              <span>Objetivo: <strong className="text-cyan-300">{formatLiters(goalLiters)}L</strong></span>
-            </button>
-
-            {/* Reset day button */}
-            {intakeLiters > 0 && (
-              <button
-                type="button"
-                onClick={() => setShowResetConfirm((prev) => !prev)}
-                className="p-1.5 rounded-lg border border-slate-800 bg-slate-855 hover:bg-rose-950/40 hover:border-rose-500/40 text-slate-400 hover:text-rose-300 transition cursor-pointer"
-                title="Reiniciar contador de hoy a 0L"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-              </button>
-            )}
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                Hidratación
+              </span>
+              {isCompleted && (
+                <span className="px-1.5 py-0.2 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[9px] font-bold">
+                  Completado
+                </span>
+              )}
+            </div>
+            <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white leading-tight">
+              Control de Agua Diario
+            </h4>
           </div>
         </div>
 
-        {/* Reset Confirmation Prompt */}
-        <AnimatePresence>
-          {showResetConfirm && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="flex items-center justify-between p-2.5 rounded-xl bg-slate-850 border border-slate-700 text-xs"
+        {/* Límite Stepper (Direct +/- adjustment with 0 click friction) */}
+        <div className="flex items-center gap-1.5 relative">
+          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+            Límite:
+          </span>
+          <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700">
+            <button
+              type="button"
+              onClick={() => handleAdjustGoal(-0.25)}
+              className="w-5 h-5 rounded-lg bg-white dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex items-center justify-center font-bold text-xs transition cursor-pointer shadow-2xs active:scale-95"
+              title="Reducir límite (-250 ml)"
             >
-              <span className="text-slate-300">¿Deseas reiniciar a 0L el consumo de agua de hoy?</span>
-              <div className="flex items-center gap-2">
+              -
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowGoalPresets((prev) => !prev)}
+              className="px-1.5 text-xs font-extrabold font-mono text-slate-800 dark:text-slate-100 hover:text-sky-600 dark:hover:text-sky-400 transition cursor-pointer"
+              title="Toca para elegir una meta rápida"
+            >
+              {formatLiters(goalLiters)} L
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleAdjustGoal(0.25)}
+              className="w-5 h-5 rounded-lg bg-white dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex items-center justify-center font-bold text-xs transition cursor-pointer shadow-2xs active:scale-95"
+              title="Aumentar límite (+250 ml)"
+            >
+              +
+            </button>
+          </div>
+
+          {/* Quick preset selector popover */}
+          <AnimatePresence>
+            {showGoalPresets && (
+              <motion.div
+                initial={{ opacity: 0, y: -4, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -4, scale: 0.95 }}
+                className="absolute right-0 top-full mt-1.5 z-30 p-1.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl flex items-center gap-1"
+              >
+                {PRESET_GOALS.map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => {
+                      setGoal(preset);
+                      setShowGoalPresets(false);
+                    }}
+                    className={`px-2 py-1 rounded-xl text-xs font-mono font-bold transition cursor-pointer ${
+                      goalLiters === preset
+                        ? 'bg-sky-600 text-white shadow-2xs'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                    }`}
+                  >
+                    {preset}L
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* Center Stats & Progress Bar */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-baseline justify-between">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white font-mono tracking-tight">
+              {formatLiters(intakeLiters)}
+            </span>
+            <span className="text-sm sm:text-base font-semibold text-slate-400 font-mono">
+              / {formatLiters(goalLiters)} L
+            </span>
+            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 ml-1">
+              {isCompleted ? (
+                <span className="text-emerald-600 dark:text-emerald-400 font-bold inline-flex items-center gap-1">
+                  <Sparkles className="w-3 h-3" />
+                  ¡Completado!
+                </span>
+              ) : (
+                `(${formatLiters(Math.max(0, goalLiters - intakeLiters))} L restantes)`
+              )}
+            </span>
+          </div>
+
+          <span
+            className={`text-xs sm:text-sm font-extrabold font-mono ${
+              isCompleted ? 'text-emerald-600 dark:text-emerald-400' : 'text-sky-600 dark:text-sky-400'
+            }`}
+          >
+            {progressPercent}%
+          </span>
+        </div>
+
+        {/* Liquid Progress Bar */}
+        <div className="w-full h-2.5 sm:h-3 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden relative border border-slate-200/60 dark:border-slate-700/60">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${Math.min(100, progressPercent)}%` }}
+            transition={{ type: 'spring', damping: 20, stiffness: 120 }}
+            className={`h-full rounded-full transition-all duration-300 ${
+              isCompleted
+                ? 'bg-gradient-to-r from-emerald-500 to-teal-400 shadow-sm shadow-emerald-500/30'
+                : 'bg-gradient-to-r from-sky-500 to-cyan-400 shadow-sm shadow-sky-500/30'
+            }`}
+          />
+        </div>
+      </div>
+
+      {/* Bottom Quick-Add Buttons */}
+      <div className="flex items-center justify-between gap-1.5 flex-wrap pt-1 border-t border-slate-100 dark:border-slate-800">
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => addWater(0.25)}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 text-xs font-bold transition cursor-pointer active:scale-95"
+            title="Añadir 1 vaso (+250 ml)"
+          >
+            <Plus className="w-3 h-3" />
+            <span>250 ml</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => addWater(0.5)}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 text-xs font-bold transition cursor-pointer active:scale-95"
+            title="Añadir 1 botella (+500 ml)"
+          >
+            <Plus className="w-3 h-3" />
+            <span>500 ml</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => addWater(1.0)}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 text-xs font-bold transition cursor-pointer active:scale-95"
+            title="Añadir 1 litro (+1.0 L)"
+          >
+            <Plus className="w-3 h-3" />
+            <span>1.0 L</span>
+          </button>
+        </div>
+
+        {/* Right: Undo & Reset */}
+        <div className="flex items-center gap-1">
+          {intakeLiters > 0 && (
+            <button
+              type="button"
+              onClick={() => removeWater(0.25)}
+              className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              title="Deshacer (-250 ml)"
+            >
+              <Minus className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {intakeLiters > 0 && (
+            showResetConfirm ? (
+              <div className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={() => {
                     resetToday();
                     setShowResetConfirm(false);
                   }}
-                  className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold transition cursor-pointer"
+                  className="px-2 py-1 rounded-lg bg-rose-600 text-white text-[10px] font-bold hover:bg-rose-700 transition cursor-pointer"
                 >
-                  Sí, reiniciar
+                  Confirmar
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowResetConfirm(false)}
-                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
+                  className="px-2 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-bold"
                 >
-                  Cancelar
+                  No
                 </button>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Editable Goal Selector Dropdown / Inline Editor */}
-        <AnimatePresence>
-          {isEditingGoal && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="p-3.5 rounded-xl bg-slate-900 border border-cyan-500/40 flex flex-col gap-2.5 shadow-xl"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-cyan-300 flex items-center gap-1.5">
-                  <Pencil className="w-3.5 h-3.5" />
-                  Elige tu objetivo diario de agua:
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setIsEditingGoal(false)}
-                  className="text-slate-400 hover:text-white transition"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              {/* Presets */}
-              <div className="flex flex-wrap items-center gap-1.5">
-                {PRESET_GOALS.map((preset) => (
-                  <button
-                    type="button"
-                    key={preset}
-                    onClick={() => handleSaveGoal(preset)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition cursor-pointer ${
-                      goalLiters === preset
-                        ? 'bg-cyan-600 text-white border-cyan-400 shadow-sm'
-                        : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-750 hover:text-white'
-                    }`}
-                  >
-                    {preset} L
-                  </button>
-                ))}
-              </div>
-
-              {/* Custom Number Input */}
-              <div className="flex items-center gap-2 pt-1">
-                <span className="text-xs text-slate-400">O escribe una cantidad:</span>
-                <input
-                  type="number"
-                  step="0.1"
-                  min="0.5"
-                  max="10.0"
-                  value={tempGoalInput}
-                  onChange={(e) => setTempGoalInput(e.target.value)}
-                  className="w-20 px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-white text-xs font-mono font-bold focus:outline-none focus:border-cyan-400"
-                  placeholder="3.5"
-                />
-                <span className="text-xs text-slate-400 font-mono">Litros</span>
-
-                <button
-                  type="button"
-                  onClick={() => handleSaveGoal()}
-                  className="ml-auto px-3 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold flex items-center gap-1 transition cursor-pointer"
-                >
-                  <Check className="w-3 h-3" />
-                  <span>Guardar</span>
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Center Progress Stats: X / Goal L + Percentage */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight font-mono">
-              {formatLiters(intakeLiters)}
-            </span>
-            <span className="text-xl sm:text-2xl font-bold text-slate-400 font-mono">
-              / {formatLiters(goalLiters)} L
-            </span>
-
-            {isCompleted ? (
-              <span className="ml-2 px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-1 animate-bounce">
-                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                ¡Meta alcanzada!
-              </span>
             ) : (
-              <span className="ml-2 text-xs font-mono text-cyan-400/90 font-medium">
-                (Faltan {formatLiters(Math.max(0, goalLiters - intakeLiters))} L)
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 self-start sm:self-end">
-            <span className="text-xs font-mono font-bold text-slate-400">Progreso:</span>
-            <span
-              className={`text-sm font-mono font-extrabold ${
-                isCompleted ? 'text-emerald-400' : 'text-cyan-400'
-              }`}
-            >
-              {progressPercent}%
-            </span>
-          </div>
-        </div>
-
-        {/* Fluid Progress Bar */}
-        <div className="w-full h-3 sm:h-3.5 rounded-full bg-slate-800/90 border border-slate-700/60 overflow-hidden relative shadow-inner">
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${Math.min(100, progressPercent)}%` }}
-            transition={{ type: 'spring', damping: 20, stiffness: 120 }}
-            className={`h-full rounded-full relative transition-all duration-300 ${
-              isCompleted
-                ? 'bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-400 shadow-md shadow-emerald-500/40'
-                : 'bg-gradient-to-r from-cyan-600 via-cyan-400 to-blue-500 shadow-md shadow-cyan-500/40'
-            }`}
-          >
-            {/* Water shine animation */}
-            <div className="absolute inset-0 bg-white/20 animate-pulse" />
-          </motion.div>
-        </div>
-
-        {/* Bottom Actions Row: The "PLUS" Button + Quick Options */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-slate-800/80">
-          {/* Quick-add glass / bottle buttons */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <span className="text-xs font-semibold text-slate-400 hidden sm:inline">Añadir rápido:</span>
-
-            <button
-              type="button"
-              id="water-btn-add-250"
-              onClick={() => addWater(0.25)}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-cyan-500/30 bg-cyan-950/30 hover:bg-cyan-900/50 text-cyan-300 hover:text-white text-xs font-medium transition cursor-pointer active:scale-95"
-              title="Añadir 1 vaso (250 ml)"
-            >
-              <Plus className="w-3 h-3" />
-              <span>250 ml</span>
-              <span className="text-[10px] text-slate-400 hidden md:inline">(Vaso)</span>
-            </button>
-
-            <button
-              type="button"
-              id="water-btn-add-500"
-              onClick={() => addWater(0.5)}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-cyan-500/30 bg-cyan-950/30 hover:bg-cyan-900/50 text-cyan-300 hover:text-white text-xs font-medium transition cursor-pointer active:scale-95"
-              title="Añadir 1 botella (500 ml)"
-            >
-              <Plus className="w-3 h-3" />
-              <span>500 ml</span>
-              <span className="text-[10px] text-slate-400 hidden md:inline">(Botella)</span>
-            </button>
-
-            <button
-              type="button"
-              id="water-btn-add-1000"
-              onClick={() => addWater(1.0)}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-cyan-500/30 bg-cyan-950/30 hover:bg-cyan-900/50 text-cyan-300 hover:text-white text-xs font-medium transition cursor-pointer active:scale-95"
-              title="Añadir 1 litro (1000 ml)"
-            >
-              <Plus className="w-3 h-3" />
-              <span>1.0 L</span>
-            </button>
-          </div>
-
-          {/* Right Action: Big Plus button & Undo button */}
-          <div className="flex items-center gap-2 ml-auto">
-            {/* Minus/Undo button */}
-            {intakeLiters > 0 && (
               <button
                 type="button"
-                id="water-btn-minus"
-                onClick={() => removeWater(0.25)}
-                className="w-8 h-8 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-rose-300 flex items-center justify-center transition active:scale-95 cursor-pointer"
-                title="Deshacer / Restar 250 ml"
+                onClick={() => setShowResetConfirm(true)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition cursor-pointer"
+                title="Reiniciar a 0L"
               >
-                <Minus className="w-4 h-4" />
+                <RotateCcw className="w-3.5 h-3.5" />
               </button>
-            )}
-
-            {/* Main Primary PLUS button */}
-            <button
-              type="button"
-              id="water-btn-primary-plus"
-              onClick={() => addWater(0.25)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold text-xs sm:text-sm shadow-md shadow-cyan-600/30 transition active:scale-95 cursor-pointer"
-              title="Pulsar para añadir agua (+250 ml)"
-            >
-              <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
-                <Plus className="w-3.5 h-3.5 text-white" />
-              </div>
-              <span>Beber Agua (+250 ml)</span>
-            </button>
-          </div>
+            )
+          )}
         </div>
       </div>
     </div>

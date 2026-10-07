@@ -72,6 +72,18 @@ export function getLocalTasks(userId?: string): TaskItem[] {
     if (saved) {
       const parsed: TaskItem[] = JSON.parse(saved);
       const filtered = parsed.filter((t) => !isHydrationTask(t));
+
+      // Check if stored tasks are exclusively stale sample mock tasks from September 2026
+      const hasOnlyStaleSeptemberMocks = filtered.length > 0 &&
+        filtered.every((t) => t.date && t.date.startsWith('2026-09')) &&
+        filtered.some((t) => t.id.startsWith('task-init-') || t.id.startsWith('task-gym-'));
+
+      if (hasOnlyStaleSeptemberMocks) {
+        const fresh = INITIAL_TASKS.filter((t) => !isHydrationTask(t));
+        saveLocalTasks(fresh, userId);
+        return fresh;
+      }
+
       if (filtered.length !== parsed.length) {
         saveLocalTasks(filtered, userId);
       }
