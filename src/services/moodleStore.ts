@@ -22,12 +22,23 @@ let supabaseTablesExist: boolean | null = null;
 
 function getSupabaseClient(): SupabaseClient | null {
   if (supabaseClient) return supabaseClient;
-  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
-  const key = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  const url = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
+  // En backend/funciones serverless siempre priorizamos la clave de rol de servicio para escribir con RLS
+  const key = (
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    ''
+  ).trim();
 
   if (url && key && url.startsWith('https://') && !url.includes('tu-proyecto') && !url.includes('YOUR_SUPABASE_URL')) {
     try {
-      supabaseClient = createClient(url, key);
+      supabaseClient = createClient(url, key, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+        },
+      });
       return supabaseClient;
     } catch {
       return null;
@@ -229,7 +240,11 @@ export class MoodleStore {
   static async upsertEntrega(entrega: EntregaItem): Promise<EntregaItem> {
     if (await canUseSupabase()) {
       const client = getSupabaseClient()!;
-      await client.from('entregas').upsert(entrega, { onConflict: 'uid' });
+      const { error } = await client.from('entregas').upsert(entrega, { onConflict: 'uid' });
+      if (error) {
+        console.error('[MoodleStore] Error en upsertEntrega en Supabase:', error.message);
+        throw new Error(`Error en Supabase al guardar entrega ${entrega.uid}: ${error.message}`);
+      }
     }
     const local = readLocalData();
     const idx = local.entregas.findIndex((e) => e.uid === entrega.uid);
@@ -251,7 +266,11 @@ export class MoodleStore {
         .eq('uid', uid)
         .select()
         .single();
-      if (!error && data) return data as EntregaItem;
+      if (error) {
+        console.error('[MoodleStore] Error en updateEntrega en Supabase:', error.message);
+      } else if (data) {
+        return data as EntregaItem;
+      }
     }
     const local = readLocalData();
     const idx = local.entregas.findIndex((e) => e.uid === uid);
@@ -289,7 +308,10 @@ export class MoodleStore {
     if (cambios.length === 0) return;
     if (await canUseSupabase()) {
       const client = getSupabaseClient()!;
-      await client.from('cambios').insert(cambios);
+      const { error } = await client.from('cambios').insert(cambios);
+      if (error) {
+        console.error('[MoodleStore] Error insertando cambios en Supabase:', error.message);
+      }
     }
     const local = readLocalData();
     local.cambios.unshift(...cambios);
@@ -326,10 +348,23 @@ export class MoodleStore {
     return sorted.slice(0, limit);
   }
 
-  static async insertSyncLog(log: SyncLogItem): Promise<void> {
+  static async insertSyncLog(log: SyncLogItem & { detalles?: any }): Promise<void> {
     if (await canUseSupabase()) {
       const client = getSupabaseClient()!;
-      await client.from('sync_log').insert(log);
+      const payload: any = { ...log };
+      const { error } = await client.from('sync_log').insert(payload);
+      if (error) {
+        console.warn('[MoodleStore] Error insertando sync_log en Supabase:', error.message);
+        // Si falló por falta de la columna opcional 'detalles', reintentar sin ella
+        if (payload.detalles) {
+          delete payload.detalles;
+          try {
+            await client.from('sync_log').insert(payload);
+          } catch {
+            // ignore fallback error
+          }
+        }
+      }
     }
     const local = readLocalData();
     local.sync_log.unshift(log);

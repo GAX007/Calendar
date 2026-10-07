@@ -211,4 +211,35 @@ describe('Fase 1: Sincronización de entregas de Moodle (ICS)', () => {
     assert.ok(entrega, 'La fila no debe ser eliminada');
     assert.equal(entrega.borrada_en_moodle, true, 'Debe marcarse con borrada_en_moodle = true');
   });
+
+  it('12. Devuelve estructura de diagnóstico completa en pasos (Paso 3)', async () => {
+    const syncRes = await syncMoodleDeliverables({
+      icsContentOverride: fixtureContent,
+      misGrupos: { T: 'T2', F: 'F1' },
+    });
+
+    assert.equal(syncRes.ok, true);
+    assert.ok(syncRes.pasos, 'Debe incluir el objeto pasos');
+    assert.equal(syncRes.pasos.url_configurada, true);
+    assert.equal(syncRes.pasos.descarga.estado_http, 200);
+    assert.equal(syncRes.pasos.descarga.empieza_por_vcalendar, true);
+    assert.equal(syncRes.pasos.eventos_parseados, 27);
+    assert.equal(syncRes.pasos.ocultos_por_grupo, 3);
+    assert.equal(syncRes.pasos.upsert.nuevos, 27);
+    assert.equal(syncRes.pasos.upsert.errores, 0);
+  });
+
+  it('13. Si MOODLE_ICS_URL no está configurada, devuelve ok: false y error: url_no_configurada', async () => {
+    const prevUrl = process.env.MOODLE_ICS_URL;
+    try {
+      delete process.env.MOODLE_ICS_URL;
+      const syncRes = await syncMoodleDeliverables();
+      assert.equal(syncRes.ok, false);
+      assert.equal(syncRes.error, 'url_no_configurada');
+      assert.equal(syncRes.pasos.url_configurada, false);
+    } finally {
+      if (prevUrl) process.env.MOODLE_ICS_URL = prevUrl;
+    }
+  });
 });
+

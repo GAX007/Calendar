@@ -32,7 +32,14 @@
   status = 200
   force = true
 
-# Proxy API calls to the serverless Express function
+# Dedicated Moodle API routes (decoupled from server.ts and vite)
+[[redirects]]
+  from = "/api/moodle/*"
+  to = "/.netlify/functions/moodle-api/:splat"
+  status = 200
+  force = true
+
+# Proxy general API calls to the serverless Express function
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"

@@ -80,6 +80,8 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
   const [editDificultad, setEditDificultad] = useState<number | null>(null);
   const [editHorasEst, setEditHorasEst] = useState<string>('');
 
+  const [syncSummary, setSyncSummary] = useState<{ text: string; ok: boolean } | null>(null);
+
   // Cargar datos
   const loadData = async () => {
     try {
@@ -117,14 +119,30 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
     try {
       const res = await syncMoodleNow();
       if (res.ok) {
+        const summaryText = `Última sync: ${res.nuevos} nuevas, ${res.actualizados} actualizadas`;
+        setSyncSummary({ text: summaryText, ok: true });
         showToast(
           `Sincronización completada: ${res.nuevos} nuevas, ${res.actualizados} actualizadas.`
         );
         await loadData();
       } else {
-        showToast(res.error || 'Error al sincronizar con Moodle');
+        let failureText = `Última sync: Falló (${res.error || 'error desconocido'})`;
+        if (res.error === 'url_no_configurada') {
+          failureText = 'Última sync: Falló (URL no configurada en Netlify)';
+        } else if (res.error === 'descarga_fallida') {
+          const httpCode = res.pasos?.descarga?.estado_http;
+          failureText = `Última sync: Falló en descarga ${httpCode ? `(HTTP ${httpCode})` : ''}`.trim();
+        } else if (res.error === 'contenido_invalido') {
+          failureText = 'Última sync: Falló (contenido no es VCALENDAR)';
+        } else if (res.pasos?.upsert?.errores && res.pasos.upsert.errores > 0) {
+          failureText = `Última sync: Falló en BD (${res.pasos.upsert.errores} errores Supabase/RLS)`;
+        }
+        setSyncSummary({ text: failureText, ok: false });
+        showToast(failureText);
       }
     } catch (err: any) {
+      const errorText = `Última sync: Falló (${err.message || 'error de conexión'})`;
+      setSyncSummary({ text: errorText, ok: false });
       showToast(err.message || 'Error de conexión en sincronización');
     } finally {
       setIsSyncing(false);
@@ -295,6 +313,23 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
     });
   }, [entregas, mostrarOcultasPorGrupo, filtroAsignatura, filtroEstado, filtroEstaSemana]);
 
+  const displaySyncSummary = useMemo(() => {
+    if (syncSummary) return syncSummary;
+    if (lastSyncLog) {
+      if (lastSyncLog.ok) {
+        return {
+          text: `Última sync: ${lastSyncLog.nuevos} nuevas, ${lastSyncLog.actualizados} actualizadas`,
+          ok: true,
+        };
+      }
+      return {
+        text: `Última sync: Falló (${lastSyncLog.error || 'error'})`,
+        ok: false,
+      };
+    }
+    return null;
+  }, [syncSummary, lastSyncLog]);
+
   return (
     <div className="w-full max-w-5xl mx-auto px-4 py-6 space-y-6">
       {/* HEADER PRINCIPAL */}
@@ -339,18 +374,19 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
           </div>
         </div>
 
-        {/* Acciones principales */}
-        <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
-          <button
-            type="button"
-            onClick={handleSyncNow}
-            disabled={isSyncing}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-md shadow-indigo-600/20 disabled:opacity-50 cursor-pointer active:scale-95"
-            title="Sincronizar ahora con el calendario de Moodle"
-          >
-            <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-            {isSyncing ? 'Sincronizando...' : 'Sincronizar ahora'}
-          </button>
+        {/* Acciones principales y aviso de sincronización */}
+        <div className="flex flex-col sm:items-end gap-2">
+          <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+            <button
+              type="button"
+              onClick={handleSyncNow}
+              disabled={isSyncing}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-md shadow-indigo-600/20 disabled:opacity-50 cursor-pointer active:scale-95"
+              title="Sincronizar ahora con el calendario de Moodle"
+            >
+              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+              {isSyncing ? 'Sincronizando...' : 'Sincronizar ahora'}
+            </button>
 
           <button
             type="button"
@@ -372,7 +408,25 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
             Asignaturas
           </button>
         </div>
+
+        {displaySyncSummary && (
+          <div
+            className={`text-[11px] font-semibold px-3 py-1 rounded-xl flex items-center gap-1.5 transition-all shadow-xs ${
+              displaySyncSummary.ok
+                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'
+                : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60'
+            }`}
+          >
+            {displaySyncSummary.ok ? (
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            ) : (
+              <AlertTriangle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
+            )}
+            <span>{displaySyncSummary.text}</span>
+          </div>
+        )}
       </div>
+    </div>
 
       {/* AVISO DE CAMBIOS SIN VER */}
       <AnimatePresence>

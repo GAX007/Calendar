@@ -4,17 +4,21 @@ import {
   CambioItem,
   SyncLogItem,
   INITIAL_ASIGNATURAS,
+  MoodleSyncPasos,
 } from './moodleTypes';
 
-export async function syncMoodleNow(): Promise<{
+export interface SyncApiResponse {
   ok: boolean;
+  pasos?: MoodleSyncPasos;
   nuevos: number;
   actualizados: number;
   borrados: number;
   cambiosCount: number;
-  error?: string;
+  error?: string | null;
   fecha: string;
-}> {
+}
+
+export async function syncMoodleNow(): Promise<SyncApiResponse> {
   let response = await fetch('/api/moodle/sync-now', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -27,11 +31,11 @@ export async function syncMoodleNow(): Promise<{
     });
   }
 
+  const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
     throw new Error(data.error || `Error HTTP ${response.status} al sincronizar con Moodle`);
   }
-  return await response.json();
+  return data;
 }
 
 export async function fetchEntregas(options?: {

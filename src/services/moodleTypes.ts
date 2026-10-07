@@ -40,6 +40,22 @@ export interface CambioItem {
   visto?: boolean;
 }
 
+export interface MoodleSyncPasos {
+  url_configurada: boolean;
+  descarga: {
+    estado_http?: number;
+    bytes: number;
+    empieza_por_vcalendar: boolean;
+  };
+  eventos_parseados: number;
+  ocultos_por_grupo: number;
+  upsert: {
+    nuevos: number;
+    actualizados: number;
+    errores: number;
+  };
+}
+
 export interface SyncLogItem {
   id: string;
   fecha: string;
@@ -48,6 +64,7 @@ export interface SyncLogItem {
   actualizados: number;
   borrados: number;
   error: string | null;
+  detalles?: MoodleSyncPasos | null;
 }
 
 export interface MIS_GRUPOS_CONFIG {
