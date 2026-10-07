@@ -42,26 +42,54 @@ interface FetchResult {
   bytes: number;
 }
 
+export function normalizeMoodleUrl(value: string): string {
+  const cleaned = value.trim().replace(/^["'`]+|["'`]+$/g, '').replace(/&amp;/gi, '&').replace(/^webcal:/i, 'https:');
+  try {
+    const url = new URL(cleaned);
+    if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) throw new Error();
+    return url.toString();
+  } catch {
+    throw new Error('url_invalida: utiliza la URL obtenida en Moodle → Calendario → Exportar calendario → Obtener URL.');
+  }
+}
+
+async function writeSyncLog(log: SyncLogItem): Promise<void> {
+  try { await MoodleStore.insertSyncLog(log); }
+  catch { console.warn('[MoodleSync] No se pudo guardar el diagnóstico de sincronización.'); }
+}
+
+function sameInstant(a: string | null, b: string | null): boolean {
+  return a === b || (Boolean(a && b) && Date.parse(a!) === Date.parse(b!));
+}
+
 /**
  * Descarga el contenido de una URL con soporte de redirecciones sin imprimir nunca parámetros en consola
  */
-function fetchUrlContent(urlStr: string, maxRedirects = 3): Promise<FetchResult> {
+export function fetchUrlContent(urlStr: string, maxRedirects = 3): Promise<FetchResult> {
   return new Promise((resolve, reject) => {
     const execute = (currentUrl: string, redirectsLeft: number) => {
       try {
         const parsed = new URL(currentUrl);
+        if (!['https:', 'http:'].includes(parsed.protocol)) throw new Error('Protocolo no admitido');
         const client = parsed.protocol === 'https:' ? https : http;
         const req = client.get(currentUrl, (res) => {
           const status = res.statusCode || 0;
           if ([301, 302, 303, 307, 308].includes(status) && res.headers.location && redirectsLeft > 0) {
+            res.resume();
             const redirectUrl = new URL(res.headers.location, currentUrl).toString();
             return execute(redirectUrl, redirectsLeft - 1);
           }
 
+          res.setEncoding('utf8');
           let body = '';
+          let bytes = 0;
           res.on('data', (chunk) => {
+            bytes += Buffer.byteLength(chunk, 'utf8');
+            if (bytes > 10 * 1024 * 1024) { req.destroy(new Error('El calendario supera el tamaño permitido')); return; }
             body += chunk;
           });
+          res.on('error', reject);
+          res.on('aborted', () => reject(new Error('La descarga del calendario se interrumpió')));
           res.on('end', () => {
             const bytes = Buffer.byteLength(body, 'utf8');
             resolve({ statusCode: status, body, bytes });
@@ -132,7 +160,7 @@ export async function syncMoodleDeliverables(options?: {
           borrados: 0,
           error: 'url_no_configurada',
         };
-        await MoodleStore.insertSyncLog({ ...failureLog, detalles: pasos });
+        await writeSyncLog({ ...failureLog, detalles: pasos });
         return {
           ok: false,
           error: 'url_no_configurada',
@@ -150,7 +178,7 @@ export async function syncMoodleDeliverables(options?: {
       // Descarga segura del feed
       let downloadResult: FetchResult;
       try {
-        downloadResult = await fetchUrlContent(moodleUrl);
+        downloadResult = await fetchUrlContent(normalizeMoodleUrl(moodleUrl));
       } catch (networkErr: any) {
         pasos.descarga = {
           bytes: 0,
@@ -166,7 +194,7 @@ export async function syncMoodleDeliverables(options?: {
           borrados: 0,
           error: `${errorMsg}: ${sanitizeErrorMessage(networkErr)}`,
         };
-        await MoodleStore.insertSyncLog({ ...failureLog, detalles: pasos });
+        await writeSyncLog({ ...failureLog, detalles: pasos });
         return {
           ok: false,
           error: errorMsg,
@@ -194,7 +222,7 @@ export async function syncMoodleDeliverables(options?: {
           borrados: 0,
           error: `${errorMsg} (HTTP ${downloadResult.statusCode})`,
         };
-        await MoodleStore.insertSyncLog({ ...failureLog, detalles: pasos });
+        await writeSyncLog({ ...failureLog, detalles: pasos });
         return {
           ok: false,
           error: errorMsg,
@@ -222,7 +250,7 @@ export async function syncMoodleDeliverables(options?: {
           borrados: 0,
           error: errorMsg,
         };
-        await MoodleStore.insertSyncLog({ ...failureLog, detalles: pasos });
+        await writeSyncLog({ ...failureLog, detalles: pasos });
         return {
           ok: false,
           error: errorMsg,
@@ -244,8 +272,18 @@ export async function syncMoodleDeliverables(options?: {
       };
     }
 
-    // Parsear eventos usando las reglas auditadas
+    // Un feed truncado o una página de acceso nunca debe marcar entregas como borradas.
+    const normalizedIcs = icsContent.trim();
+    if (!normalizedIcs.startsWith('BEGIN:VCALENDAR') || !normalizedIcs.endsWith('END:VCALENDAR')) {
+      throw new Error('contenido_invalido');
+    }
     const parsedEvents = parseMoodleICS(icsContent, misGrupos);
+    const eventCount = (icsContent.match(/^BEGIN:VEVENT\s*$/gm) || []).length;
+    if (eventCount !== parsedEvents.length || new Set(parsedEvents.map(e => e.uid)).size !== parsedEvents.length ||
+        parsedEvents.some(e => !e.deadline_utc || !Number.isFinite(Date.parse(e.deadline_utc)))) {
+      throw new Error('contenido_invalido: el calendario contiene eventos incompletos o fechas inválidas');
+    }
+    for (const event of parsedEvents) event.asignatura_codigo ||= 'SIN-ASIGNATURA';
     pasos.eventos_parseados = parsedEvents.length;
     pasos.ocultos_por_grupo = parsedEvents.filter((e) => e.oculta_por_grupo).length;
 
@@ -269,7 +307,7 @@ export async function syncMoodleDeliverables(options?: {
         borrados: 0,
         error: errorMsg,
       };
-      await MoodleStore.insertSyncLog({ ...failureLog, detalles: pasos });
+      await writeSyncLog({ ...failureLog, detalles: pasos });
       return {
         ok: false,
         error: errorMsg,
@@ -283,7 +321,7 @@ export async function syncMoodleDeliverables(options?: {
     }
 
     // Asegurar asignaturas iniciales
-    await MoodleStore.ensureInitialAsignaturas();
+    await MoodleStore.ensureInitialAsignaturas(parsedEvents.map(e => e.asignatura_codigo));
 
     // Obtener entregas existentes
     const existingEntregas = await MoodleStore.getAllEntregasRaw();
@@ -300,14 +338,15 @@ export async function syncMoodleDeliverables(options?: {
     for (const event of parsedEvents) {
       feedUids.add(event.uid);
       const existing = existingMap.get(event.uid);
+      const eventCambios: CambioItem[] = [];
 
       try {
         if (existing) {
           // Comprobar si cambió deadline_utc o título
           let hasChanges = false;
 
-          if (existing.deadline_utc !== event.deadline_utc) {
-            nuevosCambios.push({
+          if (!sameInstant(existing.deadline_utc, event.deadline_utc)) {
+            eventCambios.push({
               id: `cambio-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
               uid: event.uid,
               campo: 'deadline_utc',
@@ -320,7 +359,7 @@ export async function syncMoodleDeliverables(options?: {
           }
 
           if (existing.titulo !== event.titulo) {
-            nuevosCambios.push({
+            eventCambios.push({
               id: `cambio-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
               uid: event.uid,
               campo: 'titulo',
@@ -341,7 +380,8 @@ export async function syncMoodleDeliverables(options?: {
             existing.grupo !== event.grupo ||
             existing.oculta_por_grupo !== event.oculta_por_grupo ||
             existing.descripcion !== event.descripcion ||
-            existing.moodle_modificado_utc !== event.moodle_modificado_utc;
+            existing.asignatura_codigo !== event.asignatura_codigo ||
+            !sameInstant(existing.moodle_modificado_utc, event.moodle_modificado_utc);
 
           if (moodleChanged) {
             // REGLA 3: Los campos propios nunca se pisan en la sincronización
@@ -394,6 +434,7 @@ export async function syncMoodleDeliverables(options?: {
           await MoodleStore.upsertEntrega(nueva);
           nuevos++;
         }
+        nuevosCambios.push(...eventCambios);
       } catch (itemErr: any) {
         console.error(`[MoodleSync] Error en upsert de ${event.uid}:`, itemErr.message);
         upsertErrores++;
@@ -408,16 +449,18 @@ export async function syncMoodleDeliverables(options?: {
 
     // REGLA 4: Si un uid deja de aparecer en el feed: borrada_en_moodle = true. No se elimina la fila.
     // (No aplica a entregas manuales creadas en la app, prefijo manual-)
-    for (const existing of existingEntregas) {
+    for (const existing of upsertErrores === 0 ? existingEntregas : []) {
       if (!existing.uid.startsWith('manual-') && !feedUids.has(existing.uid) && !existing.borrada_en_moodle) {
         try {
           await MoodleStore.updateEntrega(existing.uid, { borrada_en_moodle: true });
           borrados++;
         } catch (err: any) {
           console.error(`[MoodleSync] Error marcando borrada ${existing.uid}:`, err.message);
+          upsertErrores++;
         }
       }
     }
+    pasos.upsert.errores = upsertErrores;
 
     // Guardar los cambios detectados en la tabla 'cambios'
     if (nuevosCambios.length > 0) {
@@ -428,18 +471,18 @@ export async function syncMoodleDeliverables(options?: {
     const logItem: SyncLogItem = {
       id: `sync-${Date.now()}`,
       fecha: syncDate,
-      ok: true,
+      ok: upsertErrores === 0,
       nuevos,
       actualizados,
       borrados,
       error: upsertErrores > 0 ? `${upsertErrores} errores en upsert` : null,
     };
-    await MoodleStore.insertSyncLog({ ...logItem, detalles: pasos });
+    await writeSyncLog({ ...logItem, detalles: pasos });
 
     return {
-      ok: true,
+      ok: upsertErrores === 0,
       pasos,
-      error: null,
+      error: logItem.error,
       nuevos,
       actualizados,
       borrados,
@@ -460,7 +503,7 @@ export async function syncMoodleDeliverables(options?: {
       borrados: 0,
       error: sanitizedError,
     };
-    await MoodleStore.insertSyncLog({ ...failureLog, detalles: pasos });
+    await writeSyncLog({ ...failureLog, detalles: pasos });
 
     return {
       ok: false,

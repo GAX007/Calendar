@@ -12,7 +12,9 @@ import {
   syncMoodleDeliverables,
   createManualEntrega,
   updateEntregaUserFields,
+  normalizeMoodleUrl,
 } from '../src/services/moodleSyncService';
+import { syncMoodleNow, fetchEntregas } from '../src/services/moodleApiClient';
 import { MoodleStore } from '../src/services/moodleStore';
 
 describe('Fase 1: Sincronización de entregas de Moodle (ICS)', () => {
@@ -240,6 +242,61 @@ describe('Fase 1: Sincronización de entregas de Moodle (ICS)', () => {
     } finally {
       if (prevUrl) process.env.MOODLE_ICS_URL = prevUrl;
     }
+  });
+
+  it('No interpreta formatos equivalentes de Supabase como cambios de fecha', async () => {
+    await syncMoodleDeliverables({ icsContentOverride: fixtureContent });
+    const first = (await MoodleStore.getAllEntregasRaw())[0];
+    await MoodleStore.updateEntrega(first.uid, { deadline_utc: first.deadline_utc.replace('Z', '+00:00') });
+    const result = await syncMoodleDeliverables({ icsContentOverride: fixtureContent });
+    assert.equal(result.actualizados, 0);
+    assert.equal(result.cambiosCount, 0);
+  });
+
+  it('Un fallo al guardar se informa y no genera cambios ficticios ni bajas', async (t) => {
+    await syncMoodleDeliverables({ icsContentOverride: fixtureContent });
+    t.mock.method(MoodleStore, 'upsertEntrega', async () => { throw new Error('RLS denegó la escritura'); });
+    const result = await syncMoodleDeliverables({ icsContentOverride: fixtureContent.replace('20261005T113000Z', '20261009T150000Z') });
+    assert.equal(result.ok, false);
+    assert.equal(result.pasos.upsert.errores, 1);
+    assert.equal(result.cambiosCount, 0);
+    assert.equal((await MoodleStore.getSyncLogs(1))[0].ok, false);
+  });
+
+  it('Rechaza calendarios truncados, HTML y eventos sin fecha sin alterar entregas', async () => {
+    await syncMoodleDeliverables({ icsContentOverride: fixtureContent });
+    for (const invalid of [fixtureContent.replace('END:VCALENDAR', ''), '<html>Login</html>', 'BEGIN:VCALENDAR\nBEGIN:VEVENT\nUID:missing-date\nEND:VEVENT\nEND:VCALENDAR']) {
+      const result = await syncMoodleDeliverables({ icsContentOverride: invalid });
+      assert.equal(result.ok, false);
+      assert.match(result.error!, /contenido_invalido/);
+      assert.equal((await MoodleStore.getAllEntregasRaw()).filter(e => !e.borrada_en_moodle).length, 27);
+    }
+  });
+
+  it('Crea asignaturas nuevas sin sobrescribir nombres editados', async () => {
+    await MoodleStore.updateAsignatura('GIE301F', { nombre: 'Mi nombre personalizado' });
+    await syncMoodleDeliverables({ icsContentOverride: fixtureContent.replaceAll('GIG302F', 'NUEVA2026') });
+    const subjects = await MoodleStore.getAsignaturas();
+    assert.ok(subjects.some(a => a.codigo === 'NUEVA2026'));
+    assert.equal(subjects.find(a => a.codigo === 'GIE301F')?.nombre, 'Mi nombre personalizado');
+  });
+
+  it('Conserva el error original aunque falle el guardado del diagnóstico', async (t) => {
+    t.mock.method(MoodleStore, 'insertSyncLog', async () => { throw new Error('BD desconectada'); });
+    const result = await syncMoodleDeliverables({ icsContentOverride: '<html>Login</html>' });
+    assert.equal(result.ok, false);
+    assert.equal(result.error, 'contenido_invalido');
+  });
+
+  it('Normaliza enlaces copiados sin exponer tokens en errores', () => {
+    assert.equal(normalizeMoodleUrl('"webcal://example.org/calendar?userid=1&amp;authtoken=secret"'), 'https://example.org/calendar?userid=1&authtoken=secret');
+    assert.throws(() => normalizeMoodleUrl('ftp://example.org/?authtoken=secret'), error => error instanceof Error && !error.message.includes('secret'));
+  });
+
+  it('El cliente explica un fallback HTML de Netlify y no lo confunde con éxito', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () => new Response('<html>SPA</html>', { status: 200 }));
+    await assert.rejects(syncMoodleNow(), /despliegue/);
+    await assert.rejects(fetchEntregas(), /despliegue/);
   });
 });
 

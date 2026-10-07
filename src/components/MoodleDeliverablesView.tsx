@@ -41,6 +41,7 @@ import {
   createManualEntregaApi,
   marcarCambiosVistosApi,
   updateAsignaturaApi,
+  moodleSyncError,
 } from '../services/moodleApiClient';
 
 interface MoodleDeliverablesViewProps {
@@ -103,7 +104,9 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
       }
     } catch (err: any) {
       console.error('Error cargando entregas de Moodle:', err);
-      showToast('Error al cargar datos de Moodle');
+      const text = err.message || 'Error al cargar datos de Moodle';
+      setSyncSummary({ text, ok: false });
+      showToast(text);
     } finally {
       setIsLoading(false);
     }
@@ -126,19 +129,7 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
         );
         await loadData();
       } else {
-        let failureText = `Última sync: Falló (${res.error || 'error desconocido'})`;
-        if (res.error === 'url_no_configurada') {
-          failureText = 'Última sync: Falló (URL no configurada en Netlify)';
-        } else if (res.error?.startsWith('supabase_desconectado')) {
-          failureText = `Última sync: Falló en BD (${res.pasos?.supabase?.error || 'Supabase desconectado'})`;
-        } else if (res.error === 'descarga_fallida') {
-          const httpCode = res.pasos?.descarga?.estado_http;
-          failureText = `Última sync: Falló en descarga ${httpCode ? `(HTTP ${httpCode})` : ''}`.trim();
-        } else if (res.error === 'contenido_invalido') {
-          failureText = 'Última sync: Falló (contenido no es VCALENDAR)';
-        } else if (res.pasos?.upsert?.errores && res.pasos.upsert.errores > 0) {
-          failureText = `Última sync: Falló en BD (${res.pasos.upsert.errores} errores Supabase/RLS)`;
-        }
+        const failureText = moodleSyncError(res.error);
         setSyncSummary({ text: failureText, ok: false });
         showToast(failureText);
       }
@@ -325,7 +316,7 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
         };
       }
       return {
-        text: `Última sync: Falló (${lastSyncLog.error || 'error'})`,
+        text: moodleSyncError(lastSyncLog.error),
         ok: false,
       };
     }

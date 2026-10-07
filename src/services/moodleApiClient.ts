@@ -18,18 +18,29 @@ export interface SyncApiResponse {
   fecha: string;
 }
 
+async function moodleFetch(url: string, init?: RequestInit): Promise<Response> {
+  const response = await fetch(url, { ...init, cache: 'no-store' });
+  const data = await response.clone().json().catch(() => null);
+  if (!data || typeof data !== 'object' || typeof data.ok !== 'boolean') {
+    throw new Error('El servidor de Moodle no está disponible. La web ha devuelto una página en lugar de datos; revisa el despliegue de las funciones de Netlify.');
+  }
+  if (!response.ok) throw new Error(data.error || `Error HTTP ${response.status} al conectar con Moodle`);
+  return response;
+}
+
+export function moodleSyncError(error?: string | null): string {
+  if (error === 'url_no_configurada') return 'Falta conectar tu calendario. Obtén la URL en Moodle → Calendario → Exportar calendario y configúrala en el servidor.';
+  if (error?.startsWith('contenido_invalido')) return 'Moodle no ha devuelto un calendario completo. Genera una nueva URL de exportación; el enlace de acceso al aula no sirve.';
+  if (error === 'descarga_fallida') return 'No se pudo descargar el calendario. Comprueba que la URL de exportación de Moodle sigue siendo válida y vuelve a intentarlo.';
+  if (error?.startsWith('supabase_desconectado')) return 'No se pueden guardar tus entregas. Revisa la conexión y las tablas de Supabase en el servidor.';
+  return error || 'No se pudo completar la sincronización.';
+}
+
 export async function syncMoodleNow(): Promise<SyncApiResponse> {
-  let response = await fetch('/api/moodle/sync-now', {
+  const response = await moodleFetch('/api/moodle/sync-now', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
   });
-
-  if (response.status === 404) {
-    response = await fetch('/sync-now', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -49,7 +60,7 @@ export async function fetchEntregas(options?: {
   if (options?.estado) params.set('estado', options.estado);
 
   const qs = params.toString() ? `?${params.toString()}` : '';
-  const response = await fetch(`/api/moodle/entregas${qs}`);
+  const response = await moodleFetch(`/api/moodle/entregas${qs}`);
   if (!response.ok) {
     throw new Error(`Error HTTP ${response.status} al cargar entregas`);
   }
@@ -63,7 +74,7 @@ export async function createManualEntregaApi(data: {
   deadline_madrid: string;
   descripcion?: string;
 }): Promise<EntregaItem> {
-  const response = await fetch('/api/moodle/entregas', {
+  const response = await moodleFetch('/api/moodle/entregas', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -86,7 +97,7 @@ export async function updateEntregaApi(
     min_viable_min?: number | null;
   }
 ): Promise<EntregaItem> {
-  const response = await fetch(`/api/moodle/entregas/${encodeURIComponent(uid)}`, {
+  const response = await moodleFetch(`/api/moodle/entregas/${encodeURIComponent(uid)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(fields),
@@ -100,7 +111,7 @@ export async function updateEntregaApi(
 }
 
 export async function fetchAsignaturasApi(): Promise<AsignaturaItem[]> {
-  const response = await fetch('/api/moodle/asignaturas');
+  const response = await moodleFetch('/api/moodle/asignaturas');
   if (!response.ok) {
     return [...INITIAL_ASIGNATURAS];
   }
@@ -112,7 +123,7 @@ export async function updateAsignaturaApi(
   codigo: string,
   fields: Partial<AsignaturaItem>
 ): Promise<AsignaturaItem> {
-  const response = await fetch(`/api/moodle/asignaturas/${encodeURIComponent(codigo)}`, {
+  const response = await moodleFetch(`/api/moodle/asignaturas/${encodeURIComponent(codigo)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(fields),
@@ -125,7 +136,7 @@ export async function updateAsignaturaApi(
 }
 
 export async function fetchCambiosApi(onlyUnseen: boolean = false): Promise<CambioItem[]> {
-  const response = await fetch(`/api/moodle/cambios?onlyUnseen=${onlyUnseen}`);
+  const response = await moodleFetch(`/api/moodle/cambios?onlyUnseen=${onlyUnseen}`);
   if (!response.ok) {
     return [];
   }
@@ -134,14 +145,14 @@ export async function fetchCambiosApi(onlyUnseen: boolean = false): Promise<Camb
 }
 
 export async function marcarCambiosVistosApi(): Promise<void> {
-  await fetch('/api/moodle/cambios/marcar-vistos', {
+  await moodleFetch('/api/moodle/cambios/marcar-vistos', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
   });
 }
 
 export async function fetchSyncLogsApi(limit: number = 10): Promise<SyncLogItem[]> {
-  const response = await fetch(`/api/moodle/sync-log?limit=${limit}`);
+  const response = await moodleFetch(`/api/moodle/sync-log?limit=${limit}`);
   if (!response.ok) {
     return [];
   }

@@ -18,7 +18,7 @@ interface MoodleDataSchema {
 }
 
 let supabaseClient: SupabaseClient | null = null;
-let supabaseTablesExist: boolean | null = null;
+let testData: MoodleDataSchema | null = null;
 let supabaseInitError: string | null = null;
 
 function sanitizeEnvValue(val?: string): string {
@@ -60,11 +60,24 @@ function getSupabaseClient(): SupabaseClient | null {
   }
 
   try {
+    const isWebSocketAvailable =
+      typeof globalThis !== 'undefined' && typeof (globalThis as any).WebSocket !== 'undefined';
+    const realtimeConfig = isWebSocketAvailable
+      ? undefined
+      : {
+          // Este cliente solo usa REST. Evita que la inicialización de Realtime
+          // rompa las funciones antiguas de Netlify antes de realizar una consulta.
+          transport: class RestOnlyWebSocket {
+            constructor() { throw new Error('Este cliente de Moodle solo admite consultas REST.'); }
+          } as any,
+        };
+
     supabaseClient = createClient(url, key, {
       auth: {
         persistSession: false,
         autoRefreshToken: false,
       },
+      ...(realtimeConfig ? { realtime: realtimeConfig } : {}),
     });
     supabaseInitError = null;
     return supabaseClient;
@@ -83,6 +96,8 @@ const LOCAL_STORE_DIR = isServerless ? os.tmpdir() : path.resolve(process.cwd(),
 const LOCAL_STORE_FILE = path.resolve(LOCAL_STORE_DIR, 'moodle_store.json');
 
 function readLocalData(): MoodleDataSchema {
+  if (testData) return structuredClone(testData);
+  if (isServerless) throw new Error('Supabase no está disponible. Netlify requiere almacenamiento persistente.');
   try {
     if (!fs.existsSync(LOCAL_STORE_DIR)) {
       fs.mkdirSync(LOCAL_STORE_DIR, { recursive: true });
@@ -109,13 +124,15 @@ function readLocalData(): MoodleDataSchema {
 }
 
 function writeLocalData(data: MoodleDataSchema): void {
+  if (testData) { testData = structuredClone(data); return; }
+  if (isServerless) throw new Error('No se pueden guardar entregas en almacenamiento temporal de Netlify.');
   try {
     if (!fs.existsSync(LOCAL_STORE_DIR)) {
       fs.mkdirSync(LOCAL_STORE_DIR, { recursive: true });
     }
     fs.writeFileSync(LOCAL_STORE_FILE, JSON.stringify(data, null, 2), 'utf8');
   } catch (err) {
-    console.warn('[MoodleStore] Error writing local data:', err);
+    throw new Error('No se pudieron guardar las entregas en el almacenamiento local.');
   }
 }
 
@@ -129,6 +146,7 @@ export interface SupabaseDiagnostics {
 }
 
 export async function getSupabaseDiagnostics(): Promise<SupabaseDiagnostics> {
+  if (testData) return { conectado: false, tiene_url: false, origen_url: 'pruebas', tiene_key: false, tipo_key: 'ninguno', error: null };
   const urlSource = process.env.SUPABASE_URL
     ? 'SUPABASE_URL'
     : process.env.VITE_SUPABASE_URL
@@ -174,15 +192,18 @@ export async function getSupabaseDiagnostics(): Promise<SupabaseDiagnostics> {
   }
 
   try {
-    const { error } = await client.from('entregas').select('uid').limit(1);
-    if (error) {
+    const checks = await Promise.all(['asignaturas', 'entregas', 'cambios', 'sync_log'].map(async (table) => {
+      const { error } = await client.from(table).select('*').limit(0);
+      return error ? `${table}: ${error.message}` : null;
+    }));
+    if (checks.some(Boolean)) {
       return {
         conectado: false,
         tiene_url: true,
         origen_url: urlSource,
         tiene_key: true,
         tipo_key: keyType,
-        error: error.message,
+        error: checks.filter(Boolean).join('; '),
       };
     }
     return {
@@ -209,8 +230,12 @@ export async function getSupabaseDiagnostics(): Promise<SupabaseDiagnostics> {
  * Check whether Supabase tables are ready and accessible
  */
 async function canUseSupabase(): Promise<boolean> {
-  const diag = await getSupabaseDiagnostics();
-  return diag.conectado;
+  if (testData) return false;
+  if (getSupabaseClient()) return true;
+  if (isServerless || process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL) {
+    throw new Error(supabaseInitError || 'Supabase no está configurado en el servidor');
+  }
+  return false;
 }
 
 export class MoodleStore {
@@ -221,9 +246,8 @@ export class MoodleStore {
     if (await canUseSupabase()) {
       const client = getSupabaseClient()!;
       const { data, error } = await client.from('asignaturas').select('*').order('codigo');
-      if (!error && data && data.length > 0) {
-        return data as AsignaturaItem[];
-      }
+      if (error) throw new Error(`No se pudieron cargar asignaturas: ${error.message}`);
+      return (data || []) as AsignaturaItem[];
     }
     const local = readLocalData();
     return local.asignaturas;
@@ -238,6 +262,7 @@ export class MoodleStore {
         .eq('codigo', codigo)
         .select()
         .single();
+      if (error) throw new Error(`No se pudo actualizar la asignatura: ${error.message}`);
       if (!error && data) {
         return data as AsignaturaItem;
       }
@@ -252,16 +277,20 @@ export class MoodleStore {
     return null;
   }
 
-  static async ensureInitialAsignaturas(): Promise<void> {
+  static async ensureInitialAsignaturas(codigos: string[] = []): Promise<void> {
+    const seeds = [...INITIAL_ASIGNATURAS];
+    for (const codigo of new Set(codigos)) {
+      if (!seeds.some(a => a.codigo === codigo)) seeds.push({ codigo, nombre: codigo, cuatrimestre: null, activa: true });
+    }
     if (await canUseSupabase()) {
       const client = getSupabaseClient()!;
-      for (const asig of INITIAL_ASIGNATURAS) {
-        await client.from('asignaturas').upsert(asig, { onConflict: 'codigo' });
-      }
+      const { error } = await client.from('asignaturas').upsert(seeds, { onConflict: 'codigo', ignoreDuplicates: true });
+      if (error) throw new Error(`No se pudieron preparar las asignaturas: ${error.message}`);
+      return;
     }
     const local = readLocalData();
     let changed = false;
-    for (const initAsig of INITIAL_ASIGNATURAS) {
+    for (const initAsig of seeds) {
       if (!local.asignaturas.some((a) => a.codigo === initAsig.codigo)) {
         local.asignaturas.push(initAsig);
         changed = true;
@@ -293,6 +322,7 @@ export class MoodleStore {
         query = query.eq('estado', options.estado);
       }
       const { data, error } = await query;
+      if (error) throw new Error(`No se pudieron cargar entregas: ${error.message}`);
       if (!error && data) {
         return data as EntregaItem[];
       }
@@ -317,6 +347,7 @@ export class MoodleStore {
     if (await canUseSupabase()) {
       const client = getSupabaseClient()!;
       const { data, error } = await client.from('entregas').select('*');
+      if (error) throw new Error(`No se pudieron cargar entregas: ${error.message}`);
       if (!error && data) {
         return data as EntregaItem[];
       }
@@ -328,8 +359,9 @@ export class MoodleStore {
   static async getEntrega(uid: string): Promise<EntregaItem | null> {
     if (await canUseSupabase()) {
       const client = getSupabaseClient()!;
-      const { data, error } = await client.from('entregas').select('*').eq('uid', uid).single();
-      if (!error && data) return data as EntregaItem;
+      const { data, error } = await client.from('entregas').select('*').eq('uid', uid).maybeSingle();
+      if (error) throw new Error(`No se pudo cargar la entrega: ${error.message}`);
+      return data as EntregaItem | null;
     }
     const local = readLocalData();
     return local.entregas.find((e) => e.uid === uid) || null;
@@ -343,6 +375,7 @@ export class MoodleStore {
         console.error('[MoodleStore] Error en upsertEntrega en Supabase:', error.message);
         throw new Error(`Error en Supabase al guardar entrega ${entrega.uid}: ${error.message}`);
       }
+      return entrega;
     }
     const local = readLocalData();
     const idx = local.entregas.findIndex((e) => e.uid === entrega.uid);
@@ -365,7 +398,7 @@ export class MoodleStore {
         .select()
         .single();
       if (error) {
-        console.error('[MoodleStore] Error en updateEntrega en Supabase:', error.message);
+        throw new Error(`No se pudo actualizar la entrega: ${error.message}`);
       } else if (data) {
         return data as EntregaItem;
       }
@@ -391,6 +424,7 @@ export class MoodleStore {
         query = query.eq('visto', false);
       }
       const { data, error } = await query;
+      if (error) throw new Error(`No se pudieron cargar cambios: ${error.message}`);
       if (!error && data) return data as CambioItem[];
     }
     const local = readLocalData();
@@ -408,8 +442,9 @@ export class MoodleStore {
       const client = getSupabaseClient()!;
       const { error } = await client.from('cambios').insert(cambios);
       if (error) {
-        console.error('[MoodleStore] Error insertando cambios en Supabase:', error.message);
+        throw new Error(`No se pudieron guardar cambios: ${error.message}`);
       }
+      return;
     }
     const local = readLocalData();
     local.cambios.unshift(...cambios);
@@ -419,7 +454,9 @@ export class MoodleStore {
   static async marcarCambiosVistos(): Promise<void> {
     if (await canUseSupabase()) {
       const client = getSupabaseClient()!;
-      await client.from('cambios').update({ visto: true }).eq('visto', false);
+      const { error } = await client.from('cambios').update({ visto: true }).eq('visto', false);
+      if (error) throw new Error(`No se pudieron marcar los cambios: ${error.message}`);
+      return;
     }
     const local = readLocalData();
     local.cambios = local.cambios.map((c) => ({ ...c, visto: true }));
@@ -437,6 +474,7 @@ export class MoodleStore {
         .select('*')
         .order('fecha', { ascending: false })
         .limit(limit);
+      if (error) throw new Error(`No se pudo cargar el historial: ${error.message}`);
       if (!error && data) return data as SyncLogItem[];
     }
     const local = readLocalData();
@@ -454,7 +492,7 @@ export class MoodleStore {
       if (error) {
         console.warn('[MoodleStore] Error insertando sync_log en Supabase:', error.message);
         // Si falló por falta de la columna opcional 'detalles', reintentar sin ella
-        if (payload.detalles) {
+        if (payload.detalles && error.message.includes('detalles')) {
           delete payload.detalles;
           try {
             await client.from('sync_log').insert(payload);
@@ -463,6 +501,7 @@ export class MoodleStore {
           }
         }
       }
+      return;
     }
     const local = readLocalData();
     local.sync_log.unshift(log);
@@ -480,7 +519,6 @@ export class MoodleStore {
       cambios: [],
       sync_log: [],
     };
-    writeLocalData(fresh);
-    supabaseTablesExist = false;
+    testData = fresh;
   }
 }

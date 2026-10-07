@@ -18,9 +18,9 @@ export const handler = async () => {
       borrados: result.borrados,
     });
     return {
-      statusCode: 200,
+      statusCode: result.ok ? 200 : 500,
       body: JSON.stringify({
-        message: 'Sincronización periódica completada con éxito',
+        message: result.ok ? 'Sincronización periódica completada con éxito' : 'No se pudo completar la sincronización periódica',
         result,
       }),
     };
