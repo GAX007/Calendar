@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Calendar,
+  CalendarDays,
   GraduationCap,
   Dumbbell,
   X,
@@ -19,8 +20,8 @@ import { RealTimeClockState } from '../hooks/useRealTimeClock';
 interface NavigationDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  activeTab: 'agenda' | 'university' | 'gym';
-  setActiveTab: (tab: 'agenda' | 'university' | 'gym') => void;
+  activeTab: 'agenda' | 'university' | 'gym' | 'moodle';
+  setActiveTab: (tab: 'agenda' | 'university' | 'gym' | 'moodle') => void;
   clock: RealTimeClockState;
   isDark?: boolean;
   toggleTheme?: () => void;
@@ -175,6 +176,33 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                     </div>
                   </div>
                   <ChevronRight className={`w-4 h-4 ${activeTab === 'university' ? 'text-white' : 'text-slate-300 dark:text-slate-600'}`} />
+                </button>
+
+                {/* Tab: Entregas Moodle (Fase 1) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('moodle');
+                    onClose();
+                  }}
+                  className={`w-full flex items-center justify-between p-3 rounded-2xl font-bold text-xs transition cursor-pointer ${
+                    activeTab === 'moodle'
+                      ? 'bg-amber-600 text-white shadow-md shadow-amber-600/25'
+                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-xl ${activeTab === 'moodle' ? 'bg-white/20' : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400'}`}>
+                      <CalendarDays className="w-4 h-4" />
+                    </div>
+                    <div className="text-left">
+                      <p className="font-extrabold">Entregas Moodle</p>
+                      <p className={`text-[10px] font-normal ${activeTab === 'moodle' ? 'text-amber-100' : 'text-slate-400'}`}>
+                        ICS oficial, fechas límite y filtros
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className={`w-4 h-4 ${activeTab === 'moodle' ? 'text-white' : 'text-slate-300 dark:text-slate-600'}`} />
                 </button>
 
                 {/* Tab: Gym & Rutinas */}

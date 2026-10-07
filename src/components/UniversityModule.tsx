@@ -57,6 +57,7 @@ interface UniversityModuleProps {
   userId?: string;
   onScheduleHomeworkInCalendar?: (task: TaskItem) => void;
   showToast?: (message: string) => void;
+  onNavigateToMoodle?: () => void;
 }
 
 const COLOR_PALETTES: Record<
@@ -166,6 +167,7 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
   userId,
   onScheduleHomeworkInCalendar,
   showToast = (_msg: string) => {},
+  onNavigateToMoodle,
 }) => {
   const [subjects, setSubjects] = useState<UniversitySubject[]>(() => getUniversitySubjects());
   const [homeworkList, setHomeworkList] = useState<UniversityHomework[]>(() => getUniversityHomework());
@@ -469,6 +471,33 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Banner de acceso directo a Entregas Moodle */}
+      {onNavigateToMoodle && (
+        <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-300/80 dark:border-amber-800/80 rounded-2xl p-3.5 flex items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-400">
+              <CalendarDays className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="font-extrabold text-slate-900 dark:text-white">
+                Sincronización oficial de Moodle (ICS) activa
+              </p>
+              <p className="text-slate-500 dark:text-slate-400 text-[11px]">
+                Consulta todas las entregas y cuestionarios importados automáticamente desde el calendario.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onNavigateToMoodle}
+            className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold transition shadow-xs flex items-center gap-1 cursor-pointer shrink-0"
+          >
+            <span>Ver Entregas Moodle</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Main Two-Column Layout (Sidebar on Left like Gemini, Content on Right) */}
       <div className="flex flex-col md:flex-row gap-5 items-start w-full">

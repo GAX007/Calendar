@@ -17,6 +17,7 @@ import {
   LogOut,
   Dumbbell,
   GraduationCap,
+  CalendarDays,
   Menu,
 } from 'lucide-react';
 import { TaskItem } from './types';
@@ -28,6 +29,7 @@ import { NavigationDrawer } from './components/NavigationDrawer';
 import { NextActivityCard } from './components/NextActivityCard';
 import { GymModule } from './components/GymModule';
 import { UniversityModule } from './components/UniversityModule';
+import { MoodleDeliverablesView } from './components/MoodleDeliverablesView';
 import { DailyWaterTracker } from './components/DailyWaterTracker';
 import { OmniInputBar } from './components/OmniInputBar';
 import { SmartApprovalModal } from './components/SmartApprovalModal';
@@ -61,8 +63,8 @@ function CalendarApp() {
   const [isCloudConnected, setIsCloudConnected] = useState<boolean>(false);
   const [isLoadingDb, setIsLoadingDb] = useState<boolean>(true);
 
-  // Active module tab ('agenda' | 'university' | 'gym')
-  const [activeTab, setActiveTab] = useState<'agenda' | 'university' | 'gym'>('agenda');
+  // Active module tab ('agenda' | 'university' | 'gym' | 'moodle')
+  const [activeTab, setActiveTab] = useState<'agenda' | 'university' | 'gym' | 'moodle'>('agenda');
   const [selectedGymRoutineId, setSelectedGymRoutineId] = useState<string | undefined>(undefined);
 
   // Modal states
@@ -436,6 +438,8 @@ function CalendarApp() {
               <span className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white truncate leading-tight">
                 {activeTab === 'agenda'
                   ? 'Agenda & Horarios'
+                  : activeTab === 'moodle'
+                  ? 'Entregas Moodle'
                   : activeTab === 'university'
                   ? 'Deberes & Asignaturas'
                   : 'Gym & Rutinas'}
@@ -445,6 +449,58 @@ function CalendarApp() {
               </span>
             </div>
           </div>
+
+          {/* Center: Desktop Navigation Tabs */}
+          <nav className="hidden md:flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-2xl border border-slate-200/60 dark:border-slate-750">
+            <button
+              type="button"
+              onClick={() => setActiveTab('agenda')}
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'agenda'
+                  ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              <span>Agenda</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('moodle')}
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'moodle'
+                  ? 'bg-white dark:bg-slate-700 text-amber-600 dark:text-amber-400 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <CalendarDays className="w-3.5 h-3.5" />
+              <span>Entregas Moodle</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('university')}
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'university'
+                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <GraduationCap className="w-3.5 h-3.5" />
+              <span>Universidad</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('gym')}
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'gym'
+                  ? 'bg-white dark:bg-slate-700 text-rose-600 dark:text-rose-400 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Dumbbell className="w-3.5 h-3.5" />
+              <span>Gym</span>
+            </button>
+          </nav>
 
           {/* Right: Quick Action Nueva Tarea */}
           <div className="flex items-center gap-2 shrink-0">
@@ -511,6 +567,10 @@ function CalendarApp() {
               showToast={showToast}
             />
           </div>
+        ) : activeTab === 'moodle' ? (
+          <div className="pb-28">
+            <MoodleDeliverablesView showToast={showToast} />
+          </div>
         ) : activeTab === 'university' ? (
           <div className="pb-28">
             <UniversityModule
@@ -518,6 +578,7 @@ function CalendarApp() {
               userId={user?.id}
               onScheduleHomeworkInCalendar={(task) => handleApproveAndAddTasks([task])}
               showToast={showToast}
+              onNavigateToMoodle={() => setActiveTab('moodle')}
             />
           </div>
         ) : (

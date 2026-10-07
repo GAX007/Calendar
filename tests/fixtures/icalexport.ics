@@ -1,0 +1,360 @@
+BEGIN:VCALENDAR
+METHOD:PUBLISH
+PRODID:-//Moodle Pty Ltd//NONSGML Moodle Version 2026042003.01//EN
+VERSION:2.0
+BEGIN:VEVENT
+UID:1552291@mudle.mondragon.edu/mgep
+SUMMARY:4.1 ariketa: EgoeraMakina1 + DCMotorra Labadora kodea (eskuz)(r)en 
+	entregatze-data
+	
+DESCRIPTION:Marraztu eskuz EgoeraMakina1.c kodearen egoera makina\n\nSortu 
+	eskuz zuen DCMotorra Labadora egoera-makinaren C kodea\n
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20261006T114436Z
+DTSTAMP:20261007T085706Z
+DTSTART:20261005T113000Z
+DTEND:20261005T113000Z
+CATEGORIES:GIG302F
+END:VEVENT
+BEGIN:VEVENT
+UID:1552292@mudle.mondragon.edu/mgep
+SUMMARY:4.2 ariketa: DCMotorra Labadora kodea (Simulink Coder)(r)en entrega
+	tze-data
+	
+DESCRIPTION:Sortu zuen DCMotorra Labadora kontrolaren C kodea Simulink Code
+	r erabiliz.\n\nIdentifikatu modeloaren konponente desberdinak sortutako kod
+	ean: Egoera makina exekutatzeko interfazea\, sarrerak eta irteerak nola sar
+	tu\, etab.\n
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20261006T114436Z
+DTSTAMP:20261007T085706Z
+DTSTART:20261005T113000Z
+DTEND:20261005T113000Z
+CATEGORIES:GIG302F
+END:VEVENT
+BEGIN:VEVENT
+UID:1578263@mudle.mondragon.edu/mgep
+SUMMARY:Vencimiento de IGO lab 4.5 (.pkt)
+DESCRIPTION:
+CLASS:PUBLIC
+LAST-MODIFIED:20260925T092918Z
+DTSTAMP:20261007T085706Z
+DTSTART:20261005T170000Z
+DTEND:20261005T170000Z
+CATEGORIES:GIE301F
+END:VEVENT
+BEGIN:VEVENT
+UID:109109@mudle.mondragon.edu/mgep
+SUMMARY:Herentzia eta Interfazeak(r)en entregatze-data
+DESCRIPTION:
+CLASS:PUBLIC
+LAST-MODIFIED:20261006T160711Z
+DTSTAMP:20261007T085706Z
+DTSTART:20261007T080000Z
+DTEND:20261007T080000Z
+CATEGORIES:GIF301F
+END:VEVENT
+BEGIN:VEVENT
+UID:5644679@mudle.mondragon.edu/mgep
+SUMMARY:4.3 ariketa: DCMotorra Labadora programa (Embedded Coder + Main esk
+	uz)(r)en entregatze-data
+	
+DESCRIPTION:Sortu zuen DCMotorra Labadora kontrolaren C kodea Embedded Code
+	r erabiliz.\n\nIdentifikatu modeloaren konponente desberdinak sortutako kod
+	ean\, eta aldatu main-a kontrolari sarrerak sartzeko eta irteerak bistaratz
+	eko. Denbora errealean bistaratu beharko lirateke irteeren balio aldaketak.
+	\n\nert_main.c bakarrik aldatu\, Simulinkek sortutako kodea modifikatu bari
+	k erabili.\n\nMain-erako beharko dituzuen dependentzia minimoak:\n\n#includ
+	e "Windows.h" /* Sleep [1] funtzioa hurrengo ziklorarte itxaroteko */\n#inc
+	lude <stdio.h> /* printf funtzioa irteerak bistaratzeko */\n\nSarrera guzti
+	ak 1-era hasieratu ditzakezue programa martxan hasteko\, eta nahi baduzue p
+	rograma aukeratzeko moduren bat gehitu.\n\nEsteka honetan duzue programaren
+	 adibidea eta C kompiladore bat [2]\n\n\nLinks:\n------\n[1] https://learn.
+	microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-sleep\n[2] https
+	://www.dropbox.com/scl/fo/gz242chzhonxx4axrla9b/AFEDpx29GgPzNlscQbEG8cw?rlk
+	ey=u7kd5jzfkg68qlwiotah5berp&amp\;st=7yzlp3lr&amp\;dl=0\n
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20261006T114436Z
+DTSTAMP:20261007T085706Z
+DTSTART:20261007T113000Z
+DTEND:20261007T113000Z
+CATEGORIES:GIG302F
+END:VEVENT
+BEGIN:VEVENT
+UID:1573058@mudle.mondragon.edu/mgep
+SUMMARY:Vencimiento de T1: IGO lab 4 3 3 7 (.doc/.odt) TALDEKA
+DESCRIPTION:
+CLASS:PUBLIC
+LAST-MODIFIED:20261001T082330Z
+DTSTAMP:20261007T085706Z
+DTSTART:20261008T170000Z
+DTEND:20261008T170000Z
+CATEGORIES:GIE301F
+END:VEVENT
+BEGIN:VEVENT
+UID:3514049@mudle.mondragon.edu/mgep
+SUMMARY:Vencimiento de T2: IGO lab 4 2 (.pkt)
+DESCRIPTION:
+CLASS:PUBLIC
+LAST-MODIFIED:20261001T082358Z
+DTSTAMP:20261007T085706Z
+DTSTART:20261008T170000Z
+DTEND:20261008T170000Z
+CATEGORIES:GIE301F
+END:VEVENT
+BEGIN:VEVENT
+UID:3514050@mudle.mondragon.edu/mgep
+SUMMARY:Vencimiento de T2: IGO lab 6 2 4  (.pka)
+DESCRIPTION:
+CLASS:PUBLIC
+LAST-MODIFIED:20261001T082439Z
+DTSTAMP:20261007T085706Z
+DTSTART:20261008T170000Z
+DTEND:20261008T170000Z
+CATEGORIES:GIE301F
+END:VEVENT
+BEGIN:VEVENT
+UID:141080@mudle.mondragon.edu/mgep
+SUMMARY:Galdetegia: erakusleak(r)en itxiera-data:
+DESCRIPTION:
+CLASS:PUBLIC
+LAST-MODIFIED:20261002T120948Z
+DTSTAMP:20261007T085706Z
+DTSTART:20261008T215900Z
+DTEND:20261008T215900Z
+CATEGORIES:H82014-ABCDEFGH
+END:VEVENT
+BEGIN:VEVENT
+UID:141082@mudle.mondragon.edu/mgep
+SUMMARY:Galdetegia: erakusleak (2)(r)en itxiera-data:
+DESCRIPTION:
+CLASS:PUBLIC
+LAST-MODIFIED:20261002T121028Z
+DTSTAMP:20261007T085706Z
+DTSTART:20261008T215900Z
+DTEND:20261008T215900Z
+CATEGORIES:H82014-ABCDEFGH
+END:VEVENT
+BEGIN:VEVENT
+UID:141084@mudle.mondragon.edu/mgep
+SUMMARY:Galdetegia: erakusleak (3)(r)en itxiera-data:
+DESCRIPTION:
+CLASS:PUBLIC
+LAST-MODIFIED:20261002T121114Z
+DTSTAMP:20261007T085706Z
+DTSTART:20261008T215900Z
+DTEND:20261008T215900Z
+CATEGORIES:H82014-ABCDEFGH
+END:VEVENT
+BEGIN:VEVENT
+UID:3570736@mudle.mondragon.edu/mgep
+SUMMARY:Vencimiento de T2: IGO lab 4 3 3 7 (.doc/.odt) TALDEKA
+DESCRIPTION:
+CLASS:PUBLIC
+LAST-MODIFIED:20261005T134651Z
+DTSTAMP:20261007T085706Z
+DTSTART:20261012T170000Z
+DTEND:20261012T170000Z
+CATEGORIES:GIE301F
+END:VEVENT
+BEGIN:VEVENT
+UID:3570737@mudle.mondragon.edu/mgep
+SUMMARY:Vencimiento de T1: IGO lab 4 2 (.pkt)
+DESCRIPTION:
+CLASS:PUBLIC
+LAST-MODIFIED:20261005T134625Z
+DTSTAMP:20261007T085706Z
+DTSTART:20261012T170000Z
+DTEND:20261012T170000Z
+CATEGORIES:GIE301F
+END:VEVENT
+BEGIN:VEVENT
+UID:3570738@mudle.mondragon.edu/mgep
+SUMMARY:Vencimiento de T1: IGO lab 6 2 4  (.pka)
+DESCRIPTION:
+CLASS:PUBLIC
+LAST-MODIFIED:20261005T134556Z
+DTSTAMP:20261007T085706Z
+DTSTART:20261012T170000Z
+DTEND:20261012T170000Z
+CATEGORIES:GIE301F
+END:VEVENT
+BEGIN:VEVENT
+UID:1573039@mudle.mondragon.edu/mgep
+SUMMARY:[ENTREGATZEKO] Active Directory ariketa (2/3) - Sarean partekatutak
+	o karpetak(r)en entregatze-data
+	
+DESCRIPTION:
+CLASS:PUBLIC
+LAST-MODIFIED:20261005T064848Z
+DTSTAMP:20261007T085706Z
+DTSTART:20261012T190000Z
+DTEND:20261012T190000Z
+CATEGORIES:GIE302F
+END:VEVENT
+BEGIN:VEVENT
+UID:1578266@mudle.mondragon.edu/mgep
+SUMMARY:[ENTREGATZEKO] Active Directory ariketa  (3/3) - Group Policy Objec
+	ts (GPO)(r)en entregatze-data
+	
+DESCRIPTION:
+CLASS:PUBLIC
+LAST-MODIFIED:20261005T064918Z
+DTSTAMP:20261007T085706Z
+DTSTART:20261012T190000Z
+DTEND:20261012T190000Z
+CATEGORIES:GIE302F
+END:VEVENT
+BEGIN:VEVENT
+UID:1609216@mudle.mondragon.edu/mgep
+SUMMARY:[ENTREGATZEKO] DNS Ariketa (1/1) - Konfigurazioa eta erabilera(r)en
+	 entregatze-data
+	
+DESCRIPTION:
+CLASS:PUBLIC
+LAST-MODIFIED:20261005T105127Z
+DTSTAMP:20261007T085706Z
+DTSTART:20261012T190000Z
+DTEND:20261012T190000Z
+CATEGORIES:GIE302F
+END:VEVENT
+BEGIN:VEVENT
+UID:1536540@mudle.mondragon.edu/mgep
+SUMMARY:[ENTREGATZEKO] Active Directory Ariketa (1/3) - Antolaketa unitatea
+	k\, erabiltzaileak eta taldeak(r)en entregatze-data
+	
+DESCRIPTION:
+CLASS:PUBLIC
+LAST-MODIFIED:20261005T064833Z
+DTSTAMP:20261007T085706Z
+DTSTART:20261012T210000Z
+DTEND:20261012T210000Z
+CATEGORIES:GIE302F
+END:VEVENT
+BEGIN:VEVENT
+UID:5680610@mudle.mondragon.edu/mgep
+SUMMARY:Observer/Observable patroia(r)en entregatze-data
+DESCRIPTION:
+CLASS:PUBLIC
+LAST-MODIFIED:20261006T160711Z
+DTSTAMP:20261007T085706Z
+DTSTART:20261014T143000Z
+DTEND:20261014T143000Z
+CATEGORIES:GIF301F
+END:VEVENT
+BEGIN:VEVENT
+UID:5626974@mudle.mondragon.edu/mgep
+SUMMARY:1. entregagaia: karga estazioa(r)en entregatze-data
+DESCRIPTION:Entregatuko dena:\n\n	* GRAFCET diagrama\, grafcet.io editorean
+	 garatuta eta PDF formatuan.\n\n
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20261006T114436Z
+DTSTAMP:20261007T085706Z
+DTSTART:20261116T225900Z
+DTEND:20261116T225900Z
+CATEGORIES:GIG302F
+END:VEVENT
+BEGIN:VEVENT
+UID:5626975@mudle.mondragon.edu/mgep
+SUMMARY:2. entregagaia: kutxen garraioa(r)en entregatze-data
+DESCRIPTION:Entregatuko dena:\n\n	* GRAFCET diagrama\, grafcet.io editorean
+	 garatuta eta PDF formatuan.\n\n
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20261006T114436Z
+DTSTAMP:20261007T085706Z
+DTSTART:20261116T225900Z
+DTEND:20261116T225900Z
+CATEGORIES:GIG302F
+END:VEVENT
+BEGIN:VEVENT
+UID:5626978@mudle.mondragon.edu/mgep
+SUMMARY:3. entregagaia: garaje atea(r)en entregatze-data
+DESCRIPTION:Entregatuko dena:\n\n	* GRAFCET diagrama\, grafcet.io editorean
+	 garatuta eta PDF formatuan.\n	* TIA Portaleko proiektu konprimatua (bertan
+	 sortutako _zap_ fitxategia).\n\nErakutsiko dena:\n\n	* Kontrol programaren
+	 martxa-jartze birtuala (Simumatik3D-rekin integrazioa).\n\n
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20261006T114436Z
+DTSTAMP:20261007T085706Z
+DTSTART:20261116T225900Z
+DTEND:20261116T225900Z
+CATEGORIES:GIG302F
+END:VEVENT
+BEGIN:VEVENT
+UID:5632823@mudle.mondragon.edu/mgep
+SUMMARY:4. entregagaia: zinta garraiatzaileak eta atea (estazio bat bezala)
+	(r)en entregatze-data
+	
+DESCRIPTION:Entregatuko dena:\n\n	* GRAFCET diagrama\, grafcet.io editorean
+	 garatuta eta PDF formatuan.\n	* TIA Portaleko proiektu konprimatua (bertan
+	 sortutako _zap_ fitxategia).\n\nErakutsiko dena:\n\n	* Kontrol programaren
+	 martxa-jartze birtuala (Simumatik3D-rekin integrazioa).\n\n
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20261006T114436Z
+DTSTAMP:20261007T085706Z
+DTSTART:20261116T225900Z
+DTEND:20261116T225900Z
+CATEGORIES:GIG302F
+END:VEVENT
+BEGIN:VEVENT
+UID:5632824@mudle.mondragon.edu/mgep
+SUMMARY:5. entregagaia: zinta garraiatzaileak eta atea (bi estazio bezala)(
+	r)en entregatze-data
+	
+DESCRIPTION:Entregatuko dena:\n\n	* GRAFCET diagrama\, grafcet.io editorean
+	 garatuta eta PDF formatuan.\n	* TIA Portaleko proiektu konprimatua (bertan
+	 sortutako _zap_ fitxategia).\n\nErakutsiko dena:\n\n	* Kontrol programaren
+	 martxa-jartze birtuala (Simumatik3D-rekin integrazioa).\n\n
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20261006T114436Z
+DTSTAMP:20261007T085706Z
+DTSTART:20261116T225900Z
+DTEND:20261116T225900Z
+CATEGORIES:GIG302F
+END:VEVENT
+BEGIN:VEVENT
+UID:5632827@mudle.mondragon.edu/mgep
+SUMMARY:Praktika(r)en entregatze-data
+DESCRIPTION:Entregatuko dena eta erakutsiko dena dokumentuan azalduta dago.
+	\n\nZorrotz jokatu!\n
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20261006T114436Z
+DTSTAMP:20261007T085706Z
+DTSTART:20261130T225900Z
+DTEND:20261130T225900Z
+CATEGORIES:GIG302F
+END:VEVENT
+BEGIN:VEVENT
+UID:1834145@mudle.mondragon.edu/mgep
+SUMMARY:Your username+password+end of game screen(if it's finished) (.doc/.
+	odt)(r)en entregatze-data
+	
+DESCRIPTION:
+CLASS:PUBLIC
+LAST-MODIFIED:20260922T111340Z
+DTSTAMP:20261007T085706Z
+DTSTART:20270109T182500Z
+DTEND:20270109T182500Z
+CATEGORIES:GIE301F
+END:VEVENT
+BEGIN:VEVENT
+UID:5598508@mudle.mondragon.edu/mgep
+SUMMARY:Vencimiento de Your game (.ags)
+DESCRIPTION:
+CLASS:PUBLIC
+LAST-MODIFIED:20260922T111408Z
+DTSTAMP:20261007T085706Z
+DTSTART:20270109T182500Z
+DTEND:20270109T182500Z
+CATEGORIES:GIE301F
+END:VEVENT
+END:VCALENDAR

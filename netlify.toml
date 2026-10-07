@@ -10,6 +10,28 @@
   node_bundler = "esbuild"
   external_node_modules = ["vite"]
 
+[functions."sync-moodle"]
+  schedule = "0 */2 * * *"
+
+# Direct sync-now endpoint
+[[redirects]]
+  from = "/sync-now"
+  to = "/.netlify/functions/sync-now"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/sync-now"
+  to = "/.netlify/functions/sync-now"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/moodle/sync-now"
+  to = "/.netlify/functions/sync-now"
+  status = 200
+  force = true
+
 # Proxy API calls to the serverless Express function
 [[redirects]]
   from = "/api/*"

@@ -12,11 +12,26 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+import {
+  syncMoodleDeliverables,
+  createManualEntrega,
+  updateEntregaUserFields,
+} from './src/services/moodleSyncService';
+import { MoodleStore } from './src/services/moodleStore';
+
 // Normalize Netlify function URLs (/.netlify/functions/api/* -> /api/* or stripped /* -> /api/*)
 app.use((req, res, next) => {
   if (req.url.startsWith('/.netlify/functions/api')) {
     req.url = req.url.replace('/.netlify/functions/api', '/api') || '/api';
-  } else if (!req.url.startsWith('/api') && (req.url.startsWith('/health') || req.url.startsWith('/google-calendar') || req.url.startsWith('/transcribe-audio') || req.url.startsWith('/parse-multimodal'))) {
+  } else if (
+    !req.url.startsWith('/api') &&
+    (req.url.startsWith('/health') ||
+      req.url.startsWith('/google-calendar') ||
+      req.url.startsWith('/transcribe-audio') ||
+      req.url.startsWith('/parse-multimodal') ||
+      req.url.startsWith('/sync-now') ||
+      req.url.startsWith('/moodle'))
+  ) {
     req.url = '/api' + req.url;
   }
   next();
@@ -235,6 +250,126 @@ app.get('/api/google-calendar/sync-live', async (req, res) => {
       success: false,
       error: err.message || 'Error al conectar con Google Calendar',
     });
+  }
+});
+
+// -------------------------------------------------------------------------
+// MOODLE ICS SYNC ENDPOINTS (Fase 1)
+// -------------------------------------------------------------------------
+app.all(['/api/sync-now', '/api/moodle/sync-now', '/sync-now', '/moodle/sync-now'], async (req, res) => {
+  try {
+    const result = await syncMoodleDeliverables();
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err.message || 'Error en sincronización' });
+  }
+});
+
+app.get(['/api/moodle/entregas', '/moodle/entregas'], async (req, res) => {
+  try {
+    const includeOcultas = req.query.includeOcultas === 'true';
+    const asignatura = req.query.asignatura ? String(req.query.asignatura) : undefined;
+    const estado = req.query.estado ? String(req.query.estado) : undefined;
+
+    const entregas = await MoodleStore.getEntregas({
+      includeOcultas,
+      asignatura,
+      estado,
+    });
+    res.json({ ok: true, entregas });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post(['/api/moodle/entregas', '/moodle/entregas'], async (req, res) => {
+  try {
+    const { titulo, asignatura_codigo, deadline_madrid, descripcion } = req.body;
+    if (!titulo || !asignatura_codigo || !deadline_madrid) {
+      return res.status(400).json({ ok: false, error: 'Faltan campos obligatorios' });
+    }
+    const entrega = await createManualEntrega({
+      titulo,
+      asignatura_codigo,
+      deadline_madrid,
+      descripcion,
+    });
+    res.json({ ok: true, entrega });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.patch(['/api/moodle/entregas/:uid', '/moodle/entregas/:uid'], async (req, res) => {
+  try {
+    const { uid } = req.params;
+    const { estado, dificultad, horas_est, horas_reales, min_viable_min } = req.body;
+    const updated = await updateEntregaUserFields(uid, {
+      estado,
+      dificultad,
+      horas_est,
+      horas_reales,
+      min_viable_min,
+    });
+    if (!updated) {
+      return res.status(404).json({ ok: false, error: 'Entrega no encontrada' });
+    }
+    res.json({ ok: true, entrega: updated });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get(['/api/moodle/asignaturas', '/moodle/asignaturas'], async (req, res) => {
+  try {
+    const asignaturas = await MoodleStore.getAsignaturas();
+    res.json({ ok: true, asignaturas });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.put(['/api/moodle/asignaturas/:codigo', '/moodle/asignaturas/:codigo'], async (req, res) => {
+  try {
+    const { codigo } = req.params;
+    const { nombre, cuatrimestre, activa } = req.body;
+    const updated = await MoodleStore.updateAsignatura(codigo, {
+      nombre,
+      cuatrimestre,
+      activa,
+    });
+    res.json({ ok: true, asignatura: updated });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get(['/api/moodle/cambios', '/moodle/cambios'], async (req, res) => {
+  try {
+    const onlyUnseen = req.query.onlyUnseen === 'true';
+    const cambios = await MoodleStore.getCambios(onlyUnseen);
+    res.json({ ok: true, cambios });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post(['/api/moodle/cambios/marcar-vistos', '/moodle/cambios/marcar-vistos'], async (req, res) => {
+  try {
+    await MoodleStore.marcarCambiosVistos();
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get(['/api/moodle/sync-log', '/moodle/sync-log'], async (req, res) => {
+  try {
+    const limit = req.query.limit ? parseInt(String(req.query.limit), 10) : 20;
+    const logs = await MoodleStore.getSyncLogs(limit);
+    res.json({ ok: true, logs });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
 

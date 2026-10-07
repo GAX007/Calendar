@@ -7,3 +7,5 @@ coverage/
 .env*
 !.env.example
 .netlify/
+data/*.json
+supabase/.temp/
