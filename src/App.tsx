@@ -415,35 +415,54 @@ function CalendarApp() {
         onCheckUpdates={handleCheckUpdates}
       />
 
-      {/* Top Floating Control Bar (No top header; maximizes space; discrete menu toggle on left) */}
-      <div className="fixed top-3 inset-x-3 sm:top-4 sm:inset-x-6 z-40 flex items-center justify-between pointer-events-none">
-        {/* Left: Discrete 3-lines menu button */}
-        <button
-          id="btn-open-navigation-drawer"
-          type="button"
-          onClick={() => setIsDrawerOpen(true)}
-          className="pointer-events-auto p-2 sm:p-2.5 rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:white hover:bg-slate-100 dark:hover:bg-slate-800 shadow-xs transition cursor-pointer active:scale-95"
-          title="Menú de navegación"
-          aria-label="Abrir menú"
-        >
-          <Menu className="w-5 h-5" />
-        </button>
+      {/* Top Mobile-First Header Bar: Sticky, respects notch safe-area, 44px+ touch targets */}
+      <header className="sticky top-0 z-40 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 pt-[max(env(safe-area-inset-top,0px),0.5rem)] pb-2 px-3 sm:px-6 transition-colors shadow-2xs">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
+          {/* Left: 44x44px touch-friendly hamburger button & page title */}
+          <div className="flex items-center gap-2.5 min-w-0">
+            <button
+              id="btn-open-navigation-drawer"
+              type="button"
+              onClick={() => setIsDrawerOpen(true)}
+              className="w-11 h-11 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 flex items-center justify-center transition cursor-pointer active:scale-95 border border-slate-200/60 dark:border-slate-700/60 shadow-2xs touch-manipulation shrink-0"
+              title="Menú de navegación"
+              aria-label="Abrir menú"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
 
-        {/* Right: Quick action (Nueva tarea) */}
-        <div className="pointer-events-auto flex items-center gap-2">
-          <button
-            onClick={() => handleOpenNewTaskModal()}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs hover:shadow-md transition cursor-pointer active:scale-95"
-            title="Crear nueva tarea o actividad"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>Nueva Tarea</span>
-          </button>
+            {/* Current Context / Date Indicator on Mobile */}
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white truncate leading-tight">
+                {activeTab === 'agenda'
+                  ? 'Agenda & Horarios'
+                  : activeTab === 'university'
+                  ? 'Deberes & Asignaturas'
+                  : 'Gym & Rutinas'}
+              </span>
+              <span className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 capitalize truncate">
+                {clock.dayName}, {clock.dayNumber} {clock.monthName}
+              </span>
+            </div>
+          </div>
+
+          {/* Right: Quick Action Nueva Tarea */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => handleOpenNewTaskModal()}
+              className="h-10 sm:h-11 px-3 sm:px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs sm:text-sm font-bold shadow-xs hover:shadow-md transition cursor-pointer active:scale-95 flex items-center gap-1.5 touch-manipulation"
+              title="Crear nueva tarea o actividad"
+            >
+              <PlusCircle className="w-4 h-4 shrink-0" />
+              <span>Nueva Tarea</span>
+            </button>
+          </div>
         </div>
-      </div>
+      </header>
 
       {/* Main Content: Google Calendar View, University Module, or Gym Module */}
-      <main className="flex-1 pt-14 sm:pt-16">
+      <main className="flex-1 pt-3 sm:pt-5 pb-36 sm:pb-40">
         {activeTab === 'agenda' ? (
           <div className="max-w-6xl mx-auto px-2.5 sm:px-6 pb-28 flex flex-col gap-4">
             {/* Top Cards: Next activity reminder & Daily Hydration Tracker */}

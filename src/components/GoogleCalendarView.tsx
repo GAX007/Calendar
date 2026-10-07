@@ -76,7 +76,12 @@ export const GoogleCalendarView: React.FC<GoogleCalendarViewProps> = ({
   onLiveSyncSuccess,
   showToast,
 }) => {
-  const [viewMode, setViewMode] = useState<CalendarViewMode>('week');
+  const [viewMode, setViewMode] = useState<CalendarViewMode>(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 640) {
+      return '3days';
+    }
+    return 'week';
+  });
   const [activeDate, setActiveDate] = useState<string>(clock.dateStr);
   const [showFreeSlotsBanner, setShowFreeSlotsBanner] = useState<boolean>(true);
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
@@ -342,63 +347,41 @@ export const GoogleCalendarView: React.FC<GoogleCalendarViewProps> = ({
       {/* ========================================================================= */}
       {/* GOOGLE CALENDAR HEADER CONTROL BAR                                        */}
       {/* ========================================================================= */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-3 sm:p-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-        {/* Left: Today button, Prev/Next, Title */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <button
-            onClick={handleJumpToToday}
-            className="px-3.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 transition cursor-pointer active:scale-95 shadow-2xs"
-          >
-            Hoy
-          </button>
-
-          <div className="flex items-center gap-1">
+      {/* ========================================================================= */}
+      {/* GOOGLE CALENDAR HEADER CONTROL BAR                                        */}
+      {/* ========================================================================= */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-3 sm:p-4 shadow-xs flex flex-col gap-2.5">
+        {/* Row 1: Date Navigation, Title & View Switcher */}
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <button
-              onClick={handlePrev}
-              title="Anterior"
-              className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition cursor-pointer"
+              onClick={handleJumpToToday}
+              className="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 transition cursor-pointer active:scale-95 shadow-2xs touch-manipulation min-h-[36px]"
             >
-              <ChevronLeft className="w-4 h-4" />
+              Hoy
             </button>
-            <button
-              onClick={handleNext}
-              title="Siguiente"
-              className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition cursor-pointer"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
+
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handlePrev}
+                title="Anterior"
+                className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center transition cursor-pointer active:scale-95 touch-manipulation"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleNext}
+                title="Siguiente"
+                className="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center transition cursor-pointer active:scale-95 touch-manipulation"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            <h2 className="text-sm sm:text-base md:text-lg font-extrabold text-slate-900 dark:text-white tracking-tight truncate max-w-[140px] sm:max-w-none">
+              {headerDateTitle}
+            </h2>
           </div>
-
-          <h2 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white tracking-tight">
-            {headerDateTitle}
-          </h2>
-
-          {/* Free hours badge */}
-          <div
-            onClick={() => setShowFreeSlotsBanner((prev) => !prev)}
-            title="Toca para ver u ocultar el desglose de horas libres"
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-bold cursor-pointer hover:bg-emerald-100/70 transition shadow-2xs"
-          >
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>{totalFreeHoursToday}h libres detectadas</span>
-          </div>
-        </div>
-
-        {/* Right: View mode selector, Sync button & Add Task button */}
-        <div className="flex items-center gap-2 self-start md:self-auto flex-wrap sm:flex-nowrap">
-          {/* Category quick filter */}
-          <select
-            value={selectedCategoryFilter}
-            onChange={(e) => setSelectedCategoryFilter(e.target.value)}
-            className="text-xs font-semibold py-1.5 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer outline-hidden shadow-2xs"
-          >
-            <option value="all">Todas las categorías</option>
-            <option value="Academics">Académico</option>
-            <option value="Sports/Karate">Deportes / Gym</option>
-            <option value="Work">Trabajo</option>
-            <option value="Personal">Personal</option>
-            <option value="Health">Salud</option>
-          </select>
 
           {/* View mode selector (Semana, 3 Días, Día, Agenda) */}
           <div className="relative flex items-center shrink-0">
@@ -409,53 +392,82 @@ export const GoogleCalendarView: React.FC<GoogleCalendarViewProps> = ({
               id="calendar-view-mode-selector"
               value={viewMode}
               onChange={(e) => setViewMode(e.target.value as CalendarViewMode)}
-              className="pl-7 pr-7 py-1.5 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750 cursor-pointer outline-hidden shadow-2xs appearance-none transition"
+              className="pl-7 pr-7 py-2 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-750 cursor-pointer outline-hidden shadow-2xs appearance-none transition touch-manipulation min-h-[38px]"
               title="Seleccionar vista del calendario"
             >
-              <option value="week">Semana</option>
               <option value="3days">3 Días</option>
               <option value="day">Día</option>
+              <option value="week">Semana</option>
               <option value="agenda">Agenda</option>
             </select>
             <div className="pointer-events-none absolute right-2 flex items-center text-slate-400">
               <ChevronDown className="w-3.5 h-3.5" />
             </div>
           </div>
+        </div>
 
-          {/* Subtle live sync button */}
-          <button
-            type="button"
-            onClick={handleLiveSync}
-            disabled={isSyncingLive}
-            className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-750 transition cursor-pointer shrink-0 shadow-2xs active:scale-95 disabled:opacity-60"
-            title="Sincronizado automáticamente con Google Calendar (haz clic para refrescar ahora)"
+        {/* Row 2: Free hours pill, Category quick filter & Sync actions */}
+        <div className="flex items-center justify-between gap-2 flex-wrap pt-2 border-t border-slate-100 dark:border-slate-800">
+          {/* Free hours badge */}
+          <div
+            onClick={() => setShowFreeSlotsBanner((prev) => !prev)}
+            title="Toca para ver u ocultar el desglose de horas libres"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-bold cursor-pointer hover:bg-emerald-100/70 transition shadow-2xs touch-manipulation"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isSyncingLive ? 'animate-spin text-indigo-600' : ''}`} />
-          </button>
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+            <span>{totalFreeHoursToday}h libres</span>
+          </div>
 
-          {/* Quick button to link or edit user's Google Calendar */}
-          {onOpenLinkCalendarModal && (
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Category quick filter */}
+            <select
+              value={selectedCategoryFilter}
+              onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+              className="text-xs font-semibold py-1.5 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer outline-hidden shadow-2xs touch-manipulation min-h-[36px]"
+            >
+              <option value="all">Todas las categorías</option>
+              <option value="Academics">Académico</option>
+              <option value="Sports/Karate">Deportes / Gym</option>
+              <option value="Work">Trabajo</option>
+              <option value="Personal">Personal</option>
+              <option value="Health">Salud</option>
+            </select>
+
+            {/* Subtle live sync button */}
             <button
               type="button"
-              onClick={onOpenLinkCalendarModal}
-              className="p-1.5 rounded-xl border border-blue-200 dark:border-blue-800/80 bg-blue-50/70 dark:bg-blue-950/40 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition cursor-pointer shrink-0 shadow-2xs active:scale-95"
-              title="Vincular / Configurar mi Google Calendar (.ics)"
+              onClick={handleLiveSync}
+              disabled={isSyncingLive}
+              className="w-9 h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-750 flex items-center justify-center transition cursor-pointer shrink-0 shadow-2xs active:scale-95 disabled:opacity-60 touch-manipulation"
+              title="Sincronizado automáticamente con Google Calendar (haz clic para refrescar ahora)"
             >
-              <ExternalLink className="w-3.5 h-3.5" />
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncingLive ? 'animate-spin text-indigo-600' : ''}`} />
             </button>
-          )}
 
-          {/* Add Task Button */}
-          {onAddNewTask && (
-            <button
-              onClick={() => onAddNewTask(activeDate)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition cursor-pointer shrink-0 active:scale-95"
-              title="Añadir nueva actividad"
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Crear</span>
-            </button>
-          )}
+            {/* Quick button to link or edit user's Google Calendar */}
+            {onOpenLinkCalendarModal && (
+              <button
+                type="button"
+                onClick={onOpenLinkCalendarModal}
+                className="w-9 h-9 rounded-xl border border-blue-200 dark:border-blue-800/80 bg-blue-50/70 dark:bg-blue-950/40 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60 flex items-center justify-center transition cursor-pointer shrink-0 shadow-2xs active:scale-95 touch-manipulation"
+                title="Vincular / Configurar mi Google Calendar (.ics)"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {/* Add Task Button */}
+            {onAddNewTask && (
+              <button
+                onClick={() => onAddNewTask(activeDate)}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition cursor-pointer shrink-0 active:scale-95 touch-manipulation min-h-[36px]"
+                title="Añadir nueva actividad"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Crear</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -597,235 +609,271 @@ export const GoogleCalendarView: React.FC<GoogleCalendarViewProps> = ({
         /* VIEW 2: GOOGLE CALENDAR TIME GRID (DAY / 3 DAYS / WEEK)                   */
         /* ========================================================================= */
         <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl shadow-sm overflow-hidden flex flex-col">
-          {/* Day Column Headers (Sticky Top) */}
-          <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-850/80 backdrop-blur-xs">
-            {/* Left corner spacer above time labels */}
-            <div className="w-14 sm:w-16 shrink-0 border-r border-slate-200/80 dark:border-slate-800 flex items-center justify-center p-2 text-[10px] font-bold text-slate-400">
-              GMT+2
+          {/* Mobile swipe hint when showing > 3 days */}
+          {displayedDays.length > 3 && (
+            <div className="sm:hidden px-3 py-1.5 bg-indigo-50/80 dark:bg-indigo-950/40 border-b border-indigo-100 dark:border-indigo-900/50 text-[11px] text-indigo-700 dark:text-indigo-300 font-semibold flex items-center justify-between">
+              <span>👉 Desliza horizontalmente para ver toda la semana</span>
+              <span className="font-mono text-[10px] bg-white dark:bg-slate-800 px-2 py-0.5 rounded shadow-2xs text-slate-700 dark:text-slate-200">
+                Lun - Dom
+              </span>
             </div>
+          )}
 
-            {/* Day columns headers */}
-            <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${displayedDays.length}, minmax(0, 1fr))` }}>
-              {displayedDays.map((day) => (
-                <div
-                  key={day.date}
-                  className={`p-2.5 sm:p-3 text-center border-r last:border-r-0 border-slate-200/70 dark:border-slate-800 flex flex-col items-center justify-center gap-0.5 cursor-pointer transition hover:bg-slate-100/50 dark:hover:bg-slate-800/50 ${
-                    day.isToday ? 'bg-indigo-50/40 dark:bg-indigo-950/20' : ''
-                  }`}
-                  onClick={() => setActiveDate(day.date)}
-                >
-                  <span className={`text-[10px] sm:text-xs font-bold tracking-wider ${
-                    day.isToday ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400'
-                  }`}>
-                    {day.dayShort}
-                  </span>
-                  <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-extrabold transition ${
-                    day.isToday
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : day.date === activeDate
-                      ? 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white'
-                      : 'text-slate-800 dark:text-slate-200'
-                  }`}>
-                    {day.dayNumber}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Scrollable Hourly Time Grid */}
+          {/* Unified 2D Scrollable Container (Sticky top day headers + Sticky left time gutter) */}
           <div
             ref={scrollContainerRef}
-            className="overflow-y-auto max-h-[70vh] relative flex"
+            className="overflow-x-auto overflow-y-auto max-h-[70vh] sm:max-h-[75vh] relative overscroll-contain touch-pan-x touch-pan-y"
           >
-            {/* Time labels gutter (Left Column) */}
             <div
-              className="w-14 sm:w-16 shrink-0 border-r border-slate-200/80 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-950/30 select-none relative"
-              style={{ height: `${TOTAL_GRID_HEIGHT}px` }}
-            >
-              {Array.from({ length: TOTAL_HOURS }).map((_, idx) => {
-                const hour = START_HOUR + idx;
-                const timeLabel = `${hour.toString().padStart(2, '0')}:00`;
-                return (
-                  <div
-                    key={hour}
-                    className="absolute right-2 text-[10px] sm:text-[11px] font-mono text-slate-400 font-medium"
-                    style={{ top: `${idx * HOUR_HEIGHT_PX - 8}px` }}
-                  >
-                    {timeLabel}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Grid Columns Area */}
-            <div
-              className="flex-1 grid relative"
               style={{
-                gridTemplateColumns: `repeat(${displayedDays.length}, minmax(0, 1fr))`,
-                height: `${TOTAL_GRID_HEIGHT}px`,
+                minWidth: displayedDays.length > 3 ? `${displayedDays.length * 115 + 64}px` : '100%',
               }}
+              className="flex flex-col"
             >
-              {/* Horizontal background grid lines */}
-              <div className="absolute inset-0 pointer-events-none z-0">
-                {Array.from({ length: TOTAL_HOURS }).map((_, idx) => (
-                  <React.Fragment key={idx}>
-                    {/* Hour line */}
+              {/* Day Column Headers (Sticky Top) */}
+              <div className="sticky top-0 z-30 flex border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md">
+                {/* Sticky Left Corner spacer above time labels */}
+                <div className="sticky left-0 z-40 w-14 sm:w-16 shrink-0 border-r border-slate-200/80 dark:border-slate-800 bg-slate-50/95 dark:bg-slate-850/95 backdrop-blur-md flex items-center justify-center p-2 text-[10px] font-bold text-slate-400">
+                  GMT+2
+                </div>
+
+                {/* Day columns headers */}
+                <div
+                  className="flex-1 grid"
+                  style={{
+                    gridTemplateColumns: `repeat(${displayedDays.length}, minmax(${displayedDays.length > 3 ? '115px' : '0px'}, 1fr))`,
+                  }}
+                >
+                  {displayedDays.map((day) => (
                     <div
-                      className="absolute inset-x-0 border-b border-slate-200/60 dark:border-slate-800/80"
-                      style={{ top: `${(idx + 1) * HOUR_HEIGHT_PX}px` }}
-                    />
-                    {/* Half-hour dashed guide */}
-                    <div
-                      className="absolute inset-x-0 border-b border-dashed border-slate-100 dark:border-slate-800/40"
-                      style={{ top: `${idx * HOUR_HEIGHT_PX + HOUR_HEIGHT_PX / 2}px` }}
-                    />
-                  </React.Fragment>
-                ))}
+                      key={day.date}
+                      className={`p-2.5 sm:p-3 text-center border-r last:border-r-0 border-slate-200/70 dark:border-slate-800 flex flex-col items-center justify-center gap-0.5 cursor-pointer transition hover:bg-slate-100/50 dark:hover:bg-slate-800/50 touch-manipulation ${
+                        day.isToday ? 'bg-indigo-50/40 dark:bg-indigo-950/20' : ''
+                      }`}
+                      onClick={() => setActiveDate(day.date)}
+                    >
+                      <span
+                        className={`text-[10px] sm:text-xs font-bold tracking-wider ${
+                          day.isToday ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400'
+                        }`}
+                      >
+                        {day.dayShort}
+                      </span>
+                      <div
+                        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-extrabold transition ${
+                          day.isToday
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : day.date === activeDate
+                            ? 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white'
+                            : 'text-slate-800 dark:text-slate-200'
+                        }`}
+                      >
+                        {day.dayNumber}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              {/* Day Columns */}
-              {displayedDays.map((day) => {
-                const dayTasks = getPositionedTasksForDay(day.date);
-
-                return (
-                  <div
-                    key={day.date}
-                    className="relative border-r last:border-r-0 border-slate-200/70 dark:border-slate-800/80 h-full group"
-                    onClick={(e) => {
-                      if (onAddNewTask && e.target === e.currentTarget) {
-                        // Calculate clicked hour
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        const clickY = e.clientY - rect.top;
-                        const clickedHour = Math.floor(clickY / HOUR_HEIGHT_PX) + START_HOUR;
-                        const timeStr = `${clickedHour.toString().padStart(2, '0')}:00`;
-                        onAddNewTask(day.date, timeStr);
-                      }
-                    }}
-                  >
-                    {/* Click-to-add empty hour slot indicators */}
-                    {Array.from({ length: TOTAL_HOURS }).map((_, hIdx) => {
-                      const hourVal = START_HOUR + hIdx;
-                      return (
-                        <div
-                          key={hourVal}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (onAddNewTask) {
-                              onAddNewTask(day.date, `${hourVal.toString().padStart(2, '0')}:00`);
-                            }
-                          }}
-                          className="absolute inset-x-0 cursor-pointer hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-colors group/cell"
-                          style={{
-                            top: `${hIdx * HOUR_HEIGHT_PX}px`,
-                            height: `${HOUR_HEIGHT_PX}px`,
-                          }}
-                          title={`Click para agendar a las ${hourVal.toString().padStart(2, '0')}:00 en ${day.dayShort} ${day.dayNumber}`}
-                        >
-                          <span className="opacity-0 group-hover/cell:opacity-100 transition-opacity text-[10px] text-indigo-500 dark:text-indigo-400 font-bold ml-2 mt-1 inline-block">
-                            + Libre {hourVal}:00
-                          </span>
-                        </div>
-                      );
-                    })}
-
-                    {/* Live red time marker for Today */}
-                    {day.isToday && currentLiveTopPx !== null && (
+              {/* Hourly Time Grid with Sticky Left Gutter */}
+              <div className="flex relative" style={{ height: `${TOTAL_GRID_HEIGHT}px` }}>
+                {/* Time labels gutter (Left Sticky Column) */}
+                <div
+                  className="sticky left-0 z-20 w-14 sm:w-16 shrink-0 border-r border-slate-200/80 dark:border-slate-800 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-xs select-none relative"
+                  style={{ height: `${TOTAL_GRID_HEIGHT}px` }}
+                >
+                  {Array.from({ length: TOTAL_HOURS }).map((_, idx) => {
+                    const hour = START_HOUR + idx;
+                    const timeLabel = `${hour.toString().padStart(2, '0')}:00`;
+                    return (
                       <div
-                        className="absolute inset-x-0 z-20 pointer-events-none flex items-center"
-                        style={{ top: `${currentLiveTopPx}px` }}
+                        key={hour}
+                        className="absolute right-2 text-[10px] sm:text-[11px] font-mono text-slate-400 font-medium"
+                        style={{ top: `${idx * HOUR_HEIGHT_PX - 8}px` }}
                       >
-                        <div className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-sm shrink-0 -ml-1.5 ring-2 ring-white dark:ring-slate-900" />
-                        <div className="h-[2px] flex-1 bg-rose-500 shadow-xs" />
-                        <span className="text-[9px] font-mono font-bold bg-rose-500 text-white px-1 rounded-sm shrink-0 shadow-2xs mr-1">
-                          {clock.timeStr}
-                        </span>
+                        {timeLabel}
                       </div>
-                    )}
+                    );
+                  })}
+                </div>
 
-                    {/* Placed Event Blocks */}
-                    {dayTasks.map(({ task, topPx, heightPx }) => {
-                      const meta = getCategoryMeta(task.category);
-                      const isCompleted = task.completed;
-
-                      return (
+                {/* Grid Columns Area */}
+                <div
+                  className="flex-1 grid relative"
+                  style={{
+                    gridTemplateColumns: `repeat(${displayedDays.length}, minmax(${displayedDays.length > 3 ? '115px' : '0px'}, 1fr))`,
+                    height: `${TOTAL_GRID_HEIGHT}px`,
+                  }}
+                >
+                  {/* Horizontal background grid lines */}
+                  <div className="absolute inset-0 pointer-events-none z-0">
+                    {Array.from({ length: TOTAL_HOURS }).map((_, idx) => (
+                      <React.Fragment key={idx}>
+                        {/* Hour line */}
                         <div
-                          key={task.id}
-                          style={{
-                            top: `${topPx}px`,
-                            height: `${heightPx}px`,
-                            left: '2px',
-                            right: '2px',
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onEditTaskRequest(task);
-                          }}
-                          className={`absolute z-10 rounded-xl p-1.5 sm:p-2 border transition-all cursor-pointer shadow-2xs hover:shadow-md hover:z-30 flex flex-col justify-between overflow-hidden group/item ${
-                            isCompleted
-                              ? 'bg-slate-100/80 dark:bg-slate-850/60 border-slate-300 dark:border-slate-700 opacity-60 border-l-4 border-l-slate-400'
-                              : `${meta.cardBg} ${meta.cardBorder} border-l-4 ${meta.leftBar} hover:brightness-95`
-                          }`}
-                          title={`${task.title} (${task.time} - ${task.endTime || 'fin'})`}
-                        >
-                          {/* Event Header: Title & Time */}
-                          <div className="min-w-0">
-                            <div className="flex items-center justify-between gap-1">
-                              <span
-                                className={`text-[11px] sm:text-xs font-bold truncate leading-tight ${
-                                  isCompleted
-                                    ? 'line-through text-slate-500'
-                                    : 'text-slate-900 dark:text-white'
-                                }`}
-                              >
-                                {task.title}
-                              </span>
+                          className="absolute inset-x-0 border-b border-slate-200/60 dark:border-slate-800/80"
+                          style={{ top: `${(idx + 1) * HOUR_HEIGHT_PX}px` }}
+                        />
+                        {/* Half-hour dashed guide */}
+                        <div
+                          className="absolute inset-x-0 border-b border-dashed border-slate-100 dark:border-slate-800/40"
+                          style={{ top: `${idx * HOUR_HEIGHT_PX + HOUR_HEIGHT_PX / 2}px` }}
+                        />
+                      </React.Fragment>
+                    ))}
+                  </div>
 
-                              {/* Complete Checkbox */}
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onToggleTaskComplete(task.id);
-                                }}
-                                className="text-slate-400 hover:text-emerald-500 transition shrink-0"
-                              >
-                                {isCompleted ? (
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                                ) : (
-                                  <Circle className="w-3.5 h-3.5" />
-                                )}
-                              </button>
-                            </div>
+                  {/* Day Columns */}
+                  {displayedDays.map((day) => {
+                    const dayTasks = getPositionedTasksForDay(day.date);
 
-                            <div className="flex items-center gap-1.5 text-[10px] text-slate-600 dark:text-slate-300 font-medium">
-                              <Clock className="w-2.5 h-2.5 shrink-0 opacity-70" />
-                              <span>
-                                {task.time}{task.endTime ? ` - ${task.endTime}` : ''}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Gym routine button if applicable & enough height */}
-                          {heightPx > 48 && onOpenGymRoutine && (task.category === 'Sports/Karate' || task.title.toLowerCase().includes('gym')) && (
-                            <button
-                              type="button"
+                    return (
+                      <div
+                        key={day.date}
+                        className="relative border-r last:border-r-0 border-slate-200/70 dark:border-slate-800/80 h-full group"
+                        onClick={(e) => {
+                          if (onAddNewTask && e.target === e.currentTarget) {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const clickY = e.clientY - rect.top;
+                            const clickedHour = Math.floor(clickY / HOUR_HEIGHT_PX) + START_HOUR;
+                            const timeStr = `${clickedHour.toString().padStart(2, '0')}:00`;
+                            onAddNewTask(day.date, timeStr);
+                          }
+                        }}
+                      >
+                        {/* Click-to-add empty hour slot indicators */}
+                        {Array.from({ length: TOTAL_HOURS }).map((_, hIdx) => {
+                          const hourVal = START_HOUR + hIdx;
+                          return (
+                            <div
+                              key={hourVal}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                onOpenGymRoutine();
+                                if (onAddNewTask) {
+                                  onAddNewTask(day.date, `${hourVal.toString().padStart(2, '0')}:00`);
+                                }
                               }}
-                              className="mt-1 self-start inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 hover:bg-rose-200 transition"
+                              className="absolute inset-x-0 cursor-pointer hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-colors group/cell touch-manipulation"
+                              style={{
+                                top: `${hIdx * HOUR_HEIGHT_PX}px`,
+                                height: `${HOUR_HEIGHT_PX}px`,
+                              }}
+                              title={`Click para agendar a las ${hourVal.toString().padStart(2, '0')}:00 en ${day.dayShort} ${day.dayNumber}`}
                             >
-                              <Dumbbell className="w-2.5 h-2.5" />
-                              <span>Rutina</span>
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
+                              <span className="opacity-0 group-hover/cell:opacity-100 transition-opacity text-[10px] text-indigo-500 dark:text-indigo-400 font-bold ml-2 mt-1 inline-block">
+                                + Libre {hourVal}:00
+                              </span>
+                            </div>
+                          );
+                        })}
+
+                        {/* Live red time marker for Today */}
+                        {day.isToday && currentLiveTopPx !== null && (
+                          <div
+                            className="absolute inset-x-0 z-20 pointer-events-none flex items-center"
+                            style={{ top: `${currentLiveTopPx}px` }}
+                          >
+                            <div className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-sm shrink-0 -ml-1.5 ring-2 ring-white dark:ring-slate-900" />
+                            <div className="h-[2px] flex-1 bg-rose-500 shadow-xs" />
+                            <span className="text-[9px] font-mono font-bold bg-rose-500 text-white px-1 rounded-sm shrink-0 shadow-2xs mr-1">
+                              {clock.timeStr}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Placed Event Blocks */}
+                        {dayTasks.map(({ task, topPx, heightPx }) => {
+                          const meta = getCategoryMeta(task.category);
+                          const isCompleted = task.completed;
+
+                          return (
+                            <div
+                              key={task.id}
+                              style={{
+                                top: `${topPx}px`,
+                                height: `${heightPx}px`,
+                                left: '2px',
+                                right: '2px',
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onEditTaskRequest(task);
+                              }}
+                              className={`absolute z-10 rounded-xl p-1.5 sm:p-2 border transition-all cursor-pointer shadow-2xs hover:shadow-md hover:z-30 flex flex-col justify-between overflow-hidden group/item active:scale-[0.98] touch-manipulation ${
+                                isCompleted
+                                  ? 'bg-slate-100/90 dark:bg-slate-850/80 border-slate-300 dark:border-slate-700 opacity-60 border-l-4 border-l-slate-400'
+                                  : `${meta.cardBg} ${meta.cardBorder} border-l-4 ${meta.leftBar} hover:brightness-95`
+                              }`}
+                              title={`${task.title} (${task.time} - ${task.endTime || 'fin'})`}
+                            >
+                              {/* Event Header: Title & Time */}
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-start justify-between gap-1">
+                                  <span
+                                    className={`text-[11px] sm:text-xs font-bold leading-tight break-words line-clamp-2 ${
+                                      isCompleted
+                                        ? 'line-through text-slate-500'
+                                        : 'text-slate-900 dark:text-white'
+                                    }`}
+                                  >
+                                    {task.title}
+                                  </span>
+
+                                  {/* Complete Checkbox */}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onToggleTaskComplete(task.id);
+                                    }}
+                                    className="p-1 -m-1 text-slate-400 hover:text-emerald-500 transition shrink-0 touch-manipulation"
+                                    aria-label={isCompleted ? 'Desmarcar tarea' : 'Completar tarea'}
+                                  >
+                                    {isCompleted ? (
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                                    ) : (
+                                      <Circle className="w-3.5 h-3.5" />
+                                    )}
+                                  </button>
+                                </div>
+
+                                <div className="flex items-center gap-1 text-[10px] text-slate-600 dark:text-slate-300 font-medium mt-0.5">
+                                  <Clock className="w-2.5 h-2.5 shrink-0 opacity-70" />
+                                  <span className="truncate">
+                                    {task.time}{task.endTime ? ` - ${task.endTime}` : ''}
+                                  </span>
+                                </div>
+
+                                {/* Classroom or location if enough height */}
+                                {heightPx >= 52 && task.classroom && (
+                                  <div className="text-[9px] font-semibold text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                                    📍 {task.classroom}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Gym routine button if applicable & enough height */}
+                              {heightPx >= 60 && onOpenGymRoutine && (task.category === 'Sports/Karate' || task.title.toLowerCase().includes('gym')) && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onOpenGymRoutine();
+                                  }}
+                                  className="mt-0.5 self-start inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 hover:bg-rose-200 transition touch-manipulation"
+                                >
+                                  <Dumbbell className="w-2.5 h-2.5" />
+                                  <span>Rutina</span>
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
         </div>

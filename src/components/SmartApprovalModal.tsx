@@ -99,7 +99,7 @@ export const SmartApprovalModal: React.FC<SmartApprovalModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-md overflow-y-auto pt-[max(env(safe-area-inset-top,0px),1rem)] pb-[max(env(safe-area-inset-bottom,0px),1rem)]">
         <motion.div
           initial={{ opacity: 0, scale: 0.93, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -140,7 +140,7 @@ export const SmartApprovalModal: React.FC<SmartApprovalModalProps> = ({
                 <button
                   id="btn-close-approval"
                   onClick={onClose}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition"
+                  className="w-10 h-10 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition flex items-center justify-center touch-manipulation"
                   aria-label="Cerrar modal"
                 >
                   <X className="w-5 h-5" />

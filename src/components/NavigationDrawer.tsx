@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Calendar,
@@ -46,58 +46,79 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
   onOpenLinkCalendarModal,
   onCheckUpdates,
 }) => {
+  // Prevent background scrolling and bouncing on mobile when drawer is open
+  useEffect(() => {
+    if (isOpen) {
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prevOverflow;
+      };
+    }
+  }, [isOpen]);
+
   return (
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Backdrop Blur Overlay */}
+          {/* Backdrop Blur Overlay with high z-index and touch dismissal */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             onClick={onClose}
-            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs cursor-pointer"
+            className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-xs cursor-pointer touch-manipulation"
           />
 
-          {/* Left Drawer Panel */}
+          {/* Left Drawer Panel with swipe-to-close on mobile */}
           <motion.aside
             initial={{ x: '-100%' }}
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
-            transition={{ type: 'spring', damping: 26, stiffness: 260 }}
-            className="fixed inset-y-0 left-0 z-50 w-72 sm:w-80 bg-white dark:bg-slate-900 border-r border-slate-200/90 dark:border-slate-800 shadow-2xl flex flex-col justify-between overflow-hidden"
+            transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+            drag="x"
+            dragConstraints={{ left: -320, right: 0 }}
+            dragElastic={0.08}
+            onDragEnd={(_, info) => {
+              if (info.offset.x < -60 || info.velocity.x < -200) {
+                onClose();
+              }
+            }}
+            className="fixed inset-y-0 left-0 z-[90] w-[82vw] max-w-80 bg-white dark:bg-slate-900 border-r border-slate-200/90 dark:border-slate-800 shadow-2xl flex flex-col justify-between overflow-hidden touch-pan-y"
           >
-            {/* Drawer Header */}
-            <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+            {/* Drawer Header (Respects iPhone Notch Safe Area) */}
+            <div className="p-4 pt-[max(env(safe-area-inset-top,0px),1rem)] border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-600/30">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-600/30 shrink-0">
                   <Calendar className="w-5 h-5" />
                 </div>
-                <div>
-                  <h3 className="font-extrabold text-sm text-slate-900 dark:text-white leading-tight">
+                <div className="min-w-0">
+                  <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white leading-tight">
                     Navegación
                   </h3>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 capitalize truncate">
                     {clock.dayName}, {clock.dayNumber} {clock.monthName}
                   </p>
                 </div>
               </div>
 
+              {/* Generous 44x44px touch close button */}
               <button
                 type="button"
                 onClick={onClose}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-                title="Cerrar panel lateral"
+                className="w-11 h-11 rounded-2xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition cursor-pointer active:scale-95 touch-manipulation"
+                title="Cerrar menú"
+                aria-label="Cerrar menú"
               >
                 <PanelLeftClose className="w-5 h-5" />
               </button>
             </div>
 
             {/* Scrollable Center Body: Tabs & Quick Actions */}
-            <div className="p-4 flex-1 overflow-y-auto flex flex-col gap-5">
+            <div className="p-4 flex-1 overflow-y-auto overscroll-contain flex flex-col gap-5">
               {/* Primary Navigation Tabs */}
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2">
                   Vistas Principales
                 </span>
@@ -233,15 +254,15 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
               </div>
             </div>
 
-            {/* Drawer Footer: User profile */}
-            <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 flex flex-col gap-2.5">
+            {/* Drawer Footer: User profile with Safe Area Padding */}
+            <div className="p-4 pb-[max(env(safe-area-inset-bottom,0px),1rem)] border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/60 flex flex-col gap-2.5">
               {/* User session row */}
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 {user ? (
                   <>
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 shrink-0">
-                        <User className="w-3.5 h-3.5" />
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 shrink-0">
+                        <User className="w-4 h-4" />
                       </div>
                       <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[150px]">
                         {user.email}
@@ -254,7 +275,8 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                         onClose();
                       }}
                       title="Cerrar sesión"
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
+                      aria-label="Cerrar sesión"
+                      className="w-10 h-10 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center justify-center transition cursor-pointer active:scale-95 touch-manipulation"
                     >
                       <LogOut className="w-4 h-4" />
                     </button>

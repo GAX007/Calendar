@@ -84,10 +84,10 @@ export const OmniInputBar: React.FC<OmniInputBarProps> = ({
                 id="omni-btn-manual-add"
                 onClick={onOpenNewTaskModal}
                 title="Añadir tarea manualmente"
-                className="w-9 h-9 sm:w-8 sm:h-8 rounded-xl sm:rounded-full text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 active:scale-95 transition cursor-pointer flex items-center justify-center shrink-0"
+                className="w-10 h-10 sm:w-9 sm:h-9 rounded-xl sm:rounded-full text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 active:scale-95 transition cursor-pointer flex items-center justify-center shrink-0 touch-manipulation"
                 aria-label="Añadir tarea manualmente"
               >
-                <PlusCircle className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                <PlusCircle className="w-5 h-5 sm:w-4.5 sm:h-4.5" />
               </button>
             )}
 
@@ -96,13 +96,13 @@ export const OmniInputBar: React.FC<OmniInputBarProps> = ({
               id="omni-btn-camera"
               onClick={onOpenVisionModal}
               title="Escanear foto u horario"
-              className="w-9 h-9 sm:w-8 sm:h-8 rounded-xl sm:rounded-full text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/40 active:scale-95 transition cursor-pointer flex items-center justify-center shrink-0"
+              className="w-10 h-10 sm:w-9 sm:h-9 rounded-xl sm:rounded-full text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/40 active:scale-95 transition cursor-pointer flex items-center justify-center shrink-0 touch-manipulation"
               aria-label="Escanear foto"
             >
-              <Camera className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+              <Camera className="w-5 h-5 sm:w-4.5 sm:h-4.5" />
             </button>
 
-            {/* Action: Text input field */}
+            {/* Action: Text input field (16px base font prevents iOS Safari auto-zoom) */}
             <div className="flex-1 flex items-center gap-2 min-w-0 px-1 sm:px-2">
               <Keyboard className="w-4 h-4 text-slate-400 hidden sm:block shrink-0" />
               <input
@@ -114,7 +114,7 @@ export const OmniInputBar: React.FC<OmniInputBarProps> = ({
                 onBlur={() => setIsFocused(false)}
                 onKeyDown={handleKeyDown}
                 placeholder="Escribe tus tareas (ej: Mañana clase 10am, entrega viernes)..."
-                className="w-full bg-transparent text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none font-sans"
+                className="w-full bg-transparent text-base sm:text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none font-sans"
               />
             </div>
 
@@ -123,7 +123,7 @@ export const OmniInputBar: React.FC<OmniInputBarProps> = ({
               id="omni-btn-send"
               onClick={handleSend}
               disabled={!inputText.trim() || isProcessing}
-              className={`w-9 h-9 rounded-xl sm:rounded-full transition cursor-pointer flex items-center justify-center shrink-0 ${
+              className={`w-10 h-10 sm:w-9 sm:h-9 rounded-xl sm:rounded-full transition cursor-pointer flex items-center justify-center shrink-0 touch-manipulation ${
                 inputText.trim()
                   ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs active:scale-95'
                   : 'text-slate-400 bg-slate-100 dark:bg-slate-800 cursor-not-allowed'

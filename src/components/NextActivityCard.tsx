@@ -225,7 +225,7 @@ export const NextActivityCard: React.FC<NextActivityCardProps> = ({
                 <button
                   type="button"
                   onClick={() => onOpenGymRoutine(getRoutineId())}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-500/40 bg-rose-50 dark:bg-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-500/30 text-rose-700 dark:text-rose-300 text-xs font-bold transition cursor-pointer shadow-xs active:scale-95"
+                  className="flex items-center gap-1.5 px-3 py-2 min-h-[38px] rounded-xl border border-rose-200 dark:border-rose-500/40 bg-rose-50 dark:bg-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-500/30 text-rose-700 dark:text-rose-300 text-xs font-bold transition cursor-pointer shadow-xs active:scale-95 touch-manipulation"
                   title="Abrir detalles de la rutina en el módulo de Gym"
                 >
                   <Dumbbell className="w-4 h-4 text-rose-600 dark:text-rose-400" />
@@ -239,7 +239,7 @@ export const NextActivityCard: React.FC<NextActivityCardProps> = ({
             <button
               id="next-activity-btn-complete"
               onClick={() => onToggleTaskComplete(currentOrNext.id)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 hover:bg-emerald-50 dark:bg-slate-800 dark:hover:bg-emerald-950/40 hover:border-emerald-300 dark:hover:border-emerald-600 hover:text-emerald-700 dark:hover:text-emerald-300 text-xs font-semibold text-slate-700 dark:text-slate-300 transition cursor-pointer active:scale-95"
+              className="flex items-center gap-1.5 px-3.5 py-2 min-h-[38px] rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 hover:bg-emerald-50 dark:bg-slate-800 dark:hover:bg-emerald-950/40 hover:border-emerald-300 dark:hover:border-emerald-600 hover:text-emerald-700 dark:hover:text-emerald-300 text-xs font-semibold text-slate-700 dark:text-slate-300 transition cursor-pointer active:scale-95 touch-manipulation"
               title="Marcar como completada"
             >
               <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
