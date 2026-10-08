@@ -3,6 +3,7 @@ import path from 'path';
 import https from 'https';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
+import { parseGoogleCalendarFeed } from './src/utils/googleCalendarParser';
 
 dotenv.config();
 
@@ -70,138 +71,21 @@ const GOOGLE_CALENDAR_DEFAULT_ICAL_URL =
 function fetchUrlText(url: string): Promise<string> {
   return new Promise((resolve, reject) => {
     https
-      .get(url, (res) => {
+      .get(url, { headers: { 'Cache-Control': 'no-cache' }, timeout: 20000 }, (res) => {
         if (res.statusCode && (res.statusCode < 200 || res.statusCode >= 300)) {
+          res.resume();
           return reject(new Error(`HTTP ${res.statusCode} fetching iCal URL`));
         }
         let data = '';
+        res.setEncoding('utf8');
+        res.on('error', reject);
+        res.on('aborted', () => reject(new Error('La descarga del calendario se interrumpió')));
         res.on('data', (chunk) => (data += chunk));
         res.on('end', () => resolve(data));
       })
+      .on('timeout', function () { this.destroy(new Error('Tiempo de espera agotado al descargar el calendario')); })
       .on('error', reject);
   });
-}
-
-function parseGoogleCalendarFeed(icsContent: string, isCustom = false): any[] {
-  const tasks: any[] = [];
-  const veventBlocks = icsContent.split('BEGIN:VEVENT').slice(1);
-
-  for (const block of veventBlocks) {
-    const rawLines = block.split(/\r\n|\n|\r/);
-    const lines: string[] = [];
-    for (const l of rawLines) {
-      if ((l.startsWith(' ') || l.startsWith('\t')) && lines.length > 0) {
-        lines[lines.length - 1] += l.trim();
-      } else {
-        lines.push(l);
-      }
-    }
-
-    let summary = '';
-    let dtStart = '';
-    let dtEnd = '';
-    let rrule = '';
-    let location = '';
-    let description = '';
-    let uid = '';
-
-    for (const line of lines) {
-      if (line.startsWith('SUMMARY:')) summary = line.substring(8).trim();
-      else if (line.startsWith('DTSTART')) dtStart = line.substring(line.lastIndexOf(':') + 1).trim();
-      else if (line.startsWith('DTEND')) dtEnd = line.substring(line.lastIndexOf(':') + 1).trim();
-      else if (line.startsWith('RRULE:')) rrule = line.substring(6).trim();
-      else if (line.startsWith('LOCATION:')) location = line.substring(9).trim();
-      else if (line.startsWith('DESCRIPTION:')) description = line.substring(12).trim();
-      else if (line.startsWith('UID:')) uid = line.substring(4).trim();
-    }
-
-    if (!summary || !dtStart) continue;
-
-    // Filter to current academic year events (2026 onwards)
-    if (!dtStart.startsWith('2026')) continue;
-
-    const parseTime = (str: string) => {
-      const d = str.substring(0, 8);
-      const y = d.substring(0, 4);
-      const m = d.substring(4, 6);
-      const day = d.substring(6, 8);
-      const date = `${y}-${m}-${day}`;
-      let time = '09:00';
-      if (str.includes('T')) {
-        const t = str.split('T')[1];
-        time = `${t.substring(0, 2)}:${t.substring(2, 4)}`;
-      }
-      return { date, time, year: parseInt(y, 10), month: parseInt(m, 10) - 1, day: parseInt(day, 10) };
-    };
-
-    const startInfo = parseTime(dtStart);
-    let endTime = '';
-    let durationMinutes = 60;
-    if (dtEnd) {
-      const endInfo = parseTime(dtEnd);
-      endTime = endInfo.time;
-      const [sH, sM] = startInfo.time.split(':').map(Number);
-      const [eH, eM] = endInfo.time.split(':').map(Number);
-      durationMinutes = Math.max(30, (eH * 60 + eM) - (sH * 60 + sM));
-    }
-
-    const cleanSummary = summary.replace(/\\,/g, ',').replace(/\\n/g, ' ').trim();
-    const cleanLocation = location.replace(/\\,/g, ',').trim();
-    const cleanDescription = description.replace(/\\,/g, ',').replace(/\\n/g, ' ').trim();
-
-    const taskNotes = isCustom
-      ? (cleanLocation ? `Ubicación: ${cleanLocation}` : (cleanDescription ? cleanDescription.substring(0, 80) : 'Google Calendar'))
-      : (cleanLocation ? `Aula: ${cleanLocation} • Horario Oficial M2GI12E` : 'Horario Oficial M2GI12E');
-
-    if (rrule && rrule.includes('FREQ=WEEKLY')) {
-      let untilDate = new Date(Date.UTC(2026, 11, 23)); // end of 2026 semester
-      const untilMatch = rrule.match(/UNTIL=([0-9T]+)/);
-      if (untilMatch) {
-        const u = untilMatch[1];
-        untilDate = new Date(Date.UTC(parseInt(u.substring(0, 4), 10), parseInt(u.substring(4, 6), 10) - 1, parseInt(u.substring(6, 8), 10)));
-      }
-
-      const cur = new Date(Date.UTC(startInfo.year, startInfo.month, startInfo.day));
-      while (cur <= untilDate) {
-        const y = cur.getUTCFullYear();
-        const m = (cur.getUTCMonth() + 1).toString().padStart(2, '0');
-        const d = cur.getUTCDate().toString().padStart(2, '0');
-        const dateStr = `${y}-${m}-${d}`;
-
-        tasks.push({
-          id: `gcal-${uid}_${dateStr}`,
-          title: cleanSummary,
-          date: dateStr,
-          time: startInfo.time,
-          endTime,
-          durationMinutes,
-          category: 'Academics',
-          priority: 'media',
-          notes: taskNotes,
-          sourceType: 'manual',
-          completed: false,
-        });
-
-        cur.setUTCDate(cur.getUTCDate() + 7);
-      }
-    } else {
-      tasks.push({
-        id: `gcal-${uid}`,
-        title: cleanSummary,
-        date: startInfo.date,
-        time: startInfo.time,
-        endTime,
-        durationMinutes,
-        category: 'Academics',
-        priority: 'media',
-        notes: taskNotes,
-        sourceType: 'manual',
-        completed: false,
-      });
-    }
-  }
-
-  return tasks;
 }
 
 app.get('/api/google-calendar/sync-live', async (req, res) => {
@@ -223,7 +107,8 @@ app.get('/api/google-calendar/sync-live', async (req, res) => {
     }
 
     const targetUrl = customUrl || GOOGLE_CALENDAR_DEFAULT_ICAL_URL;
-    const isCustom = Boolean(customUrl);
+    const isCustom = targetUrl !== GOOGLE_CALENDAR_DEFAULT_ICAL_URL;
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
     const icsContent = await fetchUrlText(targetUrl);
     const parsedTasks = parseGoogleCalendarFeed(icsContent, isCustom);
 

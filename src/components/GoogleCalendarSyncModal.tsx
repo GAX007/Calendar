@@ -24,6 +24,9 @@ interface GoogleCalendarSyncModalProps {
   onClose: () => void;
   tasks: TaskItem[];
   onImportTasks: (newTasks: TaskItem[]) => void;
+  onLiveSyncSuccess: (newTasks: TaskItem[]) => void;
+  userId?: string;
+  userEmail?: string;
   showToast?: (msg: string) => void;
 }
 
@@ -32,6 +35,9 @@ export const GoogleCalendarSyncModal: React.FC<GoogleCalendarSyncModalProps> = (
   onClose,
   tasks,
   onImportTasks,
+  onLiveSyncSuccess,
+  userId,
+  userEmail,
   showToast = (_msg: string) => {},
 }) => {
   const [activeTab, setActiveTab] = useState<'sync' | 'embed' | 'export' | 'import' | 'guide'>('sync');
@@ -46,9 +52,9 @@ export const GoogleCalendarSyncModal: React.FC<GoogleCalendarSyncModalProps> = (
   const handleLiveSync = async () => {
     setIsSyncingLive(true);
     try {
-      const res = await syncLiveGoogleCalendar();
-      if (res.success && res.tasks.length > 0) {
-        onImportTasks(res.tasks);
+      const res = await syncLiveGoogleCalendar(userId, userEmail);
+      if (res.success) {
+        onLiveSyncSuccess(res.tasks);
         showToast(`¡${res.tasks.length} eventos sincronizados en vivo desde ${res.calName}!`);
       } else {
         showToast(res.error || 'No se pudieron descargar eventos de Google Calendar');

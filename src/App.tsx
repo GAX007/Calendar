@@ -41,7 +41,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { parseInputLocally, normalizeTimeString, computeEndTime } from './utils/localParser';
 import { useRealTimeClock } from './hooks/useRealTimeClock';
-import { syncLiveGoogleCalendar, getEffectiveCalendarUrl } from './services/googleCalendarService';
+import { syncLiveGoogleCalendar, getEffectiveCalendarUrl, applyLatestGoogleCalendarSnapshot } from './services/googleCalendarService';
 import {
   getLocalTasks,
   loadTasks,
@@ -52,6 +52,7 @@ import {
   subscribeToTaskChanges,
   isHydrationTask,
 } from './services/taskService';
+import { mergeGoogleCalendarSnapshot } from './utils/googleCalendarSnapshot';
 import { isSupabaseConfigured } from './lib/supabase';
 
 function CalendarApp() {
@@ -112,7 +113,7 @@ function CalendarApp() {
       try {
         const { tasks: loadedTasks, isCloud } = await loadTasks(user?.id);
         if (isMounted) {
-          setTasks(loadedTasks);
+          setTasks(applyLatestGoogleCalendarSnapshot(loadedTasks, user?.id));
           setIsCloudConnected(isCloud);
         }
       } catch (err) {
@@ -132,7 +133,7 @@ function CalendarApp() {
     const unsubscribe = subscribeToTaskChanges(async () => {
       const { tasks: freshTasks, isCloud } = await loadTasks(user?.id);
       if (isMounted) {
-        setTasks(freshTasks);
+        setTasks(applyLatestGoogleCalendarSnapshot(freshTasks, user?.id));
         setIsCloudConnected(isCloud);
       }
     });
@@ -185,13 +186,8 @@ function CalendarApp() {
 
       try {
         const res = await syncLiveGoogleCalendar(user?.id, userEmail);
-        if (res.success && res.tasks.length > 0 && isMounted) {
-          setTasks((prev) => {
-            const newIds = new Set(res.tasks.map((t) => t.id));
-            const retained = prev.filter((t) => !newIds.has(t.id));
-            return [...res.tasks, ...retained];
-          });
-          upsertTasks(res.tasks, user?.id);
+        if (res.success && isMounted) {
+          setTasks((prev) => mergeGoogleCalendarSnapshot(prev, res.tasks));
           if (!silent) {
             showToast(`✓ Google Calendar sincronizado (${res.tasks.length} eventos)`);
           }
@@ -201,7 +197,8 @@ function CalendarApp() {
       }
     };
 
-    // 1. Initial sync upon entering the app
+    // Wait for the initial task load before reconciling the source calendar.
+    if (isLoadingDb) return;
     performAutoSync(true);
 
     // 2. Sync on window focus (when user returns to the tab)
@@ -220,7 +217,7 @@ function CalendarApp() {
       window.removeEventListener('focus', handleFocus);
       clearInterval(interval);
     };
-  }, [user?.id]);
+  }, [user?.id, user?.email, isLoadingDb]);
 
   // PWA manual update check handler
   const [manualCheckFn, setManualCheckFn] = useState<(() => Promise<boolean>) | null>(null);
@@ -556,12 +553,7 @@ function CalendarApp() {
                 setActiveTab('gym');
               }}
               onLiveSyncSuccess={(newTasks) => {
-                setTasks((prev) => {
-                  const newIds = new Set(newTasks.map((t) => t.id));
-                  const retained = prev.filter((t) => !newIds.has(t.id));
-                  return [...newTasks, ...retained];
-                });
-                upsertTasks(newTasks, user?.id);
+                setTasks((prev) => mergeGoogleCalendarSnapshot(prev, newTasks));
                 showToast(`¡${newTasks.length} eventos sincronizados en directo desde Google Calendar!`);
               }}
               showToast={showToast}
@@ -651,11 +643,14 @@ function CalendarApp() {
 
       {/* Google Calendar Sync & Import/Export Modal */}
       <GoogleCalendarSyncModal
+        userId={user?.id}
+        userEmail={user?.email}
+        onLiveSyncSuccess={(newTasks) => setTasks((prev) => mergeGoogleCalendarSnapshot(prev, newTasks))}
         isOpen={isSyncModalOpen}
         onClose={() => setIsSyncModalOpen(false)}
         tasks={tasks}
         onImportTasks={(importedTasks) => {
-          setTasks((prev) => [...importedTasks, ...prev]);
+          setTasks((prev) => [...new Map([...prev, ...importedTasks].map(task => [task.id, task])).values()]);
           upsertTasks(importedTasks, user?.id);
           showToast(`¡${importedTasks.length} eventos sincronizados exitosamente!`);
         }}
@@ -669,12 +664,7 @@ function CalendarApp() {
         userId={user?.id}
         userEmail={user?.email}
         onSyncSuccess={(newTasks) => {
-          setTasks((prev) => {
-            const newIds = new Set(newTasks.map((t) => t.id));
-            const retained = prev.filter((t) => !newIds.has(t.id));
-            return [...newTasks, ...retained];
-          });
-          upsertTasks(newTasks, user?.id);
+          setTasks((prev) => mergeGoogleCalendarSnapshot(prev, newTasks));
         }}
         showToast={showToast}
       />

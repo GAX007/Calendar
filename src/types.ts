@@ -31,6 +31,10 @@ export interface TaskItem {
   extractedFields?: {
     deadlineLabel?: string;
     detectedTag?: string;
+    calendarSource?: 'google-calendar';
+    calendarUid?: string;
+    calendarRecurrenceId?: string;
+    calendarLegacyId?: string;
   };
 }
 

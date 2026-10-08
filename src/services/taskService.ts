@@ -1,6 +1,7 @@
 import { TaskItem } from '../types';
 import { INITIAL_TASKS } from '../data/initialTasks';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { isGoogleCalendarTask, mergeGoogleCalendarSnapshot } from '../utils/googleCalendarSnapshot';
 
 const BASE_STORAGE_KEY = 'calendarasist_tasks';
 const LEGACY_KEY = 'omniagenda_tasks';
@@ -172,6 +173,46 @@ export async function upsertTasks(tasks: TaskItem[], userId?: string): Promise<v
       console.warn('Failed to upsert to Supabase:', err);
     }
   }
+}
+
+// Google Calendar is a complete snapshot: await writes and remove only obsolete imported rows.
+export async function replaceGoogleCalendarTasks(
+  incoming: TaskItem[], userId?: string, client = supabase
+): Promise<TaskItem[]> {
+  const local = getLocalTasks(userId);
+  let existing = local;
+  if (client) {
+    const rows: TaskItem[] = [];
+    for (let offset = 0; ; offset += 1000) {
+      let query = client.from('tasks').select('*').order('id').range(offset, offset + 999);
+      query = userId ? query.eq('user_id', userId) : query.is('user_id', null);
+      const { data, error } = await query;
+      if (error) throw new Error('No se pudo cargar el calendario guardado. Tus eventos se han conservado.');
+      rows.push(...(data || []).map(fromDbRow));
+      if (!data || data.length < 1000) break;
+    }
+    existing = [...new Map([...local, ...rows].map(task => [task.id, task])).values()];
+  }
+  const merged = mergeGoogleCalendarSnapshot(existing, incoming);
+  const imported = merged.filter(isGoogleCalendarTask);
+  if (client) {
+    const current = new Map(existing.map(task => [task.id, JSON.stringify(toDbRow(task, userId))]));
+    const changed = imported.map(task => toDbRow(task, userId)).filter(row => current.get(row.id) !== JSON.stringify(row));
+    if (changed.length) {
+      const { error } = await client.from('tasks').upsert(changed);
+      if (error) throw new Error('No se pudieron guardar los cambios de Google Calendar. Vuelve a sincronizar.');
+    }
+    const keep = new Set(imported.map(task => task.id));
+    const obsolete = existing.filter(task => isGoogleCalendarTask(task) && !keep.has(task.id)).map(task => task.id);
+    for (let offset = 0; offset < obsolete.length; offset += 100) {
+      let query = client.from('tasks').delete().in('id', obsolete.slice(offset, offset + 100));
+      query = userId ? query.eq('user_id', userId) : query.is('user_id', null);
+      const { error } = await query;
+      if (error) throw new Error('No se pudieron retirar los eventos antiguos. Vuelve a sincronizar.');
+    }
+  }
+  saveLocalTasks(merged, userId);
+  return imported;
 }
 
 // Delete task by ID

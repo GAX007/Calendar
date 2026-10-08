@@ -1,5 +1,14 @@
 import { TaskItem } from '../types';
-import { upsertTasks } from './taskService';
+import { replaceGoogleCalendarTasks } from './taskService';
+import { mergeGoogleCalendarSnapshot } from '../utils/googleCalendarSnapshot';
+
+const pendingSyncs = new Map<string, Promise<SyncLiveResult>>();
+const lastSnapshots = new Map<string, TaskItem[]>();
+
+export function applyLatestGoogleCalendarSnapshot(tasks: TaskItem[], userId?: string): TaskItem[] {
+  const snapshot = lastSnapshots.get(userId || 'guest');
+  return snapshot ? mergeGoogleCalendarSnapshot(tasks, snapshot) : tasks;
+}
 
 export const AUTHORIZED_CALENDAR_OWNER_EMAIL = 'xaviervarteniuc@gmail.com';
 
@@ -87,6 +96,19 @@ export async function syncLiveGoogleCalendar(
   userEmail?: string,
   overrideUrl?: string
 ): Promise<SyncLiveResult> {
+  // One persistence operation per user at a time; focus and timer cannot overwrite newer changes.
+  const key = userId || 'guest';
+  const previous = pendingSyncs.get(key);
+  const pending = (async () => {
+    if (previous) await previous;
+    return performSync(userId, userEmail, overrideUrl);
+  })();
+  pendingSyncs.set(key, pending);
+  try { return await pending; }
+  finally { if (pendingSyncs.get(key) === pending) pendingSyncs.delete(key); }
+}
+
+async function performSync(userId?: string, userEmail?: string, overrideUrl?: string): Promise<SyncLiveResult> {
   try {
     const cleanEmail = (userEmail || '').toLowerCase().trim();
     const effectiveUrl =
@@ -112,7 +134,7 @@ export async function syncLiveGoogleCalendar(
     if (effectiveUrl) params.set('url', effectiveUrl);
 
     const queryString = params.toString() ? `?${params.toString()}` : '';
-    const res = await fetch(`/api/google-calendar/sync-live${queryString}`);
+    const res = await fetch(`/api/google-calendar/sync-live${queryString}`, { cache: 'no-store' });
 
     if (res.status === 403) {
       return {
@@ -131,9 +153,12 @@ export async function syncLiveGoogleCalendar(
 
     const data: SyncLiveResult = await res.json();
     if (data.success && Array.isArray(data.tasks)) {
-      // Persist in local database/storage strictly isolated to this user's ID
-      upsertTasks(data.tasks, userId);
-      localStorage.setItem('calendarasist_gcal_last_sync', new Date().toISOString());
+      if (data.tasks.some(task => !task.id?.startsWith('gcal-') || !task.date || !task.time)) throw new Error('El servidor ha devuelto eventos inválidos.');
+      const scoped = data.tasks.map(task => ({ ...task, id: userId ? `gcal-user:${userId}:${task.id.slice(5)}` : task.id }));
+      data.tasks = await replaceGoogleCalendarTasks(scoped, userId);
+      data.count = data.tasks.length;
+      lastSnapshots.set(userId || 'guest', data.tasks);
+      localStorage.setItem(`calendarasist_gcal_last_sync_${userId || 'guest'}`, new Date().toISOString());
       return data;
     }
     throw new Error(data.error || 'Respuesta inválida del servidor');

@@ -92,7 +92,7 @@ export const GoogleCalendarView: React.FC<GoogleCalendarViewProps> = ({
     setIsSyncingLive(true);
     try {
       const res = await syncLiveGoogleCalendar(userId, userEmail);
-      if (res.success && res.tasks.length > 0) {
+      if (res.success) {
         onLiveSyncSuccess?.(res.tasks);
         showToast?.(`✓ ¡${res.tasks.length} eventos sincronizados desde Google Calendar!`);
       } else if (!res.success && res.error?.includes('No tienes un calendario vinculado')) {

@@ -72,14 +72,16 @@ export const CalendarLinkModal: React.FC<CalendarLinkModalProps> = ({
 
     setIsSaving(true);
     try {
-      setUserCustomCalendarUrl(trimmed, userId);
       const res = await syncLiveGoogleCalendar(userId, cleanEmail, trimmed);
 
       if (res.success && res.tasks.length > 0) {
+        setUserCustomCalendarUrl(trimmed, userId);
         onSyncSuccess(res.tasks);
         showToast(`✓ ¡${res.tasks.length} eventos sincronizados con tu Google Calendar!`);
         onClose();
       } else if (res.success && res.tasks.length === 0) {
+        setUserCustomCalendarUrl(trimmed, userId);
+        onSyncSuccess(res.tasks);
         showToast('Enlace guardado, pero no se encontraron eventos en este periodo.');
         onClose();
       } else {
