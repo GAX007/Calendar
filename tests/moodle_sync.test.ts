@@ -153,6 +153,19 @@ describe('Fase 1: Sincronización de entregas de Moodle (ICS)', () => {
     assert.equal(afterSync?.horas_est, 3.5, 'Las horas estimadas deben mantenerse en 3.5');
   });
 
+  it('Los campos propios de fase 2 se conservan cuando Moodle cambia un plazo', async () => {
+    await syncMoodleDeliverables({ icsContentOverride: fixtureContent });
+    const uid = '1552291@mudle.mondragon.edu/mgep';
+    const own = { tipo_trabajo: 'ligero' as const, aplazamientos: 3, factor_calibracion: 1,
+      tamano_bloque_min: 30, plan_no_antes_de: '2026-10-06T09:00',
+      hueco_inicio_local: '2026-10-09T17:00', hueco_fin_local: '2026-10-09T18:00' };
+    await MoodleStore.updateEntrega(uid, own);
+    const changed = fixtureContent.replace('DTSTART:20261005T113000Z', 'DTSTART:20261009T150000Z');
+    assert.equal((await syncMoodleDeliverables({ icsContentOverride: changed })).ok, true);
+    const t = await MoodleStore.getEntrega(uid);
+    for (const key of Object.keys(own)) assert.equal(t![key], own[key]);
+  });
+
   it('9. Si en el fixture se modifica una fecha, aparece un aviso en cambios y se guarda antes y despues', async () => {
     // Sincronizar feed inicial
     await syncMoodleDeliverables({ icsContentOverride: fixtureContent });

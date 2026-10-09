@@ -5,7 +5,8 @@ import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 import { parseGoogleCalendarFeed } from './src/utils/googleCalendarParser';
 
-dotenv.config();
+// Conserva la configuración existente y carga variables adicionales de desarrollo.
+dotenv.config({ path: ['.env', '.env.local'] });
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;

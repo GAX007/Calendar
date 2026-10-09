@@ -171,6 +171,12 @@ export function getInitialHomework(): UniversityHomework[] {
   ];
 }
 
+export function isUniversityExample(homework: UniversityHomework): boolean {
+  return getInitialHomework().some(example => example.id === homework.id && example.title === homework.title
+    && example.subjectId === homework.subjectId && example.description === homework.description
+    && example.estimatedHours === homework.estimatedHours && example.type === homework.type);
+}
+
 // -------------------------------------------------------------
 // SUBJECTS CRUD
 // -------------------------------------------------------------
@@ -180,7 +186,7 @@ export function getUniversitySubjects(): UniversitySubject[] {
     const raw = localStorage.getItem(SUBJECTS_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     }
@@ -235,16 +241,19 @@ export function getUniversityHomework(): UniversityHomework[] {
     const raw = localStorage.getItem(HOMEWORK_STORAGE_KEY);
     if (raw) {
       const parsed: UniversityHomework[] = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     }
   } catch (err) {
     console.warn('Error reading university homework from storage:', err);
   }
-  const initial = getInitialHomework();
-  saveUniversityHomework(initial);
-  return initial;
+  return [];
+}
+
+export function getUniversityHomeworkForUser(userId?: string): UniversityHomework[] {
+  const owner = localStorage.getItem('calendarasist_uni_import_owner');
+  return owner && owner !== userId ? [] : getUniversityHomework();
 }
 
 export function saveUniversityHomework(homework: UniversityHomework[]): void {

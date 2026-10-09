@@ -20,8 +20,8 @@ import { RealTimeClockState } from '../hooks/useRealTimeClock';
 interface NavigationDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  activeTab: 'agenda' | 'university' | 'gym' | 'moodle';
-  setActiveTab: (tab: 'agenda' | 'university' | 'gym' | 'moodle') => void;
+  activeTab: 'agenda' | 'university' | 'gym' | 'moodle' | 'planner';
+  setActiveTab: (tab: 'agenda' | 'university' | 'gym' | 'moodle' | 'planner') => void;
   clock: RealTimeClockState;
   isDark?: boolean;
   toggleTheme?: () => void;
@@ -125,6 +125,10 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                 </span>
 
                 {/* Tab: Google Calendar & Agenda */}
+                <button type="button" onClick={() => { setActiveTab('planner'); onClose(); }} className={`w-full text-left p-3 rounded-2xl font-bold text-sm ${activeTab === 'planner' ? 'bg-indigo-600 text-white' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+                  Plan de estudio
+                  <p className="text-xs font-normal mt-1">Hoy, semana, horarios y deuda</p>
+                </button>
                 <button
                   type="button"
                   onClick={() => {

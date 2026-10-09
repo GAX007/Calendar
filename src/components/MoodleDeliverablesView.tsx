@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   RefreshCw,
@@ -31,6 +31,8 @@ import {
   EntregaEstado,
 } from '../services/moodleTypes';
 import { formatToMadridTime } from '../utils/moodleIcsParser';
+import { CompleteEntregaDialog } from './CompleteEntregaDialog';
+import { completeEntrega } from '../services/plannerRecordsService';
 import {
   fetchEntregas,
   fetchAsignaturasApi,
@@ -46,11 +48,16 @@ import {
 
 interface MoodleDeliverablesViewProps {
   showToast?: (message: string) => void;
+  selectedEntregaUid?: string | null;
+  onClearSelection?: () => void;
 }
 
 export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
   showToast = (_msg: string) => {},
+  selectedEntregaUid = null,
+  onClearSelection,
 }) => {
+  const selectedEntregaRef = useRef<HTMLDivElement>(null);
   const [entregas, setEntregas] = useState<EntregaItem[]>([]);
   const [asignaturas, setAsignaturas] = useState<AsignaturaItem[]>([]);
   const [cambios, setCambios] = useState<CambioItem[]>([]);
@@ -69,6 +76,7 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
   const [isManualModalOpen, setIsManualModalOpen] = useState<boolean>(false);
   const [isAsignaturasModalOpen, setIsAsignaturasModalOpen] = useState<boolean>(false);
   const [editingEntrega, setEditingEntrega] = useState<EntregaItem | null>(null);
+  const [completingEntrega, setCompletingEntrega] = useState<EntregaItem | null>(null);
 
   // Formulario manual
   const [manualTitulo, setManualTitulo] = useState<string>('');
@@ -115,6 +123,12 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (!selectedEntregaUid || isLoading) return;
+    selectedEntregaRef.current?.focus({ preventScroll: true });
+    selectedEntregaRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [selectedEntregaUid, isLoading, entregas]);
 
   // Botón "Sincronizar ahora"
   const handleSyncNow = async () => {
@@ -181,6 +195,7 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
 
   // Cambiar estado (pendiente | hecha | descartada)
   const handleToggleEstado = async (entrega: EntregaItem, nuevoEstado: EntregaEstado) => {
+    if (nuevoEstado === 'hecha') { setCompletingEntrega(entrega); return; }
     try {
       const updated = await updateEntregaApi(entrega.uid, { estado: nuevoEstado });
       setEntregas((prev) => prev.map((e) => (e.uid === entrega.uid ? updated : e)));
@@ -279,6 +294,8 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
     endOfWeek.setHours(23, 59, 59, 999);
 
     return entregas.filter((e) => {
+      // El enlace del plan abre la entrega exacta, independientemente de los filtros.
+      if (selectedEntregaUid) return e.uid === selectedEntregaUid;
       // Filtro de grupo
       if (!mostrarOcultasPorGrupo && e.oculta_por_grupo) {
         return false;
@@ -304,7 +321,7 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
 
       return true;
     });
-  }, [entregas, mostrarOcultasPorGrupo, filtroAsignatura, filtroEstado, filtroEstaSemana]);
+  }, [entregas, mostrarOcultasPorGrupo, filtroAsignatura, filtroEstado, filtroEstaSemana, selectedEntregaUid]);
 
   const displaySyncSummary = useMemo(() => {
     if (syncSummary) return syncSummary;
@@ -490,8 +507,18 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
+      {completingEntrega && <CompleteEntregaDialog title={completingEntrega.titulo} onCancel={() => setCompletingEntrega(null)} onComplete={async hours => {
+        await completeEntrega(completingEntrega.uid, hours);
+        setEntregas(prev => prev.map(e => e.uid === completingEntrega.uid ? { ...e, estado: 'hecha' } : e));
+        setCompletingEntrega(null); showToast('Entrega completada');
+      }} />}
 
       {/* BARRA DE FILTROS */}
+      {selectedEntregaUid && <div className="flex items-center justify-between gap-3 text-sm">
+        <p>Entrega abierta desde tu plan de estudio</p>
+        <button type="button" onClick={onClearSelection} className="px-3 py-2 rounded-xl bg-indigo-600 text-white font-bold">Ver todas las entregas</button>
+      </div>}
+      {!selectedEntregaUid && (
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-2 flex-wrap">
           {/* Filtro Asignatura */}
@@ -560,6 +587,7 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
           </button>
         )}
       </div>
+      )}
 
       {/* LISTA DE ENTREGAS */}
       <div className="space-y-3">
@@ -572,7 +600,7 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-12 text-center text-slate-400 space-y-3">
             <CalendarDays className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600" />
             <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-              No hay entregas para mostrar con los filtros seleccionados
+              {selectedEntregaUid ? 'Esta entrega ya no está disponible. Puedes consultar el resto de entregas.' : 'No hay entregas para mostrar con los filtros seleccionados'}
             </p>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
               {entregas.length > 0
@@ -598,6 +626,10 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
             return (
               <motion.div
                 key={entrega.uid}
+                ref={entrega.uid === selectedEntregaUid ? selectedEntregaRef : undefined}
+                tabIndex={entrega.uid === selectedEntregaUid ? -1 : undefined}
+                role={entrega.uid === selectedEntregaUid ? 'region' : undefined}
+                aria-label={entrega.uid === selectedEntregaUid ? `Entrega seleccionada: ${entrega.titulo}` : undefined}
                 layout
                 className={`bg-white dark:bg-slate-900 border rounded-3xl p-4 sm:p-5 transition shadow-xs ${
                   timeMeta.isUrgent
@@ -666,7 +698,7 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
 
                     {/* Descripción expandible o extracto si existe */}
                     {entrega.descripcion && (
-                      <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                      <p className={`text-xs text-slate-500 dark:text-slate-400 leading-relaxed ${selectedEntregaUid ? 'whitespace-pre-wrap break-words' : 'line-clamp-2'}`}>
                         {entrega.descripcion}
                       </p>
                     )}

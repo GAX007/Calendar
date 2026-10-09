@@ -30,6 +30,7 @@ import { NextActivityCard } from './components/NextActivityCard';
 import { GymModule } from './components/GymModule';
 import { UniversityModule } from './components/UniversityModule';
 import { MoodleDeliverablesView } from './components/MoodleDeliverablesView';
+import { PlannerView } from './components/PlannerView';
 import { DailyWaterTracker } from './components/DailyWaterTracker';
 import { OmniInputBar } from './components/OmniInputBar';
 import { SmartApprovalModal } from './components/SmartApprovalModal';
@@ -65,7 +66,9 @@ function CalendarApp() {
   const [isLoadingDb, setIsLoadingDb] = useState<boolean>(true);
 
   // Active module tab ('agenda' | 'university' | 'gym' | 'moodle')
-  const [activeTab, setActiveTab] = useState<'agenda' | 'university' | 'gym' | 'moodle'>('agenda');
+  const [activeTab, setActiveTab] = useState<'agenda' | 'university' | 'gym' | 'moodle' | 'planner'>('agenda');
+  const [selectedMoodleUid, setSelectedMoodleUid] = useState<string | null>(null);
+  const [selectedUniversityHomeworkId, setSelectedUniversityHomeworkId] = useState<string | null>(null);
   const [selectedGymRoutineId, setSelectedGymRoutineId] = useState<string | undefined>(undefined);
 
   // Modal states
@@ -188,7 +191,9 @@ function CalendarApp() {
         const res = await syncLiveGoogleCalendar(user?.id, userEmail);
         if (res.success && isMounted) {
           setTasks((prev) => mergeGoogleCalendarSnapshot(prev, res.tasks));
-          if (!silent) {
+          if (res.plannerError) {
+            showToast(`Calendar actualizado; los fijos del planificador no se han podido actualizar.`);
+          } else if (!silent) {
             showToast(`✓ Google Calendar sincronizado (${res.tasks.length} eventos)`);
           }
         }
@@ -435,6 +440,8 @@ function CalendarApp() {
               <span className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white truncate leading-tight">
                 {activeTab === 'agenda'
                   ? 'Agenda & Horarios'
+                  : activeTab === 'planner'
+                  ? 'Plan de estudio'
                   : activeTab === 'moodle'
                   ? 'Entregas Moodle'
                   : activeTab === 'university'
@@ -449,6 +456,7 @@ function CalendarApp() {
 
           {/* Center: Desktop Navigation Tabs */}
           <nav className="hidden md:flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-2xl border border-slate-200/60 dark:border-slate-750">
+            <button type="button" onClick={() => setActiveTab('planner')} className={`px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer ${activeTab === 'planner' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-400'}`}>Plan de estudio</button>
             <button
               type="button"
               onClick={() => setActiveTab('agenda')}
@@ -559,15 +567,22 @@ function CalendarApp() {
               showToast={showToast}
             />
           </div>
+        ) : activeTab === 'planner' ? (
+          <PlannerView onOpenEntrega={(uid) => {
+            if (uid.startsWith('uni:')) { setSelectedUniversityHomeworkId(uid.slice(4)); setActiveTab('university'); }
+            else { setSelectedMoodleUid(uid); setActiveTab('moodle'); }
+          }} />
         ) : activeTab === 'moodle' ? (
           <div className="pb-28">
-            <MoodleDeliverablesView showToast={showToast} />
+            <MoodleDeliverablesView showToast={showToast} selectedEntregaUid={selectedMoodleUid} onClearSelection={() => setSelectedMoodleUid(null)} />
           </div>
         ) : activeTab === 'university' ? (
           <div className="pb-28">
             <UniversityModule
               clock={clock}
               userId={user?.id}
+              selectedHomeworkId={selectedUniversityHomeworkId}
+              onHomeworkOpened={() => setSelectedUniversityHomeworkId(null)}
               onScheduleHomeworkInCalendar={(task) => handleApproveAndAddTasks([task])}
               showToast={showToast}
               onNavigateToMoodle={() => setActiveTab('moodle')}

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   GraduationCap,
@@ -41,6 +41,7 @@ import {
 import {
   getUniversitySubjects,
   getUniversityHomework,
+  getUniversityHomeworkForUser,
   addSubject,
   updateSubject,
   deleteSubject,
@@ -49,7 +50,12 @@ import {
   deleteHomework,
   toggleHomeworkStatus,
   syncHomeworkToCalendar,
+  saveUniversityHomework,
+  saveUniversitySubjects,
+  isUniversityExample,
 } from '../services/universityService';
+import { homeworkFromRow, loadUniversityWorks, saveUniversityWork } from '../services/universityPlannerService';
+import { examCountdown } from '../planner/university';
 import { RealTimeClockState } from '../hooks/useRealTimeClock';
 
 interface UniversityModuleProps {
@@ -58,6 +64,8 @@ interface UniversityModuleProps {
   onScheduleHomeworkInCalendar?: (task: TaskItem) => void;
   showToast?: (message: string) => void;
   onNavigateToMoodle?: () => void;
+  selectedHomeworkId?: string | null;
+  onHomeworkOpened?: () => void;
 }
 
 const COLOR_PALETTES: Record<
@@ -168,9 +176,64 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
   onScheduleHomeworkInCalendar,
   showToast = (_msg: string) => {},
   onNavigateToMoodle,
+  selectedHomeworkId,
+  onHomeworkOpened,
 }) => {
   const [subjects, setSubjects] = useState<UniversitySubject[]>(() => getUniversitySubjects());
-  const [homeworkList, setHomeworkList] = useState<UniversityHomework[]>(() => getUniversityHomework());
+  const [homeworkList, setHomeworkList] = useState<UniversityHomework[]>(() => getUniversityHomeworkForUser(userId));
+  const [universityError, setUniversityError] = useState('');
+  const [universityNotice, setUniversityNotice] = useState('');
+  const [worksLoaded, setWorksLoaded] = useState(false);
+  const [savingWork, setSavingWork] = useState(false);
+  const [newHomeworkType, setNewHomeworkType] = useState<HomeworkType>('practica');
+  const openedSelection = useRef<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setHomeworkList(getUniversityHomeworkForUser(userId));
+    setWorksLoaded(false); setUniversityError(''); setUniversityNotice('');
+    if (!userId) return;
+    void (async () => {
+      const existing = await loadUniversityWorks();
+      const importOwnerKey = 'calendarasist_uni_import_owner';
+      const importOwner = localStorage.getItem(importOwnerKey);
+      const legacy = getUniversityHomework();
+      const localSubjects = getUniversitySubjects();
+      if (!importOwner || importOwner === userId) {
+        for (const hw of legacy.filter(h => !h.plannerUid && !isUniversityExample(h))) {
+          const subject = localSubjects.find(s => s.id === hw.subjectId);
+          if (!subject) continue; // Se conserva en la UI con aviso para asignarle materia.
+          const id = `${userId}:${hw.id}`;
+          if (!existing.some(r => r.id === id)) await saveUniversityWork({ ...hw, id }, subject);
+        }
+        localStorage.setItem(importOwnerKey, userId);
+      }
+      const rows = await loadUniversityWorks();
+      if (cancelled) return;
+      const works = rows.filter(r => r.activo).map(homeworkFromRow);
+      const orphaned = (!importOwner || importOwner === userId) ? legacy.filter(h => !h.plannerUid && (isUniversityExample(h) || !localSubjects.some(s => s.id === h.subjectId))) : [];
+      const merged = [...localSubjects, ...rows.map(r => r.asignatura).filter(s => !localSubjects.some(local => local.id === s.id))];
+      const uniqueSubjects = [...new Map(merged.map(s => [s.id, s])).values()];
+      setSubjects(uniqueSubjects); saveUniversitySubjects(uniqueSubjects);
+      setHomeworkList([...works, ...orphaned]); saveUniversityHomework([...works, ...orphaned]);
+      setWorksLoaded(true);
+      if (orphaned.length) setUniversityNotice(`${orphaned.length} registros anteriores de ejemplo o sin asignatura no están en el plan. Edita y guarda los que quieras utilizar.`);
+    })().catch(e => { if (!cancelled) setUniversityError(e instanceof Error ? e.message : String(e)); });
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!selectedHomeworkId || (userId && !worksLoaded) || openedSelection.current === selectedHomeworkId) return;
+    const selected = homeworkList.find(h => h.id === selectedHomeworkId);
+    if (selected) {
+      openedSelection.current = selectedHomeworkId;
+      setSelectedNav(selected.subjectId); setEditingHomework(selected); setIsHomeworkModalOpen(true);
+      onHomeworkOpened?.();
+    } else if (worksLoaded) {
+      setUniversityError('El deber o examen solicitado ya no está disponible.');
+      onHomeworkOpened?.();
+    }
+  }, [selectedHomeworkId, homeworkList, worksLoaded, userId, onHomeworkOpened]);
 
   // Selected navigation: either a subject ID, or a special view: 'all' | 'urgent' | 'completed'
   const [selectedNav, setSelectedNav] = useState<string>(() => subjects[0]?.id || 'all');
@@ -270,7 +333,12 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
   }, [homeworkList, selectedNav, statusFilter, searchQuery, subjects, clock.dateStr]);
 
   // Handlers
-  const handleToggleHomework = (hwId: string) => {
+  const handleToggleHomework = async (hwId: string) => {
+    const hw = homeworkList.find(h => h.id === hwId);
+    if (!hw) return;
+    try {
+      if (userId) await saveUniversityWork({ ...hw, status: hw.status === 'entregado' ? 'pendiente' : 'entregado' }, subjects.find(s => s.id === hw.subjectId)!);
+    } catch (e) { setUniversityError(e instanceof Error ? e.message : String(e)); return; }
     const updated = toggleHomeworkStatus(hwId);
     if (updated) {
       setHomeworkList((prev) => prev.map((h) => (h.id === hwId ? updated : h)));
@@ -282,7 +350,12 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
     }
   };
 
-  const handleDeleteHomework = (hwId: string) => {
+  const handleDeleteHomework = async (hwId: string) => {
+    const hw = homeworkList.find(h => h.id === hwId);
+    if (!hw) return;
+    try {
+      if (userId && hw.plannerUid) await saveUniversityWork(hw, subjects.find(s => s.id === hw.subjectId)!, true);
+    } catch (e) { setUniversityError(e instanceof Error ? e.message : String(e)); return; }
     deleteHomework(hwId);
     setHomeworkList((prev) => prev.filter((h) => h.id !== hwId));
     showToast('Entrega eliminada.');
@@ -322,7 +395,11 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
     setEditingSubject(null);
   };
 
-  const handleDeleteSubject = (subjectId: string) => {
+  const handleDeleteSubject = async (subjectId: string) => {
+    try {
+      if (userId) for (const hw of homeworkList.filter(h => h.subjectId === subjectId && h.plannerUid))
+        await saveUniversityWork(hw, subjects.find(s => s.id === subjectId)!, true);
+    } catch (e) { setUniversityError(e instanceof Error ? e.message : String(e)); return; }
     deleteSubject(subjectId);
     setSubjects((prev) => prev.filter((s) => s.id !== subjectId));
     setHomeworkList((prev) => prev.filter((h) => h.subjectId !== subjectId));
@@ -333,7 +410,25 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
     showToast('Asignatura eliminada.');
   };
 
-  const handleSaveHomework = (hwData: Partial<UniversityHomework>) => {
+  const handleSaveHomework = async (hwData: Partial<UniversityHomework>) => {
+    setSavingWork(true); setUniversityError('');
+    try {
+    const draft: UniversityHomework = { ...(editingHomework || { id: crypto.randomUUID(), createdAt: new Date().toISOString() }),
+      subjectId: hwData.subjectId || activeSubject?.id || subjects[0]?.id || '',
+      title: hwData.title || 'Nuevo deber', dueDate: hwData.dueDate || clock.dateStr,
+      dueTime: hwData.dueTime || '23:59', type: hwData.type || 'practica', priority: hwData.priority || 'alta',
+      status: hwData.status || 'pendiente', description: hwData.description,
+      weightPercentage: hwData.weightPercentage, estimatedHours: hwData.estimatedHours ?? 2 };
+    if (userId) {
+      await saveUniversityWork(draft, subjects.find(s => s.id === draft.subjectId)!);
+      draft.plannerUid = `uni:${draft.id}`;
+      const updated = editingHomework ? homeworkList.map(h => h.id === draft.id ? draft : h) : [draft, ...homeworkList];
+      setHomeworkList(updated); saveUniversityHomework(updated);
+      showToast(draft.type === 'examen' ? 'Examen guardado; estudio incluido en el planificador.' : 'Deber guardado e incluido en el planificador.');
+      setIsHomeworkModalOpen(false); setEditingHomework(null);
+      setNewHomeworkType('practica');
+      return;
+    }
     if (editingHomework) {
       const updated: UniversityHomework = { ...editingHomework, ...hwData } as UniversityHomework;
       updateHomework(updated);
@@ -362,6 +457,9 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
     }
     setIsHomeworkModalOpen(false);
     setEditingHomework(null);
+    setNewHomeworkType('practica');
+    } catch (e) { setUniversityError(e instanceof Error ? e.message : String(e)); }
+    finally { setSavingWork(false); }
   };
 
   const getUrgencyBadge = (dueDateStr: string, isCompleted: boolean) => {
@@ -431,6 +529,8 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
   return (
     <div className="w-full max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-6 flex flex-col gap-5">
       {/* Top Banner (Compact & Modern) */}
+      {universityError && !isHomeworkModalOpen && <p role="alert" className="text-sm text-red-600 dark:text-red-300 bg-red-50 dark:bg-red-950 rounded-xl p-3">{universityError}</p>}
+      {universityNotice && <p role="status" className="text-xs text-slate-500 dark:text-slate-400">{universityNotice}</p>}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs shrink-0">
@@ -651,7 +751,9 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
                         >
                           {s.code.substring(0, 3)}
                         </span>
-                        <span className="truncate">{s.name}</span>
+                        <span className="min-w-0"><span className="block truncate">{s.name}</span>
+                          {examCountdown(homeworkList, s.id, clock.dateStr) && <span className="block text-[10px] font-normal text-slate-500 dark:text-slate-400 mt-0.5">{examCountdown(homeworkList, s.id, clock.dateStr)}</span>}
+                        </span>
                       </div>
 
                       {/* Right: Pending badge & Hover action buttons */}
@@ -744,6 +846,7 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
                           {activeSubject.classroom && ` • Aula: ${activeSubject.classroom}`}
                           {activeSubject.semester && ` • ${activeSubject.semester}`}
                         </p>
+                        {examCountdown(homeworkList, activeSubject.id, clock.dateStr) && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1" aria-label="Cuenta atrás del examen">{examCountdown(homeworkList, activeSubject.id, clock.dateStr)}</p>}
                       </div>
                     </div>
 
@@ -753,6 +856,7 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
                         type="button"
                         onClick={() => {
                           setEditingHomework(null);
+                          setNewHomeworkType('practica');
                           setPreselectedSubjectId(activeSubject.id);
                           setIsHomeworkModalOpen(true);
                         }}
@@ -760,6 +864,13 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
                       >
                         <PlusCircle className="w-3.5 h-3.5" />
                         <span>+ Nueva Entrega</span>
+                      </button>
+
+                      <button type="button" onClick={() => {
+                        setEditingHomework(null); setNewHomeworkType('examen');
+                        setPreselectedSubjectId(activeSubject.id); setIsHomeworkModalOpen(true);
+                      }} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+                        <CalendarDays className="w-3.5 h-3.5" /> Añadir examen
                       </button>
 
                       <button
@@ -1084,9 +1195,13 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
             onClose={() => {
               setIsHomeworkModalOpen(false);
               setEditingHomework(null);
+              setNewHomeworkType('practica');
               setPreselectedSubjectId(undefined);
             }}
             onSave={handleSaveHomework}
+            defaultType={newHomeworkType}
+            saving={savingWork}
+            error={universityError}
           />
         )}
       </AnimatePresence>
@@ -1353,7 +1468,10 @@ interface HomeworkFormModalProps {
   preselectedSubjectId?: string;
   clock: RealTimeClockState;
   onClose: () => void;
-  onSave: (data: Partial<UniversityHomework>) => void;
+  onSave: (data: Partial<UniversityHomework>) => void | Promise<void>;
+  defaultType?: HomeworkType;
+  saving?: boolean;
+  error?: string;
 }
 
 const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
@@ -1364,6 +1482,7 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
   clock,
   onClose,
   onSave,
+  defaultType = 'practica', saving = false, error = '',
 }) => {
   const [title, setTitle] = useState(homework?.title || '');
   const [subjectId, setSubjectId] = useState(
@@ -1371,7 +1490,7 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
   );
   const [dueDate, setDueDate] = useState(homework?.dueDate || clock.dateStr);
   const [dueTime, setDueTime] = useState(homework?.dueTime || '23:59');
-  const [type, setType] = useState<HomeworkType>(homework?.type || 'practica');
+  const [type, setType] = useState<HomeworkType>(homework?.type || defaultType);
   const [priority, setPriority] = useState<HomeworkPriority>(homework?.priority || 'alta');
   const [status, setStatus] = useState<HomeworkStatus>(homework?.status || 'pendiente');
   const [description, setDescription] = useState(homework?.description || '');
@@ -1381,7 +1500,6 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
   const [estimatedHours, setEstimatedHours] = useState(
     homework?.estimatedHours ? String(homework.estimatedHours) : ''
   );
-  const [syncToAgenda, setSyncToAgenda] = useState(true);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1398,7 +1516,6 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
       description: description.trim() || undefined,
       weightPercentage: weightPercentage ? parseFloat(weightPercentage) : undefined,
       estimatedHours: estimatedHours ? parseFloat(estimatedHours) : undefined,
-      calendarTaskId: syncToAgenda ? 'sync-requested' : undefined,
     });
   };
 
@@ -1414,7 +1531,7 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
           <div className="flex items-center gap-2">
             <BookOpen className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
             <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
-              {homework ? 'Editar Entrega / Deber' : 'Añadir Entrega o Tarea'}
+              {homework ? 'Editar deber o examen' : type === 'examen' ? 'Añadir examen' : 'Añadir deber'}
             </h2>
           </div>
           <button
@@ -1426,13 +1543,15 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="p-4 sm:p-5 flex flex-col gap-4 overflow-y-auto">
+          {error && <p role="alert" className="text-sm text-red-600 dark:text-red-300">{error}</p>}
           {/* Título */}
           <div>
             <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-              Título de la Entrega o Práctica *
+              {type === 'examen' ? 'Título del examen *' : 'Título del deber *'}
             </label>
             <input
               type="text"
+              aria-label="Título del deber o examen"
               required
               placeholder="ej. Práctica 3: Implementación de Tablas Hash"
               value={title}
@@ -1448,6 +1567,7 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
                 Asignatura *
               </label>
               <select
+                aria-label="Asignatura del deber o examen"
                 required
                 value={subjectId}
                 onChange={(e) => setSubjectId(e.target.value)}
@@ -1466,6 +1586,7 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
                 Tipo de Trabajo
               </label>
               <select
+                aria-label="Tipo de trabajo universitario"
                 value={type}
                 onChange={(e) => setType(e.target.value as HomeworkType)}
                 className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
@@ -1484,10 +1605,11 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Fecha Límite de Entrega *
+                {type === 'examen' ? 'Fecha del examen *' : 'Fecha límite de entrega *'}
               </label>
               <input
                 type="date"
+                aria-label="Fecha del deber o examen"
                 required
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
@@ -1496,10 +1618,12 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
             </div>
             <div>
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Hora Límite
+                {type === 'examen' ? 'Hora del examen · Madrid' : 'Hora límite · Madrid'}
               </label>
               <input
                 type="time"
+                step={60}
+                aria-label="Hora del deber o examen"
                 value={dueTime}
                 onChange={(e) => setDueTime(e.target.value)}
                 className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -1557,12 +1681,15 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
             </div>
             <div>
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Horas Estimadas (opcional)
+                {type === 'examen' ? 'Horas de estudio necesarias *' : 'Horas estimadas · 2 h por defecto'}
               </label>
               <input
                 type="number"
-                min={0}
-                step={0.5}
+                aria-label="Horas de estudio o trabajo"
+                required={type === 'examen'}
+                min={0.25}
+                max={500}
+                step={0.25}
                 placeholder="ej. 4"
                 value={estimatedHours}
                 onChange={(e) => setEstimatedHours(e.target.value)}
@@ -1585,21 +1712,7 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
             />
           </div>
 
-          {/* Sincronizar en Agenda Checkbox */}
-          {!homework && (
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/80">
-              <input
-                type="checkbox"
-                id="sync-agenda-cb"
-                checked={syncToAgenda}
-                onChange={(e) => setSyncToAgenda(e.target.checked)}
-                className="w-4 h-4 text-indigo-600 rounded-sm focus:ring-indigo-500"
-              />
-              <label htmlFor="sync-agenda-cb" className="text-xs font-medium text-indigo-900 dark:text-indigo-200 cursor-pointer">
-                Sincronizar y añadir automáticamente a mi Agenda diaria
-              </label>
-            </div>
-          )}
+          <p className="text-xs text-slate-500 dark:text-slate-400">Se incluirá automáticamente en tu plan de estudio al guardar.{type === 'examen' && ' Se reparte en sesiones de hasta 60 minutos, con práctica sin apuntes y repasos entre días.'}</p>
 
           {/* Footer actions */}
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
@@ -1612,9 +1725,10 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
             </button>
             <button
               type="submit"
+              disabled={saving}
               className="px-5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/20 cursor-pointer active:scale-95"
             >
-              {homework ? 'Guardar Cambios' : 'Añadir Entrega'}
+              {saving ? 'Guardando…' : homework ? 'Guardar Cambios' : type === 'examen' ? 'Guardar examen' : 'Guardar deber'}
             </button>
           </div>
         </form>

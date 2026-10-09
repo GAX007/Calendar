@@ -113,6 +113,7 @@ export interface UniversityHomework {
   description?: string;
   weightPercentage?: number; // e.g. 15%
   estimatedHours?: number;
+  plannerUid?: string; // Trabajo privado enlazado al planificador.
   grade?: string; // e.g. "9.5 / 10"
   completedAt?: string;
   calendarTaskId?: string; // Linked task in daily agenda

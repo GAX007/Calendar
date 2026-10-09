@@ -28,6 +28,14 @@ export interface EntregaItem {
   horas_reales: number | null;
   min_viable_min: number | null;
   grupo_confirmado?: boolean;
+  tipo_trabajo?: 'profundo' | 'ligero';
+  aplazamientos?: number;
+  factor_calibracion?: number;
+  plan_no_antes_de?: string | null;
+  tamano_bloque_min?: number | null;
+  hueco_inicio_local?: string | null;
+  hueco_fin_local?: string | null;
+  es_examen?: boolean; // Solo trabajos privados de Universidad; la sync no lo usa.
 }
 
 export interface CambioItem {

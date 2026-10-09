@@ -1,6 +1,7 @@
 import { TaskItem } from '../types';
 import { replaceGoogleCalendarTasks } from './taskService';
 import { mergeGoogleCalendarSnapshot } from '../utils/googleCalendarSnapshot';
+import { syncCalendarPlanner, type CalendarPlannerChange } from './calendarPlannerService';
 
 const pendingSyncs = new Map<string, Promise<SyncLiveResult>>();
 const lastSnapshots = new Map<string, TaskItem[]>();
@@ -28,6 +29,8 @@ export interface SyncLiveResult {
   embedUrl: string;
   syncedAt?: string;
   error?: string;
+  plannerError?: string;
+  plannerChange?: CalendarPlannerChange | null;
 }
 
 /**
@@ -156,6 +159,9 @@ async function performSync(userId?: string, userEmail?: string, overrideUrl?: st
       if (data.tasks.some(task => !task.id?.startsWith('gcal-') || !task.date || !task.time)) throw new Error('El servidor ha devuelto eventos inválidos.');
       const scoped = data.tasks.map(task => ({ ...task, id: userId ? `gcal-user:${userId}:${task.id.slice(5)}` : task.id }));
       data.tasks = await replaceGoogleCalendarTasks(scoped, userId);
+      // Un fallo del planificador se informa sin romper la Agenda ya sincronizada.
+      try { data.plannerChange = await syncCalendarPlanner(userId); }
+      catch (err) { data.plannerError = err instanceof Error ? err.message : 'No se pudieron actualizar los fijos de Calendar'; }
       data.count = data.tasks.length;
       lastSnapshots.set(userId || 'guest', data.tasks);
       localStorage.setItem(`calendarasist_gcal_last_sync_${userId || 'guest'}`, new Date().toISOString());
