@@ -1,10 +1,25 @@
 @import "tailwindcss";
 
+/* Height reserved by the mobile bottom tab bar (hidden from md upwards) */
+:root {
+  --bottom-nav-h: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+}
+@media (min-width: 768px) {
+  :root {
+    --bottom-nav-h: 0px;
+  }
+}
+
 @layer base {
   html, body {
     overflow-x: hidden;
     -webkit-tap-highlight-color: transparent;
-    padding-top: env(safe-area-inset-top, 0px);
+  }
+  html {
+    /* Pinch-zoom stays available; removes the double-tap zoom delay */
+    touch-action: manipulation;
+    /* The app has its own pull-to-refresh: avoid the browser reload/bounce on top of it */
+    overscroll-behavior-y: none;
   }
   body {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
@@ -12,6 +27,18 @@
   code, pre, .font-mono {
     font-family: 'JetBrains Mono', monospace;
   }
+}
+
+/* iOS zooms into any focused field under 16px. Unlayered so it wins over text-xs/text-sm utilities on touch screens */
+@media (pointer: coarse) and (max-width: 767px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+  input.text-lg { font-size: 1.125rem; }
+  input.text-xl { font-size: 1.25rem; }
+  input.text-2xl { font-size: 1.5rem; }
 }
 
 /* Hide scrollbar for clean horizontal pill lists */

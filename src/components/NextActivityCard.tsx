@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Clock,
   ArrowRight,
@@ -28,7 +28,7 @@ export const NextActivityCard: React.FC<NextActivityCardProps> = ({
   onOpenGymRoutine,
 }) => {
   // Tasks for today
-  const todayTasks = tasks.filter((t) => t.date === clock.dateStr);
+  const todayTasks = useMemo(() => tasks.filter((t) => t.date === clock.dateStr), [tasks, clock.dateStr]);
 
   // Check if a task is currently active right now
   const activeTask = todayTasks.find((t) => {

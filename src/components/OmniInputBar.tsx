@@ -39,7 +39,7 @@ export const OmniInputBar: React.FC<OmniInputBarProps> = ({
   };
 
   return (
-    <div className="fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom,0px))] sm:bottom-6 left-1/2 -translate-x-1/2 w-full max-w-3xl px-3 sm:px-6 z-40 pointer-events-none">
+    <div className="fixed bottom-[calc(var(--bottom-nav-h)+0.75rem)] md:bottom-6 left-1/2 -translate-x-1/2 w-full max-w-3xl px-3 sm:px-6 z-40 pointer-events-none">
       <motion.div
         initial={{ y: 25, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}

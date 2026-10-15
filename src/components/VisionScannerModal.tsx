@@ -21,49 +21,60 @@ interface VisionScannerModalProps {
 }
 
 /**
- * Resizes large photos to a max dimension of 2048px for fast, reliable multimodal transmission.
+ * Resizes photos/screenshots to a max dimension of 2048px and re-encodes them as JPEG.
+ * PNG screenshots used to be sent as PNG (several MB in base64, close to the serverless body limit);
+ * JPEG at q=0.85 keeps calendar text legible at a fraction of the size.
  */
+const MAX_IMAGE_DIM = 2048;
+const JPEG_QUALITY = 0.85;
+
+async function decodeImage(file: File): Promise<{ source: CanvasImageSource; width: number; height: number; release: () => void }> {
+  if (typeof createImageBitmap === 'function') {
+    try {
+      const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      return { source: bitmap, width: bitmap.width, height: bitmap.height, release: () => bitmap.close() };
+    } catch {
+      // Fall back to <img> decoding (older Safari, unusual formats)
+    }
+  }
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.decoding = 'async';
+    img.src = url;
+    await img.decode();
+    return { source: img, width: img.naturalWidth, height: img.naturalHeight, release: () => URL.revokeObjectURL(url) };
+  } catch (err) {
+    URL.revokeObjectURL(url);
+    throw new Error('Error al cargar la imagen');
+  }
+}
+
 async function processImageFile(file: File): Promise<{ base64: string; mimeType: string }> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('Error al leer el archivo'));
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = () => reject(new Error('Error al cargar la imagen'));
-      img.onload = () => {
-        const MAX_DIM = 2048;
-        let width = img.width;
-        let height = img.height;
+  const { source, width: srcW, height: srcH, release } = await decodeImage(file);
+  try {
+    const scale = Math.min(1, MAX_IMAGE_DIM / Math.max(srcW, srcH));
+    const width = Math.max(1, Math.round(srcW * scale));
+    const height = Math.max(1, Math.round(srcH * scale));
 
-        if (width > MAX_DIM || height > MAX_DIM) {
-          if (width > height) {
-            height = Math.round((height * MAX_DIM) / width);
-            width = MAX_DIM;
-          } else {
-            width = Math.round((width * MAX_DIM) / height);
-            height = MAX_DIM;
-          }
-        }
-
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          const originalBase64 = reader.result as string;
-          resolve({ base64: originalBase64, mimeType: file.type || 'image/jpeg' });
-          return;
-        }
-
-        ctx.drawImage(img, 0, 0, width, height);
-        const mimeType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
-        const resizedBase64 = canvas.toDataURL(mimeType, 0.9);
-        resolve({ base64: resizedBase64, mimeType });
-      };
-      img.src = reader.result as string;
-    };
-    reader.readAsDataURL(file);
-  });
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      throw new Error('Error al procesar la imagen');
+    }
+    // Transparent PNG areas would turn black in JPEG
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(source, 0, 0, width, height);
+    const base64 = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
+    canvas.width = 0;
+    canvas.height = 0;
+    return { base64, mimeType: 'image/jpeg' };
+  } finally {
+    release();
+  }
 }
 
 export const VisionScannerModal: React.FC<VisionScannerModalProps> = ({

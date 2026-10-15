@@ -36,6 +36,10 @@ export interface EntregaItem {
   hueco_inicio_local?: string | null;
   hueco_fin_local?: string | null;
   es_examen?: boolean; // Solo trabajos privados de Universidad; la sync no lo usa.
+  // Estimación del asistente nocturno (Gemini)
+  horas_ia?: number | null;
+  estimacion_ia_nota?: string | null;
+  estimado_ia_en?: string | null;
 }
 
 export interface CambioItem {

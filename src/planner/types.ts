@@ -69,6 +69,8 @@ export interface PlanInput {
   bloques_previos?: Bloque[];
   deuda?: Deuda[];
   corte_local?: string;
+  // Lighter days accepted after a poor check-in: deep-work hours cap for that date
+  max_profundas_por_dia?: Record<string, number>;
 }
 export interface DiffSocial {
   plan: Plan;

@@ -57,15 +57,57 @@ import {
 import { homeworkFromRow, loadUniversityWorks, saveUniversityWork } from '../services/universityPlannerService';
 import { examCountdown } from '../planner/university';
 import { RealTimeClockState } from '../hooks/useRealTimeClock';
+import { findNextSubjectClass } from '../utils/nextSubjectClass';
+import { madridLocal } from '../planner/time';
+import { newId } from '../utils/uuid';
 
 interface UniversityModuleProps {
   clock: RealTimeClockState;
+  calendarTasks?: TaskItem[];
   userId?: string;
   onScheduleHomeworkInCalendar?: (task: TaskItem) => void;
   showToast?: (message: string) => void;
   onNavigateToMoodle?: () => void;
   selectedHomeworkId?: string | null;
   onHomeworkOpened?: () => void;
+}
+
+function ExamCountdownMenu({ exams, subjects, today, onEdit, onToggle, onDelete }: {
+  exams: UniversityHomework[];
+  subjects: UniversitySubject[];
+  today: string;
+  onEdit: (exam: UniversityHomework) => void;
+  onToggle: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const sorted = [...exams].sort((a, b) =>
+    `${a.dueDate}T${a.dueTime}`.localeCompare(`${b.dueDate}T${b.dueTime}`) || a.id.localeCompare(b.id));
+  const next = sorted.find(exam => exam.status !== 'entregado' && exam.dueDate >= today);
+  if (!sorted.length) return null;
+  const countdown = next ? examCountdown([next], next.subjectId, today)?.split(' · ')[0] : null;
+
+  return (
+    <details className="relative self-end text-xs text-slate-500 dark:text-slate-400">
+      <summary className="cursor-pointer list-none rounded-lg px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1.5" aria-label="Ver exámenes">
+        <CalendarDays className="w-3.5 h-3.5" />
+        <span>{countdown || 'Exámenes'}{subjects.length > 1 && next ? ` · ${subjects.find(s => s.id === next.subjectId)?.code || ''}` : ''}</span>
+      </summary>
+      <div className="absolute right-0 top-full z-20 mt-1 w-72 max-w-[80vw] max-h-72 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg p-2">
+        {sorted.map(exam => (
+          <div key={exam.id} className="flex items-center gap-2 p-2">
+            <button type="button" onClick={() => onEdit(exam)} className="min-w-0 flex-1 text-left hover:text-indigo-600 dark:hover:text-indigo-400" title="Editar examen">
+              <span className="block truncate font-medium">{exam.title}</span>
+              <span className="block text-[10px]">{subjects.find(s => s.id === exam.subjectId)?.code} · {exam.dueDate.split('-').reverse().join('/')} · {exam.dueTime}</span>
+            </button>
+            <button type="button" onClick={() => onToggle(exam.id)} title={exam.status === 'entregado' ? 'Marcar examen pendiente' : 'Marcar examen realizado'} className="p-1 hover:text-emerald-600">
+              {exam.status === 'entregado' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5" />}
+            </button>
+            <button type="button" onClick={() => onDelete(exam.id)} title="Eliminar examen" className="p-1 hover:text-rose-600"><Trash2 className="w-3.5 h-3.5" /></button>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
 }
 
 const COLOR_PALETTES: Record<
@@ -172,6 +214,7 @@ const HOMEWORK_TYPE_LABELS: Record<HomeworkType, { label: string; icon: string }
 
 export const UniversityModule: React.FC<UniversityModuleProps> = ({
   clock,
+  calendarTasks = [],
   userId,
   onScheduleHomeworkInCalendar,
   showToast = (_msg: string) => {},
@@ -259,15 +302,18 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
     return subjects.find((s) => s.id === selectedNav) || null;
   }, [subjects, selectedNav]);
 
-  // Statistics
+  const deliveries = useMemo(() => homeworkList.filter(h => h.type !== 'examen'), [homeworkList]);
+  const exams = useMemo(() => homeworkList.filter(h => h.type === 'examen'), [homeworkList]);
+
+  // Statistics for deliveries only; exams keep their study allocation in the planner.
   const stats = useMemo(() => {
     const totalSubjects = subjects.length;
-    const totalHomework = homeworkList.length;
-    const pendingHomework = homeworkList.filter((h) => h.status !== 'entregado').length;
-    const completedHomework = homeworkList.filter((h) => h.status === 'entregado').length;
+    const totalHomework = deliveries.length;
+    const pendingHomework = deliveries.filter((h) => h.status !== 'entregado').length;
+    const completedHomework = deliveries.filter((h) => h.status === 'entregado').length;
     const completionRate = totalHomework > 0 ? Math.round((completedHomework / totalHomework) * 100) : 0;
 
-    const urgentCount = homeworkList.filter((h) => {
+    const urgentCount = deliveries.filter((h) => {
       if (h.status === 'entregado') return false;
       const diffDays = Math.ceil(
         (new Date(h.dueDate).getTime() - new Date(clock.dateStr).getTime()) / (1000 * 60 * 60 * 24)
@@ -283,11 +329,11 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
       completionRate,
       urgentCount,
     };
-  }, [subjects, homeworkList, clock.dateStr]);
+  }, [subjects, deliveries, clock.dateStr]);
 
   // Filtered homework list for the current active view
   const currentViewHomework = useMemo(() => {
-    let list = [...homeworkList];
+    let list = [...deliveries];
 
     // Filter by selected navigation
     if (selectedNav === 'urgent') {
@@ -330,7 +376,7 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
       if (a.status !== 'entregado' && b.status === 'entregado') return -1;
       return a.dueDate.localeCompare(b.dueDate);
     });
-  }, [homeworkList, selectedNav, statusFilter, searchQuery, subjects, clock.dateStr]);
+  }, [deliveries, selectedNav, statusFilter, searchQuery, subjects, clock.dateStr]);
 
   // Handlers
   const handleToggleHomework = async (hwId: string) => {
@@ -413,7 +459,7 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
   const handleSaveHomework = async (hwData: Partial<UniversityHomework>) => {
     setSavingWork(true); setUniversityError('');
     try {
-    const draft: UniversityHomework = { ...(editingHomework || { id: crypto.randomUUID(), createdAt: new Date().toISOString() }),
+    const draft: UniversityHomework = { ...(editingHomework || { id: newId(), createdAt: new Date().toISOString() }),
       subjectId: hwData.subjectId || activeSubject?.id || subjects[0]?.id || '',
       title: hwData.title || 'Nuevo deber', dueDate: hwData.dueDate || clock.dateStr,
       dueTime: hwData.dueTime || '23:59', type: hwData.type || 'practica', priority: hwData.priority || 'alta',
@@ -728,7 +774,7 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
                 {subjects.map((s) => {
                   const isSelected = selectedNav === s.id;
                   const palette = COLOR_PALETTES[s.color] || COLOR_PALETTES.indigo;
-                  const subjTasks = homeworkList.filter((h) => h.subjectId === s.id);
+                  const subjTasks = deliveries.filter((h) => h.subjectId === s.id);
                   const pendingCount = subjTasks.filter((h) => h.status !== 'entregado').length;
 
                   return (
@@ -752,7 +798,7 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
                           {s.code.substring(0, 3)}
                         </span>
                         <span className="min-w-0"><span className="block truncate">{s.name}</span>
-                          {examCountdown(homeworkList, s.id, clock.dateStr) && <span className="block text-[10px] font-normal text-slate-500 dark:text-slate-400 mt-0.5">{examCountdown(homeworkList, s.id, clock.dateStr)}</span>}
+                          {examCountdown(exams, s.id, clock.dateStr) && <span className="block text-[10px] font-normal text-slate-500 dark:text-slate-400 mt-0.5">{examCountdown(exams, s.id, clock.dateStr)?.split(' · ')[0]}</span>}
                         </span>
                       </div>
 
@@ -815,7 +861,7 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
           {activeSubject ? (
             (() => {
               const palette = COLOR_PALETTES[activeSubject.color] || COLOR_PALETTES.indigo;
-              const subjTasks = homeworkList.filter((h) => h.subjectId === activeSubject.id);
+              const subjTasks = deliveries.filter((h) => h.subjectId === activeSubject.id);
               const totalSubj = subjTasks.length;
               const doneSubj = subjTasks.filter((h) => h.status === 'entregado').length;
               const pendingSubj = totalSubj - doneSubj;
@@ -823,6 +869,8 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
 
               return (
                 <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col gap-3">
+                  <ExamCountdownMenu exams={exams.filter(exam => exam.subjectId === activeSubject.id)} subjects={[activeSubject]} today={clock.dateStr}
+                    onEdit={exam => { setEditingHomework(exam); setIsHomeworkModalOpen(true); }} onToggle={handleToggleHomework} onDelete={handleDeleteHomework} />
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                       <div
@@ -846,7 +894,6 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
                           {activeSubject.classroom && ` • Aula: ${activeSubject.classroom}`}
                           {activeSubject.semester && ` • ${activeSubject.semester}`}
                         </p>
-                        {examCountdown(homeworkList, activeSubject.id, clock.dateStr) && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1" aria-label="Cuenta atrás del examen">{examCountdown(homeworkList, activeSubject.id, clock.dateStr)}</p>}
                       </div>
                     </div>
 
@@ -911,7 +958,10 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
             })()
           ) : (
             /* Header for Global Views */
-            <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col gap-3">
+              <ExamCountdownMenu exams={exams} subjects={subjects} today={clock.dateStr}
+                onEdit={exam => { setEditingHomework(exam); setIsHomeworkModalOpen(true); }} onToggle={handleToggleHomework} onDelete={handleDeleteHomework} />
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">
@@ -943,6 +993,7 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
                 <PlusCircle className="w-3.5 h-3.5" />
                 <span>+ Nueva Entrega</span>
               </button>
+              </div>
             </div>
           )}
 
@@ -1192,6 +1243,7 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
             subjects={subjects}
             preselectedSubjectId={preselectedSubjectId}
             clock={clock}
+            calendarTasks={calendarTasks}
             onClose={() => {
               setIsHomeworkModalOpen(false);
               setEditingHomework(null);
@@ -1472,6 +1524,7 @@ interface HomeworkFormModalProps {
   defaultType?: HomeworkType;
   saving?: boolean;
   error?: string;
+  calendarTasks: TaskItem[];
 }
 
 const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
@@ -1480,6 +1533,7 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
   subjects,
   preselectedSubjectId,
   clock,
+  calendarTasks,
   onClose,
   onSave,
   defaultType = 'practica', saving = false, error = '',
@@ -1491,6 +1545,13 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
   const [dueDate, setDueDate] = useState(homework?.dueDate || clock.dateStr);
   const [dueTime, setDueTime] = useState(homework?.dueTime || '23:59');
   const [type, setType] = useState<HomeworkType>(homework?.type || defaultType);
+  const [useNextClassDeadline, setUseNextClassDeadline] = useState(false);
+  const todayMadrid = madridLocal(clock.currentDate).slice(0, 10);
+  const nextClass = useMemo(() => findNextSubjectClass(calendarTasks, subjects.find(s => s.id === subjectId), todayMadrid),
+    [calendarTasks, subjects, subjectId, todayMadrid]);
+  useEffect(() => {
+    if (useNextClassDeadline && nextClass) { setDueDate(nextClass.date); setDueTime(nextClass.time.slice(0,5)); }
+  }, [useNextClassDeadline, nextClass]);
   const [priority, setPriority] = useState<HomeworkPriority>(homework?.priority || 'alta');
   const [status, setStatus] = useState<HomeworkStatus>(homework?.status || 'pendiente');
   const [description, setDescription] = useState(homework?.description || '');
@@ -1504,12 +1565,13 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !subjectId) return;
+    if (useNextClassDeadline && !nextClass) return;
 
     onSave({
       title: title.trim(),
       subjectId,
-      dueDate,
-      dueTime,
+      dueDate: useNextClassDeadline ? nextClass!.date : dueDate,
+      dueTime: useNextClassDeadline ? nextClass!.time.slice(0,5) : dueTime,
       type,
       priority,
       status,
@@ -1588,7 +1650,7 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
               <select
                 aria-label="Tipo de trabajo universitario"
                 value={type}
-                onChange={(e) => setType(e.target.value as HomeworkType)}
+                onChange={(e) => { setType(e.target.value as HomeworkType); if (e.target.value === 'examen') setUseNextClassDeadline(false); }}
                 className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
               >
                 <option value="practica">💻 Práctica</option>
@@ -1602,6 +1664,13 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
           </div>
 
           {/* Fecha Límite y Hora */}
+          {type !== 'examen' && <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/30 p-3 space-y-2">
+            <button type="button" disabled={saving || !subjectId} onClick={() => setUseNextClassDeadline(true)} className="rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 text-xs font-bold disabled:opacity-50">Para la siguiente clase</button>
+            {useNextClassDeadline ? nextClass ? <p role="status" className="text-xs text-indigo-800 dark:text-indigo-200">
+              Próxima clase: {new Date(`${nextClass.date}T12:00:00Z`).toLocaleDateString('es-ES', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' })} a las {nextClass.time.slice(0,5)} · {nextClass.title}. El deber vence al empezar la clase.
+            </p> : <p role="alert" className="text-xs text-amber-700 dark:text-amber-300">No aparece ninguna clase futura de esta asignatura en Calendar. Sincroniza el calendario o indica la fecha manualmente.</p>
+              : <p className="text-xs text-slate-500 dark:text-slate-400">Usa el inicio de la próxima clase de esta asignatura en Calendar. Se ignoran todas las clases de hoy.</p>}
+          </div>}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
@@ -1612,7 +1681,7 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
                 aria-label="Fecha del deber o examen"
                 required
                 value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
+                onChange={(e) => { setDueDate(e.target.value); setUseNextClassDeadline(false); }}
                 className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
@@ -1625,7 +1694,7 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
                 step={60}
                 aria-label="Hora del deber o examen"
                 value={dueTime}
-                onChange={(e) => setDueTime(e.target.value)}
+                onChange={(e) => { setDueTime(e.target.value); setUseNextClassDeadline(false); }}
                 className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
@@ -1725,7 +1794,7 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || (useNextClassDeadline && !nextClass)}
               className="px-5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/20 cursor-pointer active:scale-95"
             >
               {saving ? 'Guardando…' : homework ? 'Guardar Cambios' : type === 'examen' ? 'Guardar examen' : 'Guardar deber'}

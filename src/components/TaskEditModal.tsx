@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useDragControls } from 'motion/react';
 import { X, Check, Trash2, Calendar, Clock, Tag } from 'lucide-react';
 import { TaskItem, CategoryType } from '../types';
 import { CATEGORIES } from '../data/categories';
+import { useIsMobile } from '../hooks/useMediaQuery';
+import { SheetHandle, shouldCloseSheet } from './ui/SheetHandle';
 
 interface TaskEditModalProps {
   isOpen: boolean;
@@ -22,6 +24,8 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
   isNew = false,
 }) => {
   const [formData, setFormData] = useState<TaskItem | null>(null);
+  const isMobile = useIsMobile();
+  const dragControls = useDragControls();
 
   useEffect(() => {
     setFormData(task ? { ...task } : null);
@@ -39,13 +43,26 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto pt-[max(env(safe-area-inset-top,0px),1rem)] pb-[max(env(safe-area-inset-bottom,0px),1rem)]">
+      <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-4 bg-black/60 backdrop-blur-xs sm:overflow-y-auto pt-[max(env(safe-area-inset-top,0px),1rem)] sm:pb-[max(env(safe-area-inset-bottom,0px),1rem)]">
+        {/* Bottom sheet on phones (actions within thumb reach), centered dialog from sm upwards */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-6 shadow-2xl text-slate-900 dark:text-slate-100 my-auto max-h-[92dvh] overflow-y-auto"
+          role="dialog"
+          aria-modal="true"
+          initial={isMobile ? { y: '100%' } : { opacity: 0, scale: 0.95 }}
+          animate={isMobile ? { y: 0 } : { opacity: 1, scale: 1 }}
+          exit={isMobile ? { y: '100%' } : { opacity: 0, scale: 0.95 }}
+          transition={isMobile ? { type: 'spring', damping: 32, stiffness: 340 } : undefined}
+          drag={isMobile ? 'y' : false}
+          dragControls={dragControls}
+          dragListener={false}
+          dragConstraints={{ top: 0, bottom: 0 }}
+          dragElastic={{ top: 0, bottom: 0.7 }}
+          onDragEnd={(_, info) => {
+            if (shouldCloseSheet(info)) onClose();
+          }}
+          className="w-full sm:max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-t-3xl sm:rounded-2xl p-4 pb-[max(env(safe-area-inset-bottom,0px),1rem)] sm:p-6 shadow-2xl text-slate-900 dark:text-slate-100 sm:my-auto max-h-[92dvh] overflow-y-auto overscroll-contain"
         >
+          <SheetHandle onPointerDown={(e) => dragControls.start(e)} />
           <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
             <h3 className="font-bold text-slate-900 dark:text-white text-base">
               {isNew ? 'Añadir Nueva Tarea' : 'Modificar Tarea'}
@@ -172,7 +189,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                     onDelete(formData.id);
                     onClose();
                   }}
-                  className="min-h-[40px] px-2 text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 flex items-center gap-1.5 transition cursor-pointer touch-manipulation"
+                  className="min-h-11 px-2 text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 flex items-center gap-1.5 transition cursor-pointer touch-manipulation"
                 >
                   <Trash2 className="w-4 h-4" />
                   <span>Eliminar</span>
@@ -185,13 +202,13 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="min-h-[40px] px-3.5 py-2 rounded-xl text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer touch-manipulation"
+                  className="min-h-11 px-3.5 py-2 rounded-xl text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer touch-manipulation"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="min-h-[40px] px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition cursor-pointer touch-manipulation"
+                  className="min-h-11 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition cursor-pointer touch-manipulation"
                 >
                   {isNew ? 'Crear Tarea' : 'Guardar'}
                 </button>

@@ -4,6 +4,9 @@ import https from 'https';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 import { parseGoogleCalendarFeed } from './src/utils/googleCalendarParser';
+import { addDays, madridLocal } from './src/planner/time';
+
+const SPANISH_DAY_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
 // Conserva la configuración existente y carga variables adicionales de desarrollo.
 dotenv.config({ path: ['.env', '.env.local'] });
@@ -20,6 +23,9 @@ import {
   updateEntregaUserFields,
 } from './src/services/moodleSyncService';
 import { MoodleStore } from './src/services/moodleStore';
+import { ejecutarAsistente, TAREAS, type Tarea } from './src/asistente/servidor/tareas';
+import { clienteServicio, usuarioDeToken } from './src/asistente/servidor/supabase';
+import { clavePublica, enviarPush, pushConfigurado } from './src/asistente/servidor/push';
 
 // Normalize Netlify function URLs (/.netlify/functions/api/* -> /api/* or stripped /* -> /api/*)
 app.use((req, res, next) => {
@@ -29,6 +35,7 @@ app.use((req, res, next) => {
     !req.url.startsWith('/api') &&
     (req.url.startsWith('/health') ||
       req.url.startsWith('/google-calendar') ||
+      req.url.startsWith('/asistente') ||
       req.url.startsWith('/transcribe-audio') ||
       req.url.startsWith('/parse-multimodal') ||
       req.url.startsWith('/sync-now') ||
@@ -63,6 +70,64 @@ app.get('/api/health', (req, res) => {
     hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
     timestamp: new Date().toISOString(),
   });
+});
+
+// Asistente nocturno: avisos push y ejecución manual de sus tareas (requiere sesión)
+async function requireUser(req: express.Request, res: express.Response) {
+  try {
+    const user = await usuarioDeToken(req.headers.authorization);
+    if (!user) res.status(401).json({ error: 'Inicia sesión para usar el asistente' });
+    return user;
+  } catch (err: any) {
+    res.status(503).json({ error: err?.message || 'Asistente no configurado en el servidor' });
+    return null;
+  }
+}
+
+app.get('/api/asistente/push/clave', (req, res) => {
+  res.json({ clave: clavePublica() });
+});
+
+app.post('/api/asistente/push/suscribir', async (req, res) => {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  const sub = req.body?.suscripcion;
+  if (!sub?.endpoint || !/^https:\/\//.test(sub.endpoint) || !sub.keys?.p256dh || !sub.keys?.auth) {
+    return res.status(400).json({ error: 'Suscripción push inválida' });
+  }
+  const { error } = await clienteServicio().from('push_suscripciones')
+    .upsert({ endpoint: sub.endpoint, user_id: user.id, p256dh: sub.keys.p256dh, auth: sub.keys.auth }, { onConflict: 'endpoint' });
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true, push_configurado: pushConfigurado() });
+});
+
+app.post('/api/asistente/push/baja', async (req, res) => {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  const { error } = await clienteServicio().from('push_suscripciones').delete().eq('user_id', user.id).eq('endpoint', String(req.body?.endpoint || ''));
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
+});
+
+app.post('/api/asistente/push/prueba', async (req, res) => {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  if (!pushConfigurado()) return res.status(503).json({ error: 'Faltan VAPID_PUBLIC_KEY y VAPID_PRIVATE_KEY en el servidor' });
+  try {
+    const r = await enviarPush(clienteServicio(), user.id, { title: 'Avisos activados', body: 'Así te llegarán los avisos de CalendarAsist.', url: '/', tag: 'prueba' });
+    res.json(r);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'No se pudo enviar' });
+  }
+});
+
+app.post('/api/asistente/ejecutar', async (req, res) => {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  const tarea = String(req.body?.tarea || '') as Tarea;
+  if (!TAREAS.includes(tarea)) return res.status(400).json({ error: `Tarea desconocida. Usa: ${TAREAS.join(', ')}` });
+  const informe = await ejecutarAsistente({ forzar: [tarea], usuario: user.id });
+  res.status(informe.errores.length ? 500 : 200).json(informe);
 });
 
 // Live Google Calendar Sync Endpoint
@@ -280,23 +345,38 @@ function isRetryableGeminiError(error: any): boolean {
   );
 }
 
-// Executes an async Gemini operation with automatic retry on transient errors and multi-model failover
+// Executes an async Gemini operation with automatic retry on transient errors and multi-model failover.
+// totalBudgetMs caps the whole cascade so the request ends (and the caller falls back) before the
+// serverless function or the phone gives up waiting.
+const MIN_ATTEMPT_MS = 1500;
+
 async function executeWithGeminiFallback<T>(
   modelCandidates: string[],
   operation: (model: string) => Promise<T>,
-  timeoutMs = 35000
+  timeoutMs = 35000,
+  totalBudgetMs = 25000
 ): Promise<{ result: T; modelUsed: string }> {
   let lastError: any = null;
+  const deadline = Date.now() + totalBudgetMs;
+  const remaining = () => deadline - Date.now();
 
   for (let mIdx = 0; mIdx < modelCandidates.length; mIdx++) {
     const model = modelCandidates[mIdx];
     const maxAttempts = 2;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      if (remaining() < MIN_ATTEMPT_MS) {
+        throw lastError || new Error(`Presupuesto de ${totalBudgetMs}ms agotado antes de llamar a Gemini`);
+      }
+      const attemptTimeoutMs = Math.min(timeoutMs, remaining());
+      let timer: ReturnType<typeof setTimeout> | undefined;
       try {
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error(`Timeout de ${timeoutMs}ms para modelo ${model}`)), timeoutMs)
-        );
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error(`Timeout de ${attemptTimeoutMs}ms para modelo ${model}`)),
+            attemptTimeoutMs
+          );
+        });
         const result = await Promise.race([operation(model), timeoutPromise]);
         return { result, modelUsed: model };
       } catch (err: any) {
@@ -314,7 +394,7 @@ async function executeWithGeminiFallback<T>(
         // If the model is experiencing high demand (503), retry once or failover
         if (isHighDemand) {
           console.info(`[Gemini Failover] Modelo ${model} intento ${attempt}/${maxAttempts} experimenta alta demanda temporal (503).`);
-          if (attempt < maxAttempts) {
+          if (attempt < maxAttempts && remaining() > 600 + MIN_ATTEMPT_MS) {
             await new Promise((resolve) => setTimeout(resolve, 600));
             continue;
           }
@@ -326,7 +406,7 @@ async function executeWithGeminiFallback<T>(
           err?.message || 'Error transitorio'
         );
 
-        if (retryable && attempt < maxAttempts) {
+        if (retryable && attempt < maxAttempts && remaining() > 800 + MIN_ATTEMPT_MS) {
           // Exponential backoff with random jitter: 400ms - 800ms
           const backoffMs = 400 + Math.floor(Math.random() * 400);
           await new Promise((resolve) => setTimeout(resolve, backoffMs));
@@ -335,6 +415,8 @@ async function executeWithGeminiFallback<T>(
 
         // Move to next candidate model if exhausted attempts on this model
         break;
+      } finally {
+        if (timer) clearTimeout(timer);
       }
     }
   }
@@ -366,21 +448,19 @@ function getTodayInfo(): {
   dayOfMonth: number;
   dayOfWeek: number;
 } {
-  const now = new Date();
-  const spanishDays = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-  const dayName = spanishDays[now.getDay()];
-  const y = now.getFullYear();
-  const m = (now.getMonth() + 1).toString().padStart(2, '0');
-  const d = now.getDate().toString().padStart(2, '0');
-  const dateStr = `${y}-${m}-${d}`;
+  // Netlify runs in UTC: "today" must be the Madrid date, also between 00:00 and 02:00
+  const dateStr = madridLocal(new Date()).slice(0, 10);
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dayOfWeek = new Date(`${dateStr}T12:00:00Z`).getUTCDay();
+  const dayName = SPANISH_DAY_NAMES[dayOfWeek];
   return {
     dateStr,
     dayName,
     todayStr: `${dateStr} (${dayName})`,
     year: y,
-    monthIndex: now.getMonth(),
-    dayOfMonth: now.getDate(),
-    dayOfWeek: now.getDay(),
+    monthIndex: m - 1,
+    dayOfMonth: d,
+    dayOfWeek,
   };
 }
 
@@ -893,7 +973,6 @@ function fallbackParseSpanish(input: string, sourceType: 'voice' | 'text' | 'vis
 
   // Determine base dates relative to current live date
   const todayInfo = getTodayInfo();
-  const baseDate = new Date();
 
   // Split multi-task compound sentences: ";", ".", "y además", "y finalmente", etc.
   const rawSegments = contentToSplit
@@ -1046,25 +1125,13 @@ function fallbackParseSpanish(input: string, sourceType: 'voice' | 'text' | 'vis
       deadlineLabel = `Hoy (${todayInfo.dayName})`;
       dayOfWeekForTask = todayInfo.dayOfWeek;
     } else if (segLower.includes('pasado mañana')) {
-      const d = new Date(baseDate);
-      d.setDate(d.getDate() + 2);
-      const y = d.getFullYear();
-      const m = (d.getMonth() + 1).toString().padStart(2, '0');
-      const day = d.getDate().toString().padStart(2, '0');
-      taskDate = `${y}-${m}-${day}`;
-      const spanishDays = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-      deadlineLabel = spanishDays[d.getDay()];
-      dayOfWeekForTask = d.getDay();
+      taskDate = addDays(todayInfo.dateStr, 2);
+      dayOfWeekForTask = new Date(`${taskDate}T12:00:00Z`).getUTCDay();
+      deadlineLabel = SPANISH_DAY_NAMES[dayOfWeekForTask];
     } else if (segLower.includes('mañana')) {
-      const d = new Date(baseDate);
-      d.setDate(d.getDate() + 1);
-      const y = d.getFullYear();
-      const m = (d.getMonth() + 1).toString().padStart(2, '0');
-      const day = d.getDate().toString().padStart(2, '0');
-      taskDate = `${y}-${m}-${day}`;
-      const spanishDays = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-      deadlineLabel = `Mañana (${spanishDays[d.getDay()]})`;
-      dayOfWeekForTask = d.getDay();
+      taskDate = addDays(todayInfo.dateStr, 1);
+      dayOfWeekForTask = new Date(`${taskDate}T12:00:00Z`).getUTCDay();
+      deadlineLabel = `Mañana (${SPANISH_DAY_NAMES[dayOfWeekForTask]})`;
     }
 
     // 3. Extract Time & Duration for this segment
@@ -1201,7 +1268,9 @@ app.post('/api/transcribe-audio', async (req, res) => {
                 parts: [audioPart, { text: promptText }],
               },
             });
-          }
+          },
+          15000,
+          20000
         );
 
         const transcript = response.text?.trim() || '';
@@ -1409,7 +1478,9 @@ Devuelve un array JSON con todos los eventos encontrados en la imagen de calenda
               },
             });
           },
-          35000
+          // Images need more time; text answers late are worse than the local parser
+          type === 'vision' ? 22000 : 9000,
+          type === 'vision' ? 26000 : 12000
         );
 
         const rawText = response.text || '[]';

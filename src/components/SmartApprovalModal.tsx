@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useDragControls } from 'motion/react';
 import {
   Sparkles,
   CheckCircle2,
@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { TaskItem, CategoryType } from '../types';
 import { getCategoryMeta, CATEGORIES } from '../data/categories';
+import { useIsMobile } from '../hooks/useMediaQuery';
+import { SheetHandle, shouldCloseSheet } from './ui/SheetHandle';
 
 interface SmartApprovalModalProps {
   isOpen: boolean;
@@ -41,6 +43,8 @@ export const SmartApprovalModal: React.FC<SmartApprovalModalProps> = ({
   const [editableTasks, setEditableTasks] = useState<TaskItem[]>(initialTasks);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isEditModeActive, setIsEditModeActive] = useState<boolean>(false);
+  const isMobile = useIsMobile();
+  const dragControls = useDragControls();
 
   const uniqueDatesCount = React.useMemo(() => {
     return new Set(editableTasks.map((t) => t.date)).size;
@@ -99,17 +103,29 @@ export const SmartApprovalModal: React.FC<SmartApprovalModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-md overflow-y-auto pt-[max(env(safe-area-inset-top,0px),1rem)] pb-[max(env(safe-area-inset-bottom,0px),1rem)]">
+      <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-5 bg-slate-950/80 backdrop-blur-md sm:overflow-y-auto pt-[max(env(safe-area-inset-top,0px),1rem)] sm:pb-[max(env(safe-area-inset-bottom,0px),1rem)]">
+        {/* Bottom sheet on phones, centered card from sm upwards */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.93, y: 15 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-          className="w-full max-w-2xl my-auto"
+          role="dialog"
+          aria-modal="true"
+          initial={isMobile ? { y: '100%' } : { opacity: 0, scale: 0.93, y: 15 }}
+          animate={isMobile ? { y: 0 } : { opacity: 1, scale: 1, y: 0 }}
+          exit={isMobile ? { y: '100%' } : { opacity: 0, scale: 0.95, y: 15 }}
+          transition={isMobile ? { type: 'spring', damping: 32, stiffness: 340 } : { type: 'spring', damping: 25, stiffness: 300 }}
+          drag={isMobile ? 'y' : false}
+          dragControls={dragControls}
+          dragListener={false}
+          dragConstraints={{ top: 0, bottom: 0 }}
+          dragElastic={{ top: 0, bottom: 0.7 }}
+          onDragEnd={(_, info) => {
+            if (shouldCloseSheet(info)) onClose();
+          }}
+          className="w-full sm:max-w-2xl sm:my-auto"
         >
           {/* Subtle animated iridescent border */}
           <div className="iridescent-border-wrapper-dense shadow-2xl shadow-indigo-950/70">
-            <div className="bg-slate-900 rounded-2xl p-4 sm:p-6 border border-slate-800 text-slate-100 flex flex-col gap-4 max-h-[calc(92dvh-1rem)]">
+            <div className="bg-slate-900 rounded-t-3xl sm:rounded-2xl p-4 pb-[max(env(safe-area-inset-bottom,0px),1rem)] sm:p-6 border border-slate-800 text-slate-100 flex flex-col gap-4 max-h-[calc(92dvh-1rem)]">
+              <SheetHandle dark onPointerDown={(e) => dragControls.start(e)} />
               {/* Header: Categorization confirmation banner */}
               <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-800">
                 <div className="flex items-center gap-3">
@@ -380,7 +396,7 @@ export const SmartApprovalModal: React.FC<SmartApprovalModalProps> = ({
                 <button
                   id="btn-edit-approval"
                   onClick={() => setIsEditModeActive(!isEditModeActive)}
-                  className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                  className={`min-h-11 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
                     isEditModeActive
                       ? 'bg-indigo-600/20 border-indigo-500 text-indigo-200'
                       : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -394,7 +410,7 @@ export const SmartApprovalModal: React.FC<SmartApprovalModalProps> = ({
                   id="btn-approve-add-calendar"
                   onClick={handleApprove}
                   disabled={editableTasks.length === 0}
-                  className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-indigo-600 text-white text-xs font-bold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/35 hover:brightness-110 active:scale-[0.98] transition disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                  className="min-h-11 flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-indigo-600 text-white text-xs font-bold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/35 hover:brightness-110 active:scale-[0.98] transition disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   Aprobar y Añadir al Calendario

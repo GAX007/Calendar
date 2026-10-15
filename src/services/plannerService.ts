@@ -1,21 +1,13 @@
 import { supabase } from '../lib/supabase';
 import type { EntregaItem } from './moodleTypes';
-import { DEFAULT_PARAMETROS, type Bloque, type Deuda, type DiffSocial, type Evento, type Parametros, type Plan } from '../planner/types';
+import type { DiffSocial, Evento, Parametros, Plan } from '../planner/types';
 import { validateEvento, validateParametros } from '../planner/engine';
+import { assemblePlannerData, type PlannerData } from '../planner/data';
 import { madridLocal, weekStart } from '../planner/time';
 import { entregaSnapshot } from '../planner/snapshot';
-import { universityTask } from '../planner/university';
 import { loadUniversityWorks } from './universityPlannerService';
 
-export interface PlannerData {
-  revision: string;
-  plan_revision: string;
-  entregas: EntregaItem[];
-  eventos: Evento[];
-  parametros: Parametros;
-  bloques: Bloque[];
-  deuda: Deuda[];
-}
+export type { PlannerData } from '../planner/data';
 function client() {
   if (!supabase) throw new Error('Falta configurar Supabase para guardar el planificador');
   return supabase;
@@ -40,18 +32,9 @@ async function rows(table: string, active = false): Promise<any[]> {
 export async function loadPlanner(): Promise<PlannerData> {
   const before = checked(await client().from('parametros').select('*')) || [];
   const [moodle, university, allEventos, bloques, deuda] = await Promise.all([rows('entregas'), loadUniversityWorks(), rows('eventos'), rows('bloques_plan', true), rows('deuda')]);
-  const entregas = [...moodle, ...university.map(universityTask)];
-  const eventos = allEventos.filter(e => e.activo !== false);
   const after = checked(await client().from('parametros').select('*')) || [];
-  const values = Object.fromEntries(after.map(p => [p.clave, p.valor]));
-  if ((before.find(p => p.clave === '_revision')?.valor || '') !== (values._revision || '')) throw new Error('Los horarios han cambiado mientras se cargaban. Vuelve a actualizar');
-  const parametros = { ...DEFAULT_PARAMETROS, ...Object.fromEntries(Object.entries(values).filter(([key]) => key in DEFAULT_PARAMETROS)) } as Parametros;
-  validateParametros(parametros);
-  const savedSnapshot = values._plan_entregas;
-  const sameSnapshot = savedSnapshot && JSON.stringify(savedSnapshot.map((t: any) => Object.entries(t).sort())) === JSON.stringify(entregaSnapshot(entregas).map(t => Object.entries(t).sort()));
-  return { revision: values._revision || '', plan_revision: sameSnapshot ? values._plan_revision || '' : '', entregas, eventos, parametros,
-    bloques: bloques.map(b => ({ ...b, task_uid: b.trabajo_id ? `uni:${b.trabajo_id}` : b.task_uid, inicio_local: b.inicio_local.slice(0, 5), fin_local: b.fin_local.slice(0, 5) })),
-    deuda: deuda.map(d => ({ ...d, task_uid: d.trabajo_id ? `uni:${d.trabajo_id}` : d.task_uid })) };
+  if ((before.find(p => p.clave === '_revision')?.valor || '') !== (after.find(p => p.clave === '_revision')?.valor || '')) throw new Error('Los horarios han cambiado mientras se cargaban. Vuelve a actualizar');
+  return assemblePlannerData(after, moodle, university, allEventos, bloques, deuda);
 }
 export async function mutatePlanner(data: PlannerData, action: string, payload: unknown): Promise<void> {
   checked(await client().rpc('mutar_planificador', { p_revision: data.revision, p_accion: action, p_datos: payload }));

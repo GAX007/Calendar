@@ -2,8 +2,25 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { RefreshCw, Sparkles, X } from 'lucide-react';
 
+// Same key as GYM_TIMER_TARGET_STORAGE_KEY in utils/gymAudio (not imported to keep the gym code out of the main chunk)
+const GYM_TIMER_TARGET_STORAGE_KEY = 'omniagenda_gym_timer_target_end';
+
 interface PwaUpdatePromptProps {
   onManualCheckReady?: (checkFn: () => Promise<boolean>) => void;
+}
+
+// The user is in the middle of something a reload would lose: typing, a dialog/drawer open, or a rest timer running
+function isUserBusy(): boolean {
+  const el = document.activeElement as HTMLElement | null;
+  if (el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))) return true;
+  if (document.querySelector('.fixed.inset-0, [aria-modal="true"]')) return true;
+  try {
+    const timerEnd = Number(localStorage.getItem(GYM_TIMER_TARGET_STORAGE_KEY) || 0);
+    if (timerEnd > Date.now()) return true;
+  } catch {
+    // ignore
+  }
+  return false;
 }
 
 export function PwaUpdatePrompt({ onManualCheckReady }: PwaUpdatePromptProps) {
@@ -65,21 +82,42 @@ export function PwaUpdatePrompt({ onManualCheckReady }: PwaUpdatePromptProps) {
     }
   }, [onManualCheckReady, needRefresh]);
 
-  // Listen to controllerchange: when the new service worker takes over, reload to apply clean state
+  // Listen to controllerchange: when the new service worker takes over, reload to apply clean state.
+  // If the user is busy (editing, dialog open, rest timer running) the reload waits until the app
+  // goes to background or the user is idle, so no input is lost mid-task.
   useEffect(() => {
     let refreshing = false;
+    let pending = false;
+    let idleCheck: ReturnType<typeof setInterval> | null = null;
+
+    const reloadNow = () => {
+      if (refreshing) return;
+      refreshing = true;
+      window.location.reload();
+    };
+
+    const tryReload = () => {
+      if (!pending) return;
+      if (document.visibilityState === 'hidden' || !isUserBusy()) reloadNow();
+    };
+
     const handleControllerChange = () => {
-      if (!refreshing) {
-        refreshing = true;
-        window.location.reload();
+      if (refreshing) return;
+      pending = true;
+      tryReload();
+      if (!refreshing && !idleCheck) {
+        idleCheck = setInterval(tryReload, 5000);
       }
     };
 
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
     }
+    document.addEventListener('visibilitychange', tryReload);
 
     return () => {
+      if (idleCheck) clearInterval(idleCheck);
+      document.removeEventListener('visibilitychange', tryReload);
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
       }

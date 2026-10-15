@@ -2,7 +2,7 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>CalendarAsist - Tu Asistente de Calendario y Agenda Universitaria</title>
     <meta name="description" content="Asistente de calendario, agenda universitaria y seguimiento de deberes y entregas diarias." />
     <meta property="og:title" content="CalendarAsist - Calendario & Deberes Universitarios" />
@@ -29,7 +29,9 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Non-blocking font load: the app paints with the system font and swaps when the web font arrives -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"></noscript>
     <script>
       (function() {
         try {
@@ -39,6 +41,9 @@
           } else {
             document.documentElement.classList.remove('dark');
           }
+          // Status bar color matches the saved theme from the first frame
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', saved === 'dark' ? '#0f172a' : '#f8fafc');
         } catch(e) {}
       })();
     </script>

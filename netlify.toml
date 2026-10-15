@@ -13,6 +13,10 @@
 [functions."sync-moodle"]
   schedule = "0 */2 * * *"
 
+# Asistente nocturno: cierre del día, parte de la mañana, repaso semanal y avisos
+[functions."asistente"]
+  schedule = "*/15 * * * *"
+
 # Direct sync-now endpoint
 [[redirects]]
   from = "/sync-now"
@@ -55,6 +59,12 @@
 # Cache control rules to prevent iOS PWA stale cache
 [[headers]]
   for = "/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+    CDN-Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/push-sw.js"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
     CDN-Cache-Control = "public, max-age=0, must-revalidate"

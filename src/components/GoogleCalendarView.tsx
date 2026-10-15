@@ -30,6 +30,7 @@ import { CATEGORIES, getCategoryMeta } from '../data/categories';
 import { RealTimeClockState } from '../hooks/useRealTimeClock';
 import { generateGoogleCalendarUrl } from '../utils/icsHelper';
 import { syncLiveGoogleCalendar } from '../services/googleCalendarService';
+import { haptic } from '../utils/haptics';
 
 interface GoogleCalendarViewProps {
   tasks: TaskItem[];
@@ -214,6 +215,31 @@ export const GoogleCalendarView: React.FC<GoogleCalendarViewProps> = ({
     setActiveDate(`${y}-${m}-${day}`);
   };
 
+  // Horizontal swipe on the grid moves to the previous/next range when the columns fit on screen
+  const swipeStartRef = useRef<{ x: number; y: number; t: number } | null>(null);
+  const handleGridTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length !== 1) {
+      swipeStartRef.current = null;
+      return;
+    }
+    swipeStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() };
+  };
+  const handleGridTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    const start = swipeStartRef.current;
+    swipeStartRef.current = null;
+    const container = scrollContainerRef.current;
+    if (!start || !container) return;
+    // Week view scrolls horizontally on phones: let native scrolling handle it
+    if (container.scrollWidth > container.clientWidth + 4) return;
+    const touch = e.changedTouches[0];
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    if (Date.now() - start.t > 600 || Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    haptic(6);
+    if (dx < 0) handleNext();
+    else handlePrev();
+  };
+
   // Header Title Range (e.g. "Octubre 2026" or "6 - 12 de Octubre, 2026")
   const headerDateTitle = useMemo(() => {
     if (displayedDays.length === 0) return '';
@@ -297,9 +323,20 @@ export const GoogleCalendarView: React.FC<GoogleCalendarViewProps> = ({
     return (totalMins / 60).toFixed(1);
   }, [freeSlotsToday]);
 
+  // Index tasks by date once instead of filtering the whole list for every column
+  const tasksByDate = useMemo(() => {
+    const map = new Map<string, TaskItem[]>();
+    for (const task of filteredTasks) {
+      const list = map.get(task.date);
+      if (list) list.push(task);
+      else map.set(task.date, [task]);
+    }
+    return map;
+  }, [filteredTasks]);
+
   // Layout positioning for tasks within a day column
   const getPositionedTasksForDay = (dateStr: string) => {
-    const dayTasks = filteredTasks.filter((t) => t.date === dateStr);
+    const dayTasks = tasksByDate.get(dateStr) || [];
 
     return dayTasks.map((task) => {
       const [sH, sM] = task.time.split(':').map(Number);
@@ -622,6 +659,8 @@ export const GoogleCalendarView: React.FC<GoogleCalendarViewProps> = ({
           {/* Unified 2D Scrollable Container (Sticky top day headers + Sticky left time gutter) */}
           <div
             ref={scrollContainerRef}
+            onTouchStart={handleGridTouchStart}
+            onTouchEnd={handleGridTouchEnd}
             className="overflow-x-auto overflow-y-auto max-h-[70vh] sm:max-h-[75vh] relative overscroll-contain touch-pan-x touch-pan-y"
           >
             <div

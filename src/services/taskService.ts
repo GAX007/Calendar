@@ -243,20 +243,57 @@ export async function toggleTaskCompleteInDb(taskId: string, completed: boolean)
   }
 }
 
-// Realtime subscription
-export function subscribeToTaskChanges(onSync: () => void): () => void {
+// Realtime subscription: delivers row-level changes instead of forcing a full reload
+export type TaskChange =
+  | { type: 'upsert'; task: TaskItem }
+  | { type: 'delete'; id: string };
+
+export function subscribeToTaskChanges(
+  userId: string | undefined,
+  onChange: (change: TaskChange) => void
+): () => void {
   if (!isSupabaseConfigured() || !supabase) {
     return () => {};
   }
 
+  const handleRow = (payload: any) => {
+    if (payload.eventType === 'DELETE') {
+      const id = payload.old?.id;
+      if (id) onChange({ type: 'delete', id });
+      return;
+    }
+    const row = payload.new;
+    if (!row?.id) return;
+    // Defensive scoping: only rows that belong to this session
+    if ((row.user_id ?? null) !== (userId ?? null)) return;
+    const task = fromDbRow(row);
+    if (isHydrationTask(task)) return;
+    onChange({ type: 'upsert', task });
+  };
+
+  const rowFilter = userId ? { filter: `user_id=eq.${userId}` } : {};
   const channel = supabase
-    .channel('tasks-sync-channel')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
-      onSync();
-    })
+    .channel(`tasks-sync-${userId || 'guest'}`)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks', ...rowFilter }, handleRow)
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tasks', ...rowFilter }, handleRow)
+    // DELETE events can't be filtered by column; unknown ids are ignored by the consumer
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'tasks' }, handleRow)
     .subscribe();
 
   return () => {
     supabase.removeChannel(channel);
   };
+}
+
+// Apply one realtime change to the in-memory list, keeping identity when nothing changed
+export function applyTaskChange(tasks: TaskItem[], change: TaskChange): TaskItem[] {
+  if (change.type === 'delete') {
+    return tasks.some((t) => t.id === change.id) ? tasks.filter((t) => t.id !== change.id) : tasks;
+  }
+  const idx = tasks.findIndex((t) => t.id === change.task.id);
+  if (idx === -1) return [...tasks, change.task];
+  if (JSON.stringify(toDbRow(tasks[idx])) === JSON.stringify(toDbRow(change.task))) return tasks;
+  const next = tasks.slice();
+  next[idx] = change.task;
+  return next;
 }

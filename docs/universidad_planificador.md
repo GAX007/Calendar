@@ -11,6 +11,15 @@ Los deberes guardados entran automáticamente en el plan diario. Los registros
 locales anteriores se importan por cuenta; los ejemplos originales sin editar
 y los registros sin asignatura se conservan fuera del plan hasta editarlos.
 
+En el formulario de deberes, «Para la siguiente clase» toma las clases ya
+sincronizadas de Calendar y rellena fecha y hora con el inicio de la primera
+clase futura de la asignatura. Se excluye todo el día de hoy, usando Madrid.
+No usa deberes manuales como clases. Si no encuentra una coincidencia, avisa
+y permite indicar el plazo manualmente. Cambiar asignatura o actualizar Calendar
+actualiza la selección mientras el formulario está abierto; modificar fecha u
+hora manualmente desactiva esa selección. Al guardar se conserva el plazo
+concreto, sin cambiar después los deberes guardados automáticamente.
+
 La regla determinista para exámenes busca sesiones equilibradas de hasta 60
 minutos, una por examen y día, con separación entre días y un último repaso el
 día anterior. La ventana es dos días por sesión, entre 4 y 28 días. Así, 6 horas

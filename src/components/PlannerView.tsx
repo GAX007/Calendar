@@ -12,6 +12,12 @@ import { UNIVERSITY_PLANNER_UPDATED } from '../services/universityPlannerService
 import { DailyCheckin } from './DailyCheckin';
 import { CompleteEntregaDialog } from './CompleteEntregaDialog';
 import { completeEntrega } from '../services/plannerRecordsService';
+import { newId } from '../utils/uuid';
+import { checkinBajo, limiteDiaLigero, type EstadoBloque } from '../asistente/logica';
+import { ASISTENTE_ACTUALIZADO, cargarEstadosBloques, guardarPlanLigero, marcarBloque, recalcularYGuardarSemana } from '../services/asistenteService';
+import { loadTodayCheckin } from '../services/plannerRecordsService';
+import type { DailyCheckin as Checkin } from '../planner/records';
+import { blockEnd, blockStart } from '../planner/time';
 
 const panel = 'rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:p-5';
 const control = 'w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm';
@@ -24,7 +30,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode; 
   return <label className="flex flex-col gap-1 text-sm font-medium">{label}{children}</label>;
 }
 function emptyEvent(date: string, social = false): Evento {
-  return { id: crypto.randomUUID(), titulo: '', inicio_local: '18:00', fin_local: '20:00', dias_semana: null,
+  return { id: newId(), titulo: '', inicio_local: '18:00', fin_local: '20:00', dias_semana: null,
     fecha_inicio: date, fecha_fin: null, tipo: social ? 'social' : 'fijo', bloqueo: true, area: social ? 'social' : 'otro' };
 }
 function EventFields({ value, onChange, social = false }: { value: Evento; onChange: (e: Evento) => void; social?: boolean }) {
@@ -69,6 +75,8 @@ export function PlannerView({ onOpenEntrega }: { onOpenEntrega: (uid: string) =>
   const [acceptDebt, setAcceptDebt] = useState(false);
   const [task, setTask] = useState<EntregaItem | null>(null);
   const [completingTask, setCompletingTask] = useState<EntregaItem | null>(null);
+  const [estados, setEstados] = useState<Map<string, EstadoBloque>>(() => new Map());
+  const [checkinHoy, setCheckinHoy] = useState<Checkin | null>(null);
   const preservedCompletionPlan = useRef<{ desde: string; hasta: string; plan: Plan } | null>(null);
   const loadId = useRef(0);
   const lastData = useRef<PlannerData | null>(null);
@@ -116,15 +124,45 @@ export function PlannerView({ onOpenEntrega }: { onOpenEntrega: (uid: string) =>
     window.addEventListener(CALENDAR_PLANNER_STATUS, onCalendarStatus);
     const onUniversityUpdated = () => { void run(reload); };
     window.addEventListener(UNIVERSITY_PLANNER_UPDATED, onUniversityUpdated);
+    window.addEventListener(ASISTENTE_ACTUALIZADO, onUniversityUpdated);
     return () => {
       window.removeEventListener(CALENDAR_PLANNER_UPDATED, onCalendarUpdated);
       window.removeEventListener(CALENDAR_PLANNER_STATUS, onCalendarStatus);
       window.removeEventListener(UNIVERSITY_PLANNER_UPDATED, onUniversityUpdated);
+      window.removeEventListener(ASISTENTE_ACTUALIZADO, onUniversityUpdated);
     };
   }, [user?.id, reload]);
+  const today = now.slice(0, 10);
+  // "Hecho" / "No lo hice" of the blocks of the visible day
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    cargarEstadosBloques(user.id, date, date).then(m => { if (active) setEstados(m); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [user?.id, date]);
+  // Today's check-in decides whether today is a lighter day (D3)
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    loadTodayCheckin(user.id, today).then(c => { if (active) setCheckinHoy(c); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [user?.id, today]);
+  const setBlockState = (b: { id: string; fecha: string }, estado: EstadoBloque) => {
+    if (!user) return;
+    const next = estados.get(b.id) === estado ? null : estado;
+    setEstados(prev => { const m = new Map(prev); if (next) m.set(b.id, next); else m.delete(b.id); return m; });
+    void marcarBloque(user.id, b.id, b.fecha, next).catch(e => setError(e instanceof Error ? e.message : String(e)));
+  };
+  const lightLimit = data ? limiteDiaLigero(data.parametros.max_horas_profundas_dia) : 2;
+  const setLightDay = (value: boolean) => user && checkinHoy && void run(async () => {
+    await guardarPlanLigero(user.id, today, value);
+    setCheckinHoy({ ...checkinHoy, plan_ligero: value });
+    await recalcularYGuardarSemana(value ? { [today]: lightLimit } : undefined);
+  }, value ? `Hoy, como mucho ${hours(lightLimit)} de trabajo profundo; el resto pasa a otros días` : 'Plan de hoy sin cambios');
   const desde = weekStart(date), hasta = addDays(desde, 6);
   const input: PlanInput | null = data ? { desde, hasta, ahora_local: now, entregas: data.entregas,
-    eventos: data.eventos, parametros: data.parametros, bloques_previos: data.bloques, deuda: data.deuda } : null;
+    eventos: data.eventos, parametros: data.parametros, bloques_previos: data.bloques, deuda: data.deuda,
+    max_profundas_por_dia: checkinHoy?.plan_ligero ? { [checkinHoy.fecha]: limiteDiaLigero(data.parametros.max_horas_profundas_dia) } : undefined } : null;
   const saved = Boolean(data?.plan_revision && data.plan_revision === data.revision && data.bloques.some(b => b.fecha >= desde && b.fecha <= hasta));
   const allocationKey = calendarAllocationKey(input, saved);
   const calculation = useMemo(() => {
@@ -191,7 +229,13 @@ export function PlannerView({ onOpenEntrega }: { onOpenEntrega: (uid: string) =>
     {notice && <p role="status" className="rounded-xl bg-green-50 dark:bg-green-950 p-3">{notice}</p>}
     {busy && <p role="status">Guardando o cargando…</p>}
     <nav className="flex flex-wrap gap-2" aria-label="Vistas del planificador">{(['hoy', 'semana', 'eventos', 'parametros', 'entregas'] as const).map(t => <button className={tab === t ? button : secondary} key={t} onClick={() => setTab(t)}>{({ hoy: 'Hoy', semana: 'Semana', eventos: 'Eventos fijos', parametros: 'Parámetros', entregas: 'Estimaciones' })[t]}</button>)}</nav>
-    {tab === 'hoy' && <DailyCheckin key={user.id} userId={user.id} />}
+    {tab === 'hoy' && <DailyCheckin key={user.id} userId={user.id} onSaved={setCheckinHoy} />}
+    {tab === 'hoy' && checkinHoy?.fecha === today && checkinBajo(checkinHoy) && checkinHoy.plan_ligero == null && <div role="status" className={`${panel} border-amber-300 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-950/30`}>
+      <p className="font-bold">¿Aligero el plan de hoy?</p>
+      <p className="text-sm mt-1">Tu check-in marca {[Number(checkinHoy.sueno_h) < 6 && `${Number(checkinHoy.sueno_h).toLocaleString('es-ES')} h de sueño`, checkinHoy.energia <= 2 && `energía ${checkinHoy.energia}/5`, checkinHoy.fatiga >= 4 && `fatiga ${checkinHoy.fatiga}/5`].filter(Boolean).join(', ')}. Si quieres, hoy hago como mucho {hours(lightLimit)} de trabajo profundo y paso el resto a otros días.</p>
+      <div className="flex gap-2 flex-wrap mt-3"><button type="button" className={button} disabled={busy} onClick={() => setLightDay(true)}>Sí, aligera hoy</button><button type="button" className={secondary} disabled={busy} onClick={() => setLightDay(false)}>No, mantén el plan</button></div>
+    </div>}
+    {tab === 'hoy' && checkinHoy?.fecha === today && checkinHoy.plan_ligero === true && <p className="text-sm rounded-xl bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2 flex items-center justify-between gap-2 flex-wrap">Día ligero: hoy como mucho {hours(lightLimit)} de trabajo profundo.<button type="button" className="underline min-h-11" disabled={busy} onClick={() => setLightDay(false)}>Volver al plan normal</button></p>}
     {data && plan && <>
       {(tab === 'hoy' || tab === 'semana') && <>
         <div className={`${panel} flex gap-3 items-center flex-wrap`}>
@@ -211,6 +255,13 @@ export function PlannerView({ onOpenEntrega }: { onOpenEntrega: (uid: string) =>
           <ol className="space-y-3">{plan.bloques.filter(b => b.fecha === date).map(b => <li key={b.id} className={`rounded-xl border-l-4 p-3 ${b.tipo === 'social' ? 'border-pink-500 bg-pink-50 dark:bg-pink-950/30' : b.task_uid ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30' : 'border-slate-400 bg-slate-50 dark:bg-slate-800'}`}>
             <div className="flex gap-3 justify-between flex-wrap">{b.task_uid ? <button type="button" className="text-left font-bold text-indigo-700 dark:text-indigo-300 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 rounded" aria-label={`${b.task_uid.startsWith('uni:') ? 'Ver deber o examen' : 'Ver entrega Moodle'}: ${b.titulo}`} onClick={() => onOpenEntrega(b.task_uid!)}>{b.inicio_local}–{b.fin_local} · {b.titulo}</button> : <strong>{b.inicio_local}–{b.fin_local} · {b.titulo}</strong>}<span className="text-sm">{data.entregas.find(t => t.uid === b.task_uid)?.es_examen && 'Estudio de examen · '}{b.tipo}{b.version_minima && ' · versión mínima'}</span></div>
             {b.estimacion_por_defecto && <p className="text-xs mt-1">Estimación provisional: 2 h. Puedes ajustarla en Estimaciones.</p>}
+            {(() => { const t = data.entregas.find(t => t.uid === b.task_uid); return t?.horas_ia != null && Number(t.horas_ia) === Number(t.horas_est) && <p className="text-xs mt-1">Estimación de la IA: {hours(Number(t.horas_ia))}{t.estimacion_ia_nota ? `. ${t.estimacion_ia_nota}` : ''}</p>; })()}
+            {b.task_uid && blockStart(b) <= now && data.entregas.find(t => t.uid === b.task_uid)?.estado === 'pendiente' && <div className="flex gap-2 flex-wrap items-center mt-2">
+              {(['hecho', 'no_hecho'] as const).map(e => <button key={e} type="button" aria-pressed={estados.get(b.id) === e} onClick={() => setBlockState(b, e)}
+                className={`min-h-11 rounded-xl px-3 text-sm font-semibold border ${estados.get(b.id) === e ? (e === 'hecho' ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-amber-500 border-amber-500 text-white') : 'border-slate-300 dark:border-slate-600'}`}>
+                {e === 'hecho' ? '✓ Bloque hecho' : 'No lo hice'}</button>)}
+              <span className="text-xs text-slate-600 dark:text-slate-300">{estados.get(b.id) === 'hecho' ? 'Cuenta como trabajo hecho.' : estados.get(b.id) === 'no_hecho' ? 'Esta noche lo vuelvo a planificar.' : blockEnd(b) <= now ? 'Si no lo marcas como hecho, esta noche lo vuelvo a planificar.' : 'En curso.'}</span>
+            </div>}
             {data.entregas.find(t => t.uid === b.task_uid)?.estado === 'hecha' && <p className="text-xs font-medium text-green-700 dark:text-green-300 mt-1">Completada</p>}
             {b.tipo === 'flexible' && !data.eventos.find(e => e.id === b.evento_id)?.bloqueo && <p className="text-xs mt-1">Preferencia flexible; permite bloques de estudio encima.</p>}
             {b.task_uid && date >= now.slice(0, 10) && data.entregas.find(t => t.uid === b.task_uid)?.estado === 'pendiente' && <div className="flex gap-2 flex-wrap mt-2">{(['hecha', 'aplazar', 'no_completada'] as const).map(a => <button key={a} className={secondary} disabled={busy} onClick={() => { const t = data.entregas.find(t => t.uid === b.task_uid); if (t) void taskAction(t, a); }}>{({ hecha: 'Completada', aplazar: 'Siguiente día', no_completada: 'No completada' })[a]}</button>)}</div>}
@@ -240,7 +291,7 @@ export function PlannerView({ onOpenEntrega }: { onOpenEntrega: (uid: string) =>
       </>}
       {tab === 'parametros' && <form className={`${panel} space-y-4`} onSubmit={e => { e.preventDefault(); void run(async () => { await saveParametros(data, params); await reload(); }, 'Parámetros guardados'); }}><h2 className="font-bold">Parámetros iniciales</h2><div className="grid sm:grid-cols-2 gap-4">{(Object.keys(parameterLabels) as (keyof Parametros)[]).map(key => <Field label={parameterLabels[key]} key={key}><input required className={control} type={typeof DEFAULT_PARAMETROS[key] === 'string' ? 'time' : 'number'} min="0" step={typeof DEFAULT_PARAMETROS[key] === 'string' ? 60 : key === 'margen_min' ? 1 : 0.25} disabled={key === 'factor_calibracion_default'} value={params[key]} onChange={e => setParams({ ...params, [key]: typeof DEFAULT_PARAMETROS[key] === 'string' ? e.target.value : Number(e.target.value) })} /></Field>)}</div><button type="submit" className={button} disabled={busy}>Guardar parámetros</button></form>}
       {tab === 'entregas' && <>
-        <div className={panel}><h2 className="font-bold mb-3">Estimaciones de entregas pendientes</h2><p className="text-sm mb-3">Sin estimación se usan 2 h provisionales. Sin mínimo se usa el 25 %, con suelo de 20 min. El factor queda en 1,0.</p><ul className="space-y-3">{activeTasks.map(t => <li key={t.uid} className="flex justify-between gap-3 flex-wrap"><div><strong>{t.titulo}</strong><p className="text-sm">Plazo: {madridLocal(t.deadline_utc).replace('T', ' ')} · {t.horas_est == null ? '2 h provisionales' : hours(Number(t.horas_est))} · {t.tipo_trabajo || 'profundo'} · {t.aplazamientos || 0} aplazamientos</p></div><button className={secondary} onClick={() => editTask(t)}>Editar</button></li>)}</ul></div>
+        <div className={panel}><h2 className="font-bold mb-3">Estimaciones de entregas pendientes</h2><p className="text-sm mb-3">Sin estimación se usan 2 h provisionales. Sin mínimo se usa el 25 %, con suelo de 20 min. El factor queda en 1,0.</p><ul className="space-y-3">{activeTasks.map(t => <li key={t.uid} className="flex justify-between gap-3 flex-wrap"><div><strong>{t.titulo}</strong><p className="text-sm">Plazo: {madridLocal(t.deadline_utc).replace('T', ' ')} · {t.horas_est == null ? '2 h provisionales' : hours(Number(t.horas_est))}{t.horas_ia != null && Number(t.horas_ia) === Number(t.horas_est) ? ' (estimada por la IA)' : ''} · {t.tipo_trabajo || 'profundo'} · {t.aplazamientos || 0} aplazamientos</p></div><button className={secondary} onClick={() => editTask(t)}>Editar</button></li>)}</ul></div>
         {task && <form className={`${panel} space-y-4`} onSubmit={e => { e.preventDefault(); void run(async () => {
           if (!Number.isFinite(Number(task.horas_est)) || Number(task.horas_est) <= 0) throw new Error('La estimación debe ser mayor que cero');
           if (!!task.hueco_inicio_local !== !!task.hueco_fin_local) throw new Error('Indica inicio y fin del hueco');

@@ -4,7 +4,7 @@ import { needsTodayCheckin, type DailyCheckin as Checkin } from '../planner/reco
 import { loadTodayCheckin, saveTodayCheckin } from '../services/plannerRecordsService';
 
 const field = 'w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm';
-export function DailyCheckin({ userId }: { userId: string; key?: string }) {
+export function DailyCheckin({ userId, onSaved }: { userId: string; key?: string; onSaved?: (checkin: Checkin) => void }) {
   const [today, setToday] = useState(() => madridLocal(new Date()).slice(0, 10));
   const [record, setRecord] = useState<Checkin | null>(null);
   const [loading, setLoading] = useState(true);
@@ -48,7 +48,7 @@ export function DailyCheckin({ userId }: { userId: string; key?: string }) {
         e.preventDefault(); setSaving(true); setError('');
         try {
           const value = await saveTodayCheckin(userId, today, { energia, sueno_h: sueno.trim() ? Number(sueno) : NaN, fatiga, nota });
-          setRecord(value); setEditing(false);
+          setRecord(value); setEditing(false); onSaved?.(value);
         } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
         finally { setSaving(false); }
       }}>

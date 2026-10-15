@@ -72,12 +72,13 @@ function bounded(slots: Slot[], deadline: string, earliest?: string | null): Slo
     return start < end ? [{ ...s, start, end }] : [];
   });
 }
-function workSlots(slots: Slot[], tipo: Trabajo, p: Parametros, used: Map<string, number>): Slot[] {
+function workSlots(slots: Slot[], tipo: Trabajo, p: Parametros, used: Map<string, number>, dayLimits?: Record<string, number>): Slot[] {
   if (tipo === 'ligero') return slots;
   const budget = new Map(used);
   return slots.flatMap(s => {
+    const limit = dayLimits?.[s.fecha] ?? p.max_horas_profundas_dia;
     const start = Math.max(s.start, minutes(p.franja_profunda_inicio));
-    const end = Math.min(s.end, minutes(p.franja_profunda_fin), start + Math.max(0, Math.floor(p.max_horas_profundas_dia * 60) - (budget.get(s.fecha) || 0)));
+    const end = Math.min(s.end, minutes(p.franja_profunda_fin), start + Math.max(0, Math.floor(limit * 60) - (budget.get(s.fecha) || 0)));
     if (end <= start) return [];
     budget.set(s.fecha, (budget.get(s.fecha) || 0) + end - start);
     return [{ ...s, start, end }];
@@ -132,7 +133,7 @@ export function generatePlan(input: PlanInput): Plan {
         return b > a ? [{ ...s, start: a, end: b }] : [];
       });
     }
-    let available = workSlots(taskSlots, tipo, input.parametros, used);
+    let available = workSlots(taskSlots, tipo, input.parametros, used, input.max_profundas_por_dia);
     if (t.es_examen) {
       const sessions = examSessions(available, deadline, estimate, remaining, cut);
       let allocated = 0;
@@ -153,7 +154,7 @@ export function generatePlan(input: PlanInput): Plan {
     const minimum = Math.min(remaining, Math.max(20, t.min_viable_min ?? Math.ceil(estimate * 0.25)));
     const minimal = capacity < remaining;
     // A minimum version must fit in one continuous slot to be useful.
-    const minimumSlot = taskSlots.flatMap(s => workSlots([s], tipo, input.parametros, used)).find(s => s.end - s.start >= minimum);
+    const minimumSlot = taskSlots.flatMap(s => workSlots([s], tipo, input.parametros, used, input.max_profundas_por_dia)).find(s => s.end - s.start >= minimum);
     const target = minimal ? minimumSlot ? minimum : 0 : remaining;
     if (minimal && minimumSlot) available = [minimumSlot];
     let allocated = 0;

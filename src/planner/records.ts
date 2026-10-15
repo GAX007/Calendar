@@ -7,6 +7,8 @@ export interface DailyCheckin {
   sueno_h: number;
   fatiga: number;
   nota: string | null;
+  // null: not asked yet; true: accepted a lighter day; false: kept the plan
+  plan_ligero?: boolean | null;
 }
 export type CheckinValues = Pick<DailyCheckin, 'energia' | 'sueno_h' | 'fatiga' | 'nota'>;
 
