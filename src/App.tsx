@@ -1,26 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import {
-  Calendar,
-  Check,
-  ArrowUp,
-  PlusCircle,
-  Dumbbell,
-  GraduationCap,
-  CalendarDays,
-  Menu,
-  Undo2,
-} from 'lucide-react';
+import { ArrowUp, Undo2 } from 'lucide-react';
 import { TaskItem } from './types';
 import { GoogleCalendarView } from './components/GoogleCalendarView';
-import { NavigationDrawer } from './components/NavigationDrawer';
-import { NextActivityCard } from './components/NextActivityCard';
-import { DailyWaterTracker } from './components/DailyWaterTracker';
-import { OmniInputBar } from './components/OmniInputBar';
+import { HoyView } from './components/hoy/HoyView';
+import { AsistenteBarra } from './components/AsistenteBarra';
+import { CuentaSheet } from './components/CuentaSheet';
 import { TaskEditModal } from './components/TaskEditModal';
 import { PwaUpdatePrompt } from './components/PwaUpdatePrompt';
 import { AuthScreen } from './components/AuthScreen';
-import { BottomNav, type AppTab } from './components/BottomNav';
+import { BottomNav, TopNav, type AppTab } from './components/BottomNav';
 import { PullToRefresh } from './components/PullToRefresh';
 import { ModuleSkeleton, AppShellSkeleton } from './components/ui/Skeletons';
 import { ModuleErrorBoundary } from './components/ui/ModuleErrorBoundary';
@@ -28,6 +17,8 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { haptic } from './utils/haptics';
 import { useRealTimeClock } from './hooks/useRealTimeClock';
+import { useParteDelDia } from './hooks/useParteDelDia';
+import { useAsistenteVoz } from './hooks/useAsistenteVoz';
 import { syncLiveGoogleCalendar, getEffectiveCalendarUrl, applyLatestGoogleCalendarSnapshot } from './services/googleCalendarService';
 import {
   getLocalTasks,
@@ -51,7 +42,6 @@ const SmartApprovalModal = lazy(() => import('./components/SmartApprovalModal').
 const VisionScannerModal = lazy(() => import('./components/VisionScannerModal').then((m) => ({ default: m.VisionScannerModal })));
 const GoogleCalendarSyncModal = lazy(() => import('./components/GoogleCalendarSyncModal').then((m) => ({ default: m.GoogleCalendarSyncModal })));
 const CalendarLinkModal = lazy(() => import('./components/CalendarLinkModal').then((m) => ({ default: m.CalendarLinkModal })));
-const AsistentePanel = lazy(() => import('./components/AsistentePanel').then((m) => ({ default: m.AsistentePanel })));
 
 // Warm the module chunks once the agenda is idle so tab switches are instant
 function prefetchModules() {
@@ -111,7 +101,7 @@ function CalendarApp() {
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState<boolean>(false);
   const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
   const [isNewTask, setIsNewTask] = useState<boolean>(false);
-  const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
+  const [isCuentaOpen, setIsCuentaOpen] = useState<boolean>(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState<boolean>(false);
   const [isLinkCalendarModalOpen, setIsLinkCalendarModalOpen] = useState<boolean>(false);
   const visionModalMounted = useMountOnce(isVisionModalOpen);
@@ -121,7 +111,7 @@ function CalendarApp() {
 
   // Staged tasks for Confirmation Card
   const [stagedApprovalTasks, setStagedApprovalTasks] = useState<TaskItem[]>([]);
-  const [stagedApprovalSource, setStagedApprovalSource] = useState<'vision' | 'text'>('text');
+  const [stagedApprovalSource, setStagedApprovalSource] = useState<'vision' | 'text' | 'voice'>('text');
   const [stagedOriginalInput, setStagedOriginalInput] = useState<string>('');
 
   // Processing state
@@ -134,25 +124,6 @@ function CalendarApp() {
   tasksRef.current = tasks;
   const userIdRef = useRef<string | undefined>(user?.id);
   userIdRef.current = user?.id;
-
-  // Discreet scroll-to-top button state
-  const [showScrollTop, setShowScrollTop] = useState<boolean>(false);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setShowScrollTop(window.scrollY > 280);
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  const handleScrollToTop = () => {
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth',
-    });
-  };
 
   const changeTab = (tab: AppTab) => {
     if (tab !== activeTab) {
@@ -268,6 +239,36 @@ function CalendarApp() {
     setToast({ id: Date.now(), message, action });
     toastTimerRef.current = setTimeout(() => setToast(null), action ? 6000 : 3500);
   }, []);
+
+  // Discreet scroll-to-top button state
+  const [showScrollTop, setShowScrollTop] = useState<boolean>(false);
+  useEffect(() => {
+    const handleScroll = () => setShowScrollTop(window.scrollY > 280);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Nightly assistant report and the voice assistant (shared by the Hoy header and the assistant bar)
+  const parte = useParteDelDia(user?.id);
+  const voz = useAsistenteVoz({
+    userId: user?.id,
+    tareas: tasks,
+    cierre: parte.cierreItems,
+    onActividadAnadida: (t) => { setTasks((prev) => [t, ...prev]); upsertTasks([t], userIdRef.current); },
+    onActividadQuitada: (id) => { setTasks((prev) => prev.filter((t) => t.id !== id)); deleteTaskFromDb(id); },
+    onTareaCambiada: (t) => { setTasks((prev) => prev.map((x) => (x.id === t.id ? t : x))); upsertTasks([t], userIdRef.current); },
+  });
+  const cerrarVoz = voz.cerrar;
+  useEffect(() => {
+    if (activeTab !== 'agenda') cerrarVoz();
+  }, [activeTab, cerrarVoz]);
+
+  const iniciales = (() => {
+    const nombre = String(user?.user_metadata?.full_name || '').trim();
+    if (nombre) return nombre.split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
+    if (user?.email) return user.email.slice(0, 2).toUpperCase();
+    return 'Tú';
+  })();
 
   // Preload the other modules once the agenda is ready and the main thread is idle
   useEffect(() => {
@@ -556,260 +557,131 @@ function CalendarApp() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
-      {/* Collapsible Left Navigation Drawer (Opens and closes to maximize space) */}
-      <NavigationDrawer
-        isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-        activeTab={activeTab}
-        setActiveTab={changeTab}
-        clock={clock}
-        user={user}
-        signOut={signOut}
-        onOpenNewTaskModal={() => handleOpenNewTaskModal()}
-        onOpenVisionModal={() => setIsVisionModalOpen(true)}
-        onOpenLinkCalendarModal={() => setIsLinkCalendarModalOpen(true)}
-        onCheckUpdates={handleCheckUpdates}
-      />
+    <div className="min-h-screen bg-white text-ink flex flex-col font-sans">
+      <TopNav activeTab={activeTab} onChange={changeTab} iniciales={iniciales} onOpenCuenta={() => setIsCuentaOpen(true)} />
 
-      {/* Top Mobile-First Header Bar: Sticky, respects notch safe-area, 44px+ touch targets */}
-      <header className="sticky top-0 z-40 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 pt-[max(env(safe-area-inset-top,0px),0.5rem)] pb-2 px-3 sm:px-6 transition-colors shadow-2xs">
-        <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
-          {/* Left: 44x44px touch-friendly hamburger button & page title */}
-          <div className="flex items-center gap-2.5 min-w-0">
-            <button
-              id="btn-open-navigation-drawer"
-              type="button"
-              onClick={() => setIsDrawerOpen(true)}
-              className="w-11 h-11 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 flex items-center justify-center transition cursor-pointer active:scale-95 border border-slate-200/60 dark:border-slate-700/60 shadow-2xs touch-manipulation shrink-0"
-              title="Menú de navegación"
-              aria-label="Abrir menú"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-
-            {/* Current Context / Date Indicator on Mobile */}
-            <div className="flex flex-col min-w-0">
-              <span className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white truncate leading-tight">
-                {activeTab === 'agenda'
-                  ? 'Agenda & Horarios'
-                  : activeTab === 'planner'
-                  ? 'Plan de estudio'
-                  : activeTab === 'moodle'
-                  ? 'Entregas Moodle'
-                  : activeTab === 'university'
-                  ? 'Deberes & Asignaturas'
-                  : 'Gym & Rutinas'}
-              </span>
-              <span className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 capitalize truncate">
-                {clock.dayName}, {clock.dayNumber} {clock.monthName}
-              </span>
-            </div>
-          </div>
-
-          {/* Center: Desktop Navigation Tabs */}
-          <nav className="hidden md:flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-2xl border border-slate-200/60 dark:border-slate-750">
-            <button type="button" onClick={() => changeTab('planner')} className={`px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer ${activeTab === 'planner' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-400'}`}>Plan de estudio</button>
-            <button
-              type="button"
-              onClick={() => changeTab('agenda')}
-              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'agenda'
-                  ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <Calendar className="w-3.5 h-3.5" />
-              <span>Agenda</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => changeTab('moodle')}
-              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'moodle'
-                  ? 'bg-white dark:bg-slate-700 text-amber-600 dark:text-amber-400 shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <CalendarDays className="w-3.5 h-3.5" />
-              <span>Entregas Moodle</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => changeTab('university')}
-              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'university'
-                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <GraduationCap className="w-3.5 h-3.5" />
-              <span>Universidad</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => changeTab('gym')}
-              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'gym'
-                  ? 'bg-white dark:bg-slate-700 text-rose-600 dark:text-rose-400 shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <Dumbbell className="w-3.5 h-3.5" />
-              <span>Gym</span>
-            </button>
-          </nav>
-
-          {/* Right: Quick Action Nueva Tarea */}
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => handleOpenNewTaskModal()}
-              className="h-10 sm:h-11 px-3 sm:px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs sm:text-sm font-bold shadow-xs hover:shadow-md transition cursor-pointer active:scale-95 flex items-center gap-1.5 touch-manipulation"
-              title="Crear nueva tarea o actividad"
-            >
-              <PlusCircle className="w-4 h-4 shrink-0" />
-              <span>Nueva Tarea</span>
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content: Google Calendar View, University Module, or Gym Module */}
-      <main className="flex-1 pt-3 sm:pt-5 pb-[calc(var(--bottom-nav-h)+9rem)] md:pb-40">
+      <main className={`flex-1 ${activeTab === 'agenda' ? 'pb-[calc(var(--bottom-nav-h)+7rem)] md:pb-36' : 'pb-[calc(var(--bottom-nav-h)+2rem)] md:pb-16'}`}>
         {activeTab === 'agenda' ? (
-          <div className="max-w-6xl mx-auto px-2.5 sm:px-6 pb-28 flex flex-col gap-4">
-            {/* Nightly assistant: morning summary, notices and weekly review */}
-            {user && (
-              <Suspense fallback={null}>
-                <AsistentePanel userId={user.id} onOpenPlanner={() => changeTab('planner')} showToast={showToast} />
-              </Suspense>
-            )}
-
-            {/* Top Cards: Next activity reminder & Daily Hydration Tracker */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <NextActivityCard
-                tasks={tasks}
-                clock={clock}
-                onToggleTaskComplete={handleToggleTaskComplete}
-                onOpenNewTaskModal={() => handleOpenNewTaskModal()}
-                onOpenGymRoutine={(routineId) => {
-                  setSelectedGymRoutineId(routineId);
-                  changeTab('gym');
-                }}
-              />
-
-              <DailyWaterTracker dateStr={clock.dateStr} />
-            </div>
-
-            {/* Google Calendar Time-Grid System */}
-            <GoogleCalendarView
-              tasks={tasks}
-              clock={clock}
-              userId={user?.id}
-              userEmail={user?.email}
-              onToggleTaskComplete={handleToggleTaskComplete}
-              onDeleteTask={handleDeleteTask}
-              onEditTaskRequest={(task) => {
-                setIsNewTask(false);
-                setEditingTask(task);
-              }}
-              onAddNewTask={(date, time) => handleOpenNewTaskModal(date, time)}
-              onOpenLinkCalendarModal={() => setIsLinkCalendarModalOpen(true)}
-              onOpenGymRoutine={(routineId) => {
-                setSelectedGymRoutineId(routineId);
-                changeTab('gym');
-              }}
-              onLiveSyncSuccess={(newTasks) => {
-                setTasks((prev) => mergeGoogleCalendarSnapshot(prev, newTasks));
-                showToast(`¡${newTasks.length} eventos sincronizados en directo desde Google Calendar!`);
-              }}
-              showToast={showToast}
-            />
-          </div>
+          <HoyView
+            tasks={tasks}
+            clock={clock}
+            iniciales={iniciales}
+            parte={parte}
+            conCuenta={Boolean(user)}
+            puedeLeerDia={Boolean(user) && voz.puedeHablar}
+            leyendoDia={voz.modo === 'dia'}
+            onLeerDia={() => (voz.modo === 'dia' ? voz.cerrar() : voz.escucharDia())}
+            onOpenCuenta={() => setIsCuentaOpen(true)}
+            onOpenPlanner={() => changeTab('planner')}
+            onToggleTaskComplete={handleToggleTaskComplete}
+            onEditTask={(task) => {
+              setIsNewTask(false);
+              setEditingTask(task);
+            }}
+            onAddTask={(date) => handleOpenNewTaskModal(date)}
+            onOpenGymRoutine={(routineId) => {
+              setSelectedGymRoutineId(routineId);
+              changeTab('gym');
+            }}
+            showToast={showToast}
+            vistaSemana={
+          <GoogleCalendarView
+          tasks={tasks}
+          clock={clock}
+          userId={user?.id}
+          userEmail={user?.email}
+          onToggleTaskComplete={handleToggleTaskComplete}
+          onDeleteTask={handleDeleteTask}
+          onEditTaskRequest={(task) => {
+          setIsNewTask(false);
+          setEditingTask(task);
+          }}
+          onAddNewTask={(date, time) => handleOpenNewTaskModal(date, time)}
+          onOpenLinkCalendarModal={() => setIsLinkCalendarModalOpen(true)}
+          onOpenGymRoutine={(routineId) => {
+          setSelectedGymRoutineId(routineId);
+          changeTab('gym');
+          }}
+          onLiveSyncSuccess={(newTasks) => {
+          setTasks((prev) => mergeGoogleCalendarSnapshot(prev, newTasks));
+          showToast(`¡${newTasks.length} eventos sincronizados en directo desde Google Calendar!`);
+          }}
+          showToast={showToast}
+          />
+            }
+          />
         ) : (
-          <ModuleErrorBoundary key={activeTab}>
-          <Suspense fallback={<ModuleSkeleton />}>
-            {activeTab === 'planner' ? (
-              <PlannerView onOpenEntrega={(uid) => {
-                if (uid.startsWith('uni:')) { setSelectedUniversityHomeworkId(uid.slice(4)); changeTab('university'); }
-                else { setSelectedMoodleUid(uid); changeTab('moodle'); }
-              }} />
-            ) : activeTab === 'moodle' ? (
-              <div className="pb-28">
-                <MoodleDeliverablesView showToast={showToast} selectedEntregaUid={selectedMoodleUid} onClearSelection={() => setSelectedMoodleUid(null)} />
-              </div>
-            ) : activeTab === 'university' ? (
-              <div className="pb-28">
-                <UniversityModule
-                  clock={clock}
-                  calendarTasks={tasks}
-                  userId={user?.id}
-                  selectedHomeworkId={selectedUniversityHomeworkId}
-                  onHomeworkOpened={() => setSelectedUniversityHomeworkId(null)}
-                  onScheduleHomeworkInCalendar={(task) => handleApproveAndAddTasks([task])}
-                  showToast={showToast}
-                  onNavigateToMoodle={() => changeTab('moodle')}
-                />
-              </div>
-            ) : (
-              <div className="pb-28">
-                <GymModule
-                  clock={clock}
-                  userId={user?.id}
-                  userEmail={user?.email}
-                  initialRoutineId={selectedGymRoutineId}
-                  onClose={() => changeTab('agenda')}
-                  onScheduleRoutineInCalendar={(task) => {
-                    handleApproveAndAddTasks([task]);
-                    changeTab('agenda');
-                  }}
-                />
-              </div>
-            )}
-          </Suspense>
-          </ModuleErrorBoundary>
+          <div className="pt-[calc(env(safe-area-inset-top,0px)+2.5rem)] md:pt-8">
+            <ModuleErrorBoundary key={activeTab}>
+              <Suspense fallback={<ModuleSkeleton />}>
+                {activeTab === 'planner' ? (
+                  <PlannerView onOpenEntrega={(uid) => {
+                    if (uid.startsWith('uni:')) { setSelectedUniversityHomeworkId(uid.slice(4)); changeTab('university'); }
+                    else { setSelectedMoodleUid(uid); changeTab('moodle'); }
+                  }} />
+                ) : activeTab === 'moodle' ? (
+                  <MoodleDeliverablesView showToast={showToast} selectedEntregaUid={selectedMoodleUid} onClearSelection={() => setSelectedMoodleUid(null)} />
+                ) : activeTab === 'university' ? (
+                  <UniversityModule
+                    clock={clock}
+                    calendarTasks={tasks}
+                    userId={user?.id}
+                    selectedHomeworkId={selectedUniversityHomeworkId}
+                    onHomeworkOpened={() => setSelectedUniversityHomeworkId(null)}
+                    onScheduleHomeworkInCalendar={(task) => handleApproveAndAddTasks([task])}
+                    showToast={showToast}
+                    onNavigateToMoodle={() => changeTab('moodle')}
+                  />
+                ) : (
+                  <GymModule
+                    clock={clock}
+                    userId={user?.id}
+                    userEmail={user?.email}
+                    initialRoutineId={selectedGymRoutineId}
+                    onClose={() => changeTab('agenda')}
+                    onScheduleRoutineInCalendar={(task) => {
+                      handleApproveAndAddTasks([task]);
+                      changeTab('agenda');
+                    }}
+                  />
+                )}
+              </Suspense>
+            </ModuleErrorBoundary>
+          </div>
         )}
       </main>
 
       {/* Pull down at the top of the agenda to sync */}
       <PullToRefresh enabled={activeTab === 'agenda'} onRefresh={handlePullToRefresh} />
 
-      {/* Discreet Scroll-To-Top Floating Button */}
-      <AnimatePresence>
-        {showScrollTop && (
-          <motion.button
-            initial={{ opacity: 0, scale: 0.8, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.8, y: 10 }}
-            transition={{ duration: 0.2 }}
-            onClick={handleScrollToTop}
-            title="Volver arriba"
-            aria-label="Volver arriba"
-            className={`fixed ${
-              activeTab === 'agenda'
-                ? 'bottom-[calc(var(--bottom-nav-h)+8.5rem)] md:bottom-28'
-                : 'bottom-[calc(var(--bottom-nav-h)+1rem)] md:bottom-24'
-            } right-3.5 sm:right-8 z-50 p-2.5 sm:p-3 rounded-full bg-white dark:bg-slate-900 hover:bg-indigo-600 hover:text-white text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-lg backdrop-blur-md transition-all cursor-pointer group active:scale-95`}
-          >
-            <ArrowUp className="w-4 h-4 transition-transform group-hover:-translate-y-0.5" />
-          </motion.button>
-        )}
-      </AnimatePresence>
-
-      {/* Floating Omni-Input Bar (only on agenda) */}
+      {/* Assistant bar: folded by default, dictation and spoken answers (only on Hoy) */}
       {activeTab === 'agenda' && (
-        <OmniInputBar
-          onOpenVisionModal={() => setIsVisionModalOpen(true)}
-          onOpenNewTaskModal={() => handleOpenNewTaskModal()}
-          onSubmitText={(text) => handleProcessInput(text, 'text')}
-          onProcessInput={(text, source) => handleProcessInput(text, source || 'text')}
+        <AsistenteBarra
+          voz={voz}
+          conCuenta={Boolean(user)}
           isProcessing={isProcessing}
+          onSubmitText={(text, source) => handleProcessInput(text, source)}
+          onOpenVisionModal={() => setIsVisionModalOpen(true)}
+          showToast={showToast}
         />
       )}
 
       {/* Mobile tab bar */}
       <BottomNav activeTab={activeTab} onChange={changeTab} />
+
+      {/* Account and settings */}
+      <CuentaSheet
+        isOpen={isCuentaOpen}
+        onClose={() => setIsCuentaOpen(false)}
+        user={user}
+        iniciales={iniciales}
+        dateStr={clock.dateStr}
+        signOut={signOut}
+        onOpenLinkCalendarModal={() => setIsLinkCalendarModalOpen(true)}
+        onOpenVisionModal={() => setIsVisionModalOpen(true)}
+        onCheckUpdates={handleCheckUpdates}
+        showToast={showToast}
+      />
 
       {/* Smart Approval Confirmation Card */}
       {approvalModalMounted && (
@@ -886,25 +758,24 @@ function CalendarApp() {
         onDelete={handleDeleteTask}
       />
 
-      {/* Toast Notification: bottom, within thumb reach and above the floating bars */}
+      {/* Toast: bottom, within thumb reach and above the floating bars */}
       <AnimatePresence>
         {toast && (
           <motion.div
             key={toast.id}
             role="status"
             aria-live="polite"
-            initial={{ opacity: 0, y: 20, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.97 }}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
             transition={{ duration: 0.18 }}
-            className={`fixed left-1/2 -translate-x-1/2 z-[110] w-[calc(100%-1.5rem)] max-w-sm flex items-center gap-2.5 pl-4 pr-2 py-2 min-h-11 rounded-2xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-semibold shadow-xl border border-slate-800 dark:border-slate-200 ${
+            className={`fixed left-1/2 -translate-x-1/2 z-[110] w-[calc(100%-2rem)] max-w-sm flex items-center gap-2 pl-5 pr-2 py-1.5 min-h-12 rounded-3xl bg-ink text-white text-sm font-medium shadow-[0_8px_24px_rgba(20,21,23,0.2)] ${
               activeTab === 'agenda'
-                ? 'bottom-[calc(var(--bottom-nav-h)+7.25rem)] md:bottom-32'
+                ? 'bottom-[calc(var(--bottom-nav-h)+5.5rem)] md:bottom-28'
                 : 'bottom-[calc(var(--bottom-nav-h)+0.75rem)] md:bottom-6'
             }`}
           >
-            <Check className="w-4 h-4 shrink-0 text-emerald-400 dark:text-emerald-600" />
-            <span className="flex-1 min-w-0">{toast.message}</span>
+            <span className="flex-1 min-w-0 py-1.5">{toast.message}</span>
             {toast.action && (
               <button
                 type="button"
@@ -914,13 +785,36 @@ function CalendarApp() {
                   setToast(null);
                   action?.onClick();
                 }}
-                className="shrink-0 flex items-center gap-1 px-3 py-2 rounded-xl text-indigo-300 dark:text-indigo-600 font-bold hover:bg-white/10 dark:hover:bg-slate-100 touch-manipulation"
+                className="shrink-0 flex items-center gap-1.5 h-10 px-3.5 rounded-full text-accent font-semibold hover:bg-white/10 touch-manipulation"
               >
-                <Undo2 className="w-3.5 h-3.5" />
+                <Undo2 className="w-4 h-4" strokeWidth={1.75} />
                 {toast.action.label}
               </button>
             )}
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Discreet scroll-to-top button, above the assistant button on Hoy */}
+      <AnimatePresence>
+        {showScrollTop && (
+          <motion.button
+            type="button"
+            initial={{ opacity: 0, scale: 0.8, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 10 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            title="Volver arriba"
+            aria-label="Volver arriba"
+            className={`fixed ${
+              activeTab === 'agenda'
+                ? 'bottom-[calc(var(--bottom-nav-h)+5.5rem)] md:bottom-28'
+                : 'bottom-[calc(var(--bottom-nav-h)+1rem)] md:bottom-8'
+            } right-6 md:right-9 z-40 w-11 h-11 rounded-full bg-white border border-line-2 text-ink-2 shadow-[0_4px_14px_rgba(20,21,23,0.12)] flex items-center justify-center active:scale-95 transition cursor-pointer`}
+          >
+            <ArrowUp className="w-[18px] h-[18px]" strokeWidth={1.75} />
+          </motion.button>
         )}
       </AnimatePresence>
 

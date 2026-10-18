@@ -15,6 +15,7 @@ import {
   Check,
   Tag,
   Search,
+  ExternalLink,
   Filter,
   School,
   FileText,
@@ -29,6 +30,7 @@ import {
   MessageSquare,
   PanelLeftClose,
   PanelLeftOpen,
+  Plus,
 } from 'lucide-react';
 import {
   UniversitySubject,
@@ -87,15 +89,15 @@ function ExamCountdownMenu({ exams, subjects, today, onEdit, onToggle, onDelete 
   const countdown = next ? examCountdown([next], next.subjectId, today)?.split(' · ')[0] : null;
 
   return (
-    <details className="relative self-end text-xs text-slate-500 dark:text-slate-400">
-      <summary className="cursor-pointer list-none rounded-lg px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1.5" aria-label="Ver exámenes">
+    <details className="relative self-end text-xs text-slate-500">
+      <summary className="cursor-pointer list-none rounded-lg px-2 py-1 hover:bg-slate-100 flex items-center gap-1.5" aria-label="Ver exámenes">
         <CalendarDays className="w-3.5 h-3.5" />
         <span>{countdown || 'Exámenes'}{subjects.length > 1 && next ? ` · ${subjects.find(s => s.id === next.subjectId)?.code || ''}` : ''}</span>
       </summary>
-      <div className="absolute right-0 top-full z-20 mt-1 w-72 max-w-[80vw] max-h-72 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg p-2">
+      <div className="absolute right-0 top-full z-20 mt-1 w-72 max-w-[80vw] max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg p-2">
         {sorted.map(exam => (
           <div key={exam.id} className="flex items-center gap-2 p-2">
-            <button type="button" onClick={() => onEdit(exam)} className="min-w-0 flex-1 text-left hover:text-indigo-600 dark:hover:text-indigo-400" title="Editar examen">
+            <button type="button" onClick={() => onEdit(exam)} className="min-w-0 flex-1 text-left hover:text-indigo-600" title="Editar examen">
               <span className="block truncate font-medium">{exam.title}</span>
               <span className="block text-[10px]">{subjects.find(s => s.id === exam.subjectId)?.code} · {exam.dueDate.split('-').reverse().join('/')} · {exam.dueTime}</span>
             </button>
@@ -125,91 +127,91 @@ const COLOR_PALETTES: Record<
   }
 > = {
   indigo: {
-    bg: 'bg-indigo-50 dark:bg-indigo-950/40',
-    text: 'text-indigo-700 dark:text-indigo-300',
-    border: 'border-indigo-200 dark:border-indigo-800/80',
+    bg: 'bg-indigo-50',
+    text: 'text-indigo-700',
+    border: 'border-indigo-200',
     dot: 'bg-indigo-500',
     label: 'Índigo',
-    cardBg: 'bg-indigo-50/70 dark:bg-indigo-950/35',
-    cardBorder: 'border-indigo-200/90 dark:border-indigo-800/70',
+    cardBg: 'bg-indigo-50/70',
+    cardBorder: 'border-indigo-200/90',
     leftBar: 'border-l-indigo-500',
-    hoverBg: 'hover:bg-indigo-100/60 dark:hover:bg-indigo-950/60',
+    hoverBg: 'hover:bg-indigo-100/60',
   },
   blue: {
-    bg: 'bg-blue-50 dark:bg-blue-950/40',
-    text: 'text-blue-700 dark:text-blue-300',
-    border: 'border-blue-200 dark:border-blue-800/80',
+    bg: 'bg-blue-50',
+    text: 'text-blue-700',
+    border: 'border-blue-200',
     dot: 'bg-blue-500',
     label: 'Azul',
-    cardBg: 'bg-blue-50/70 dark:bg-blue-950/35',
-    cardBorder: 'border-blue-200/90 dark:border-blue-800/70',
+    cardBg: 'bg-blue-50/70',
+    cardBorder: 'border-blue-200/90',
     leftBar: 'border-l-blue-500',
-    hoverBg: 'hover:bg-blue-100/60 dark:hover:bg-blue-950/60',
+    hoverBg: 'hover:bg-blue-100/60',
   },
   purple: {
-    bg: 'bg-purple-50 dark:bg-purple-950/40',
-    text: 'text-purple-700 dark:text-purple-300',
-    border: 'border-purple-200 dark:border-purple-800/80',
+    bg: 'bg-purple-50',
+    text: 'text-purple-700',
+    border: 'border-purple-200',
     dot: 'bg-purple-500',
     label: 'Púrpura',
-    cardBg: 'bg-purple-50/70 dark:bg-purple-950/35',
-    cardBorder: 'border-purple-200/90 dark:border-purple-800/70',
+    cardBg: 'bg-purple-50/70',
+    cardBorder: 'border-purple-200/90',
     leftBar: 'border-l-purple-500',
-    hoverBg: 'hover:bg-purple-100/60 dark:hover:bg-purple-950/60',
+    hoverBg: 'hover:bg-purple-100/60',
   },
   emerald: {
-    bg: 'bg-emerald-50 dark:bg-emerald-950/40',
-    text: 'text-emerald-700 dark:text-emerald-300',
-    border: 'border-emerald-200 dark:border-emerald-800/80',
+    bg: 'bg-emerald-50',
+    text: 'text-emerald-700',
+    border: 'border-emerald-200',
     dot: 'bg-emerald-500',
     label: 'Esmeralda',
-    cardBg: 'bg-emerald-50/70 dark:bg-emerald-950/35',
-    cardBorder: 'border-emerald-200/90 dark:border-emerald-800/70',
+    cardBg: 'bg-emerald-50/70',
+    cardBorder: 'border-emerald-200/90',
     leftBar: 'border-l-emerald-500',
-    hoverBg: 'hover:bg-emerald-100/60 dark:hover:bg-emerald-950/60',
+    hoverBg: 'hover:bg-emerald-100/60',
   },
   amber: {
-    bg: 'bg-amber-50 dark:bg-amber-950/40',
-    text: 'text-amber-800 dark:text-amber-300',
-    border: 'border-amber-200 dark:border-amber-800/80',
+    bg: 'bg-amber-50',
+    text: 'text-amber-800',
+    border: 'border-amber-200',
     dot: 'bg-amber-500',
     label: 'Ámbar',
-    cardBg: 'bg-amber-50/70 dark:bg-amber-950/35',
-    cardBorder: 'border-amber-200/90 dark:border-amber-800/70',
+    cardBg: 'bg-amber-50/70',
+    cardBorder: 'border-amber-200/90',
     leftBar: 'border-l-amber-500',
-    hoverBg: 'hover:bg-amber-100/60 dark:hover:bg-amber-950/60',
+    hoverBg: 'hover:bg-amber-100/60',
   },
   rose: {
-    bg: 'bg-rose-50 dark:bg-rose-950/40',
-    text: 'text-rose-700 dark:text-rose-300',
-    border: 'border-rose-200 dark:border-rose-800/80',
+    bg: 'bg-rose-50',
+    text: 'text-rose-700',
+    border: 'border-rose-200',
     dot: 'bg-rose-500',
     label: 'Rosa / Coral',
-    cardBg: 'bg-rose-50/70 dark:bg-rose-950/35',
-    cardBorder: 'border-rose-200/90 dark:border-rose-800/70',
+    cardBg: 'bg-rose-50/70',
+    cardBorder: 'border-rose-200/90',
     leftBar: 'border-l-rose-500',
-    hoverBg: 'hover:bg-rose-100/60 dark:hover:bg-rose-950/60',
+    hoverBg: 'hover:bg-rose-100/60',
   },
   cyan: {
-    bg: 'bg-cyan-50 dark:bg-cyan-950/40',
-    text: 'text-cyan-700 dark:text-cyan-300',
-    border: 'border-cyan-200 dark:border-cyan-800/80',
+    bg: 'bg-cyan-50',
+    text: 'text-cyan-700',
+    border: 'border-cyan-200',
     dot: 'bg-cyan-500',
     label: 'Cian',
-    cardBg: 'bg-cyan-50/70 dark:bg-cyan-950/35',
-    cardBorder: 'border-cyan-200/90 dark:border-cyan-800/70',
+    cardBg: 'bg-cyan-50/70',
+    cardBorder: 'border-cyan-200/90',
     leftBar: 'border-l-cyan-500',
-    hoverBg: 'hover:bg-cyan-100/60 dark:hover:bg-cyan-950/60',
+    hoverBg: 'hover:bg-cyan-100/60',
   },
 };
 
 const HOMEWORK_TYPE_LABELS: Record<HomeworkType, { label: string; icon: string }> = {
-  practica: { label: 'Práctica', icon: '💻' },
-  ejercicios: { label: 'Ejercicios', icon: '📝' },
-  proyecto: { label: 'Proyecto', icon: '🚀' },
-  examen: { label: 'Examen', icon: '📚' },
-  lectura: { label: 'Lectura', icon: '📖' },
-  otro: { label: 'Otro', icon: '📌' },
+  practica: { label: 'Práctica', icon: '' },
+  ejercicios: { label: 'Ejercicios', icon: '' },
+  proyecto: { label: 'Proyecto', icon: '' },
+  examen: { label: 'Examen', icon: '' },
+  lectura: { label: 'Lectura', icon: '' },
+  otro: { label: 'Otro', icon: '' },
 };
 
 export const UniversityModule: React.FC<UniversityModuleProps> = ({
@@ -279,7 +281,9 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
   }, [selectedHomeworkId, homeworkList, worksLoaded, userId, onHomeworkOpened]);
 
   // Selected navigation: either a subject ID, or a special view: 'all' | 'urgent' | 'completed'
-  const [selectedNav, setSelectedNav] = useState<string>(() => subjects[0]?.id || 'all');
+  const [selectedNav, setSelectedNav] = useState<string>('all');
+  const [vista, setVista] = useState<'pendientes' | 'hechas' | 'asignaturas'>('pendientes');
+  const [abierto, setAbierto] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -390,7 +394,7 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
       setHomeworkList((prev) => prev.map((h) => (h.id === hwId ? updated : h)));
       showToast(
         updated.status === 'entregado'
-          ? '🎉 ¡Entrega marcada como realizada!'
+          ? 'Entrega marcada como hecha'
           : 'Entrega marcada como pendiente.'
       );
     }
@@ -511,7 +515,7 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
   const getUrgencyBadge = (dueDateStr: string, isCompleted: boolean) => {
     if (isCompleted) {
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
           <Check className="w-3 h-3 text-emerald-600" />
           Entregado
         </span>
@@ -524,7 +528,7 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
 
     if (diffDays < 0) {
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 animate-pulse">
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 animate-pulse">
           <AlertCircle className="w-3 h-3 text-rose-600" />
           Atrasada ({Math.abs(diffDays)}d)
         </span>
@@ -532,7 +536,7 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
     }
     if (diffDays === 0) {
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 animate-pulse">
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 animate-pulse">
           <Clock className="w-3 h-3 text-rose-600" />
           ¡Vence Hoy!
         </span>
@@ -540,7 +544,7 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
     }
     if (diffDays === 1) {
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
           <Clock className="w-3 h-3 text-amber-600" />
           Mañana
         </span>
@@ -548,13 +552,13 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
     }
     if (diffDays <= 3) {
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
           En {diffDays} días
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
         En {diffDays} días
       </span>
     );
@@ -572,652 +576,289 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
     }
   };
 
-  return (
-    <div className="w-full max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-6 flex flex-col gap-5">
-      {/* Top Banner (Compact & Modern) */}
-      {universityError && !isHomeworkModalOpen && <p role="alert" className="text-sm text-red-600 dark:text-red-300 bg-red-50 dark:bg-red-950 rounded-xl p-3">{universityError}</p>}
-      {universityNotice && <p role="status" className="text-xs text-slate-500 dark:text-slate-400">{universityNotice}</p>}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs shrink-0">
-            <GraduationCap className="w-5 h-5" />
-          </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-              Universidad & Seguimiento de Deberes
-            </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Panel organizado por asignaturas: tareas, entregas de prácticas y fechas límite.
-            </p>
-          </div>
-        </div>
+  const DIAS_CORTOS = ['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB'];
+  const fechaUTC = (s: string) => { const [y, m, d] = s.split('-').map(Number); return new Date(Date.UTC(y, (m || 1) - 1, d || 1)); };
+  const diasHasta = (s: string) => Math.round((fechaUTC(s).getTime() - fechaUTC(clock.dateStr).getTime()) / 86400000);
+  const hoyUTC = fechaUTC(clock.dateStr);
+  const finSemana = 6 - ((hoyUTC.getUTCDay() + 6) % 7);
+  const plazo = (hw: UniversityHomework) => {
+    if (hw.status === 'entregado') return { text: hw.type === 'examen' ? 'Hecho' : 'Entregada', tone: 'muted' as const };
+    const d = diasHasta(hw.dueDate);
+    if (d < 0) return { text: 'Atrasada', tone: 'alerta' as const };
+    if (d === 0) return { text: 'Hoy', tone: 'accent' as const };
+    if (d === 1) return { text: 'Mañana', tone: 'accent' as const };
+    if (d === 2) return { text: '2 días', tone: 'accent' as const };
+    return { text: `${d} días`, tone: 'muted' as const };
+  };
+  const enFiltro = (h: UniversityHomework) => selectedNav === 'all' || selectedNav === 'urgent' || selectedNav === 'completed' || h.subjectId === selectedNav;
+  const pendientesUni = deliveries.filter((h) => h.status !== 'entregado');
+  const estaSemanaCount = pendientesUni.filter((h) => { const d = diasHasta(h.dueDate); return d >= 0 && d <= finSemana; }).length;
+  const ordenar = (a: UniversityHomework, b: UniversityHomework) => `${a.dueDate}T${a.dueTime}`.localeCompare(`${b.dueDate}T${b.dueTime}`);
+  // Search by title, description or subject (as before the redesign)
+  const coincide = (h: UniversityHomework) => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    const s = subjects.find((x) => x.id === h.subjectId);
+    return [h.title, h.description || '', s?.name || '', s?.code || ''].some((v) => v.toLowerCase().includes(q));
+  };
+  // Done exams are listed with the done deliveries
+  const listaVista = (vista === 'hechas' ? homeworkList : deliveries)
+    .filter(enFiltro)
+    .filter(coincide)
+    .filter((h) => (vista === 'hechas' ? h.status === 'entregado' : h.status !== 'entregado'))
+    .sort((a, b) => (vista === 'hechas' ? ordenar(b, a) : ordenar(a, b)));
+  const grupos: Array<{ titulo: string; items: UniversityHomework[] }> = vista === 'hechas'
+    ? [{ titulo: 'Entregadas', items: listaVista }]
+    : [
+        { titulo: 'Atrasadas', items: listaVista.filter((h) => diasHasta(h.dueDate) < 0) },
+        { titulo: 'Esta semana', items: listaVista.filter((h) => { const d = diasHasta(h.dueDate); return d >= 0 && d <= finSemana; }) },
+        { titulo: 'Próxima semana', items: listaVista.filter((h) => { const d = diasHasta(h.dueDate); return d > finSemana && d <= finSemana + 7; }) },
+        { titulo: 'Más adelante', items: listaVista.filter((h) => diasHasta(h.dueDate) > finSemana + 7) },
+      ];
+  // Pending exams, overdue ones included so they never disappear
+  const examenesProximos = exams
+    .filter(enFiltro)
+    .filter(coincide)
+    .filter((e) => e.status !== 'entregado')
+    .sort(ordenar);
+  const nuevoDeber = (tipo: HomeworkType = 'practica') => {
+    setEditingHomework(null);
+    setNewHomeworkType(tipo);
+    setPreselectedSubjectId(selectedNav !== 'all' && selectedNav !== 'urgent' && selectedNav !== 'completed' ? selectedNav : undefined);
+    setIsHomeworkModalOpen(true);
+  };
 
-        {/* Mobile Toggle Button for Left Sidebar */}
-        <div className="flex items-center gap-2 md:hidden">
+  const fila = (hw: UniversityHomework) => {
+    const subject = subjects.find((s) => s.id === hw.subjectId);
+    const typeInfo = HOMEWORK_TYPE_LABELS[hw.type] || HOMEWORK_TYPE_LABELS.otro;
+    const isDone = hw.status === 'entregado';
+    const p = plazo(hw);
+    const fecha = fechaUTC(hw.dueDate);
+    const meta = [
+      subject?.name,
+      typeInfo.label.toLowerCase(),
+      hw.dueTime || '23:59',
+      hw.weightPercentage ? `${hw.weightPercentage} % de la nota` : null,
+      hw.priority === 'alta' && !isDone ? 'prioridad alta' : null,
+    ].filter(Boolean).join(' · ');
+    const abiertoFila = abierto === hw.id;
+    return (
+      <div key={hw.id} className="py-3 border-b border-hairline flex flex-col gap-2">
+        <div className="grid grid-cols-[44px_minmax(0,1fr)_auto] gap-3 items-center">
+          <span className="flex flex-col items-center gap-px">
+            <span className="text-[11.5px] font-semibold tracking-[0.04em] text-ink-2">{DIAS_CORTOS[fecha.getUTCDay()]}</span>
+            <span className="text-[19px] font-semibold leading-[1.1]">{fecha.getUTCDate()}</span>
+          </span>
           <button
             type="button"
-            onClick={() => setIsSidebarOpenMobile((p) => !p)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-slate-700 cursor-pointer"
+            onClick={() => setAbierto(abiertoFila ? null : hw.id)}
+            aria-expanded={abiertoFila}
+            className="min-w-0 text-left flex flex-col gap-[3px] cursor-pointer"
           >
-            {isSidebarOpenMobile ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
-            <span>{isSidebarOpenMobile ? 'Ocultar Asignaturas' : 'Ver Asignaturas'}</span>
+            <span className={`text-base leading-[1.3] font-medium ${isDone ? 'text-ink-3 line-through' : 'text-ink'}`}>{hw.title}</span>
+            <span className="text-[13.5px] leading-[1.35] text-ink-2">{meta}</span>
           </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setEditingHomework(null);
-              setPreselectedSubjectId(activeSubject?.id);
-              setIsHomeworkModalOpen(true);
-            }}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-bold shadow-xs ml-auto"
-          >
-            <PlusCircle className="w-3.5 h-3.5" />
-            <span>+ Tarea</span>
-          </button>
+          <span className="flex items-center gap-1">
+            <span
+              className={`px-2.5 py-1 rounded-full text-[13px] whitespace-nowrap ${
+                p.tone === 'accent' ? 'bg-accent text-ink font-semibold' : p.tone === 'alerta' ? 'bg-red-50 text-red-800 font-semibold' : 'text-ink-2 font-medium'
+              }`}
+            >
+              {p.text}
+            </span>
+            <button
+              type="button"
+              onClick={() => handleToggleHomework(hw.id)}
+              aria-pressed={isDone}
+              aria-label={`${isDone ? 'Marcar como pendiente' : 'Marcar como entregada'}: ${hw.title}`}
+              className="w-11 h-11 -mr-2 flex items-center justify-center cursor-pointer"
+            >
+              <span className={`w-[26px] h-[26px] rounded-full border-[1.5px] flex items-center justify-center text-white ${isDone ? 'bg-ink border-ink' : 'bg-white border-check'}`}>
+                {isDone && <Check className="w-3.5 h-3.5" strokeWidth={2} />}
+              </span>
+            </button>
+          </span>
         </div>
+        {abiertoFila && (
+          <div className="ml-14 flex flex-col gap-2">
+            {hw.description && <p className="text-[14px] leading-[1.5] text-slate-700 whitespace-pre-wrap">{hw.description}</p>}
+            <div className="flex flex-wrap gap-1 -ml-3">
+              <button type="button" onClick={() => { setEditingHomework(hw); setIsHomeworkModalOpen(true); }} className="h-11 px-3 rounded-full text-sm font-semibold flex items-center gap-2 hover:bg-black/5">
+                <Edit2 className="w-4 h-4" strokeWidth={1.75} /> Editar
+              </button>
+              <button type="button" onClick={() => handleSyncToCalendar(hw)} className="h-11 px-3 rounded-full text-sm font-semibold flex items-center gap-2 hover:bg-black/5">
+                <CalendarCheck className="w-4 h-4" strokeWidth={1.75} /> {hw.calendarTaskId ? 'En la agenda' : 'Llevar a la agenda'}
+              </button>
+              <button type="button" onClick={() => handleDeleteHomework(hw.id)} className="h-11 px-3 rounded-full text-sm font-semibold text-ink-2 flex items-center gap-2 hover:bg-black/5">
+                <Trash2 className="w-4 h-4" strokeWidth={1.75} /> Eliminar
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+    );
+  };
 
-      {/* Banner de acceso directo a Entregas Moodle */}
-      {onNavigateToMoodle && (
-        <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-300/80 dark:border-amber-800/80 rounded-2xl p-3.5 flex items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-400">
-              <CalendarDays className="w-4 h-4" />
-            </div>
-            <div>
-              <p className="font-extrabold text-slate-900 dark:text-white">
-                Sincronización oficial de Moodle (ICS) activa
-              </p>
-              <p className="text-slate-500 dark:text-slate-400 text-[11px]">
-                Consulta todas las entregas y cuestionarios importados automáticamente desde el calendario.
-              </p>
-            </div>
-          </div>
+  return (
+    <div className="w-full max-w-2xl mx-auto px-5 flex flex-col gap-[22px]">
+      <header className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-1 min-w-0">
+          <span className="text-sm font-medium text-ink-2">
+            {pendientesUni.length} {pendientesUni.length === 1 ? 'pendiente' : 'pendientes'} · {estaSemanaCount} esta semana
+            {stats.totalHomework > 0 && ` · ${stats.completionRate} % entregadas`}
+          </span>
+          <h1 className="text-[34px] leading-[1.05] font-semibold tracking-[-0.025em]">Universidad</h1>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            if (vista === 'asignaturas') { setEditingSubject(null); setIsSubjectModalOpen(true); }
+            else nuevoDeber();
+          }}
+          aria-label={vista === 'asignaturas' ? 'Nueva asignatura' : 'Añadir entrega o deber'}
+          className="flex-none w-11 h-11 rounded-full bg-surface-2 flex items-center justify-center active:scale-95 transition"
+        >
+          <Plus className="w-5 h-5" strokeWidth={1.75} />
+        </button>
+      </header>
+
+      {universityError && !isHomeworkModalOpen && <p role="alert" className="rounded-2xl bg-red-50 text-red-800 px-4 py-3 text-[14.5px]">{universityError}</p>}
+      {universityNotice && <p role="status" className="rounded-2xl bg-surface px-4 py-3 text-[14.5px]">{universityNotice}</p>}
+
+      <nav aria-label="Vistas de la universidad" className="grid grid-cols-3 gap-0.5 p-[3px] rounded-[15px] bg-surface-2">
+        {([['pendientes', 'Pendientes'], ['hechas', 'Hechas'], ['asignaturas', 'Asignaturas']] as const).map(([valor, etiqueta]) => (
           <button
+            key={valor}
             type="button"
-            onClick={onNavigateToMoodle}
-            className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold transition shadow-xs flex items-center gap-1 cursor-pointer shrink-0"
+            aria-pressed={vista === valor}
+            onClick={() => setVista(valor)}
+            className={`h-11 rounded-xl text-[14.5px] transition ${vista === valor ? 'bg-white font-semibold shadow-[0_1px_2px_rgba(20,21,23,0.08)]' : 'text-ink-2 font-medium'}`}
           >
-            <span>Ver Entregas Moodle</span>
-            <ChevronRight className="w-3.5 h-3.5" />
+            {etiqueta}
           </button>
+        ))}
+      </nav>
+
+      {vista !== 'asignaturas' && subjects.length > 0 && (
+        <div role="group" aria-label="Asignatura" className="flex items-center gap-2 overflow-x-auto no-scrollbar -mx-5 px-5">
+          {[{ id: 'all', code: 'Todas' }, ...subjects].map((s) => {
+            const on = s.id === 'all' ? ['all', 'urgent', 'completed'].includes(selectedNav) : selectedNav === s.id;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                aria-pressed={on}
+                title={'name' in s ? s.name : undefined}
+                onClick={() => setSelectedNav(s.id)}
+                className={`flex-none h-10 px-4 rounded-full text-sm font-semibold border transition ${on ? 'bg-ink border-ink text-white' : 'bg-white border-line-2 text-ink'}`}
+              >
+                {s.code}
+              </button>
+            );
+          })}
         </div>
       )}
 
-      {/* Main Two-Column Layout (Sidebar on Left like Gemini, Content on Right) */}
-      <div className="flex flex-col md:flex-row gap-5 items-start w-full">
-        {/* ========================================================================= */}
-        {/* LEFT SIDEBAR: Gemini-style Asignaturas Navigation                         */}
-        {/* ========================================================================= */}
-        <aside
-          className={`w-full md:w-72 lg:w-80 shrink-0 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-3.5 flex flex-col gap-4 shadow-xs md:sticky md:top-20 ${
-            isSidebarOpenMobile ? 'block' : 'hidden md:flex'
-          }`}
-        >
-          {/* Action button: "+ Nueva Asignatura" (Gemini "+ New Chat" style) */}
-          <div className="flex flex-col gap-2">
-            <button
-              id="sidebar-btn-add-subject"
-              type="button"
-              onClick={() => {
-                setEditingSubject(null);
-                setIsSubjectModalOpen(true);
-              }}
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-900 dark:text-slate-100 font-bold text-xs border border-slate-200 dark:border-slate-700 transition cursor-pointer active:scale-95 shadow-2xs"
-            >
-              <PlusCircle className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              <span>Nueva Asignatura</span>
+      {vista !== 'asignaturas' && (
+        <label className="flex items-center gap-2.5 h-11 px-4 rounded-full bg-surface-2">
+          <Search className="w-4 h-4 text-ink-2 flex-none" strokeWidth={1.75} />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Buscar por título, descripción o asignatura"
+            aria-label="Buscar deberes"
+            className="flex-1 min-w-0 bg-transparent outline-none text-[15px] text-ink placeholder:text-ink-3"
+          />
+          {searchQuery && (
+            <button type="button" onClick={() => setSearchQuery('')} aria-label="Borrar búsqueda" className="flex-none -mr-2 w-9 h-9 rounded-full flex items-center justify-center hover:bg-black/5">
+              <X className="w-4 h-4" strokeWidth={1.75} />
             </button>
-
-            <button
-              id="sidebar-btn-add-homework"
-              type="button"
-              onClick={() => {
-                setEditingHomework(null);
-                setPreselectedSubjectId(activeSubject?.id);
-                setIsHomeworkModalOpen(true);
-              }}
-              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition cursor-pointer active:scale-95"
-            >
-              <PlusCircle className="w-4 h-4" />
-              <span>Añadir Entrega / Deber</span>
-            </button>
-          </div>
-
-          {/* Global Views Section */}
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-2 py-1">
-              Vistas Generales
-            </span>
-
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedNav('all');
-                setIsSidebarOpenMobile(false);
-              }}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                selectedNav === 'all'
-                  ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/80 shadow-2xs'
-                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <ListOrdered className="w-3.5 h-3.5 text-indigo-500" />
-                <span>Todas las Entregas</span>
-              </div>
-              <span className="text-[11px] font-mono px-1.5 py-0.2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                {stats.totalHomework}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedNav('urgent');
-                setIsSidebarOpenMobile(false);
-              }}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                selectedNav === 'urgent'
-                  ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/80 shadow-2xs'
-                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
-                <span>Próximas Urgentes (&le; 3d)</span>
-              </div>
-              {stats.urgentCount > 0 && (
-                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-rose-500 text-white animate-pulse">
-                  {stats.urgentCount}
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedNav('completed');
-                setIsSidebarOpenMobile(false);
-              }}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                selectedNav === 'completed'
-                  ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/80 shadow-2xs'
-                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                <span>Entregadas / Historial</span>
-              </div>
-              <span className="text-[11px] font-mono px-1.5 py-0.2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                {stats.completedHomework}
-              </span>
-            </button>
-          </div>
-
-          {/* MIS ASIGNATURAS LIST (Like conversation history in Gemini) */}
-          <div className="flex flex-col gap-1 border-t border-slate-100 dark:border-slate-800 pt-3">
-            <div className="flex items-center justify-between px-2 py-1">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                Mis Asignaturas ({subjects.length})
-              </span>
-            </div>
-
-            {subjects.length === 0 ? (
-              <p className="text-xs text-slate-400 italic px-2 py-3 text-center">
-                No hay asignaturas. Pulsa "+ Nueva Asignatura" para añadir tu primera materia.
-              </p>
-            ) : (
-              <div className="flex flex-col gap-1 max-h-[50vh] overflow-y-auto no-scrollbar pr-0.5">
-                {subjects.map((s) => {
-                  const isSelected = selectedNav === s.id;
-                  const palette = COLOR_PALETTES[s.color] || COLOR_PALETTES.indigo;
-                  const subjTasks = deliveries.filter((h) => h.subjectId === s.id);
-                  const pendingCount = subjTasks.filter((h) => h.status !== 'entregado').length;
-
-                  return (
-                    <div
-                      key={s.id}
-                      className={`group relative flex items-center justify-between px-3 py-2 rounded-xl text-xs transition cursor-pointer ${
-                        isSelected
-                          ? `${palette.bg} ${palette.text} ${palette.border} border font-bold shadow-2xs`
-                          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60 font-medium'
-                      }`}
-                      onClick={() => {
-                        setSelectedNav(s.id);
-                        setIsSidebarOpenMobile(false);
-                      }}
-                    >
-                      {/* Left: Code badge & Name */}
-                      <div className="flex items-center gap-2.5 min-w-0 pr-1">
-                        <span
-                          className={`w-6 h-6 rounded-lg text-[10px] font-extrabold flex items-center justify-center shrink-0 border ${palette.bg} ${palette.text} ${palette.border}`}
-                        >
-                          {s.code.substring(0, 3)}
-                        </span>
-                        <span className="min-w-0"><span className="block truncate">{s.name}</span>
-                          {examCountdown(exams, s.id, clock.dateStr) && <span className="block text-[10px] font-normal text-slate-500 dark:text-slate-400 mt-0.5">{examCountdown(exams, s.id, clock.dateStr)?.split(' · ')[0]}</span>}
-                        </span>
-                      </div>
-
-                      {/* Right: Pending badge & Hover action buttons */}
-                      <div className="flex items-center gap-1 shrink-0">
-                        {pendingCount > 0 ? (
-                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 group-hover:hidden">
-                            {pendingCount}
-                          </span>
-                        ) : (
-                          <Check className="w-3.5 h-3.5 text-emerald-500 opacity-80 group-hover:hidden" />
-                        )}
-
-                        {/* Hover actions (Edit / Delete) */}
-                        <div className="hidden group-hover:flex items-center gap-0.5">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingSubject(s);
-                              setIsSubjectModalOpen(true);
-                            }}
-                            className="p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700"
-                            title="Editar asignatura"
-                          >
-                            <Edit2 className="w-3 h-3" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setConfirmDeleteSubjectId(s.id);
-                            }}
-                            className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
-                            title="Eliminar asignatura"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Quick Footer Stats */}
-          <div className="mt-auto border-t border-slate-100 dark:border-slate-800 pt-3 flex items-center justify-between text-[11px] text-slate-400">
-            <span>Tasa de entrega: <strong className="text-emerald-600 font-bold">{stats.completionRate}%</strong></span>
-            <span>{stats.completedHomework}/{stats.totalHomework} hechas</span>
-          </div>
-        </aside>
-
-        {/* ========================================================================= */}
-        {/* RIGHT MAIN PANEL: Active Subject / View Content & Linear Task List        */}
-        {/* ========================================================================= */}
-        <section className="flex-1 min-w-0 w-full flex flex-col gap-4">
-          {/* Header Card for Active View / Selected Subject */}
-          {activeSubject ? (
-            (() => {
-              const palette = COLOR_PALETTES[activeSubject.color] || COLOR_PALETTES.indigo;
-              const subjTasks = deliveries.filter((h) => h.subjectId === activeSubject.id);
-              const totalSubj = subjTasks.length;
-              const doneSubj = subjTasks.filter((h) => h.status === 'entregado').length;
-              const pendingSubj = totalSubj - doneSubj;
-              const progressPct = totalSubj > 0 ? Math.round((doneSubj / totalSubj) * 100) : 0;
-
-              return (
-                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col gap-3">
-                  <ExamCountdownMenu exams={exams.filter(exam => exam.subjectId === activeSubject.id)} subjects={[activeSubject]} today={clock.dateStr}
-                    onEdit={exam => { setEditingHomework(exam); setIsHomeworkModalOpen(true); }} onToggle={handleToggleHomework} onDelete={handleDeleteHomework} />
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`w-11 h-11 rounded-xl ${palette.bg} ${palette.border} border flex items-center justify-center font-extrabold text-sm ${palette.text} shrink-0`}
-                      >
-                        {activeSubject.code}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-                            {activeSubject.name}
-                          </h2>
-                          <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${palette.bg} ${palette.text} ${palette.border}`}
-                          >
-                            {activeSubject.credits || 6} ECTS
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                          {activeSubject.professor && `Prof. ${activeSubject.professor}`}
-                          {activeSubject.classroom && ` • Aula: ${activeSubject.classroom}`}
-                          {activeSubject.semester && ` • ${activeSubject.semester}`}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Quick Subject Actions */}
-                    <div className="flex items-center gap-2 self-start sm:self-center">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingHomework(null);
-                          setNewHomeworkType('practica');
-                          setPreselectedSubjectId(activeSubject.id);
-                          setIsHomeworkModalOpen(true);
-                        }}
-                        className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer active:scale-95 ${palette.bg} ${palette.text} ${palette.border} hover:brightness-95`}
-                      >
-                        <PlusCircle className="w-3.5 h-3.5" />
-                        <span>+ Nueva Entrega</span>
-                      </button>
-
-                      <button type="button" onClick={() => {
-                        setEditingHomework(null); setNewHomeworkType('examen');
-                        setPreselectedSubjectId(activeSubject.id); setIsHomeworkModalOpen(true);
-                      }} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
-                        <CalendarDays className="w-3.5 h-3.5" /> Añadir examen
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingSubject(activeSubject);
-                          setIsSubjectModalOpen(true);
-                        }}
-                        className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 transition"
-                        title="Editar asignatura"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Progress Bar for this subject */}
-                  <div className="flex flex-col gap-1.5 pt-1">
-                    <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                      <span>Progreso de entregas: <strong className="text-slate-800 dark:text-slate-200">{doneSubj} de {totalSubj} realizadas</strong></span>
-                      <span className="font-semibold font-mono text-indigo-600 dark:text-indigo-400">{progressPct}%</span>
-                    </div>
-                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-500 ${
-                          progressPct === 100
-                            ? 'bg-emerald-500'
-                            : progressPct >= 50
-                            ? 'bg-indigo-600'
-                            : 'bg-amber-500'
-                        }`}
-                        style={{ width: `${progressPct}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              );
-            })()
-          ) : (
-            /* Header for Global Views */
-            <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col gap-3">
-              <ExamCountdownMenu exams={exams} subjects={subjects} today={clock.dateStr}
-                onEdit={exam => { setEditingHomework(exam); setIsHomeworkModalOpen(true); }} onToggle={handleToggleHomework} onDelete={handleDeleteHomework} />
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-                    {selectedNav === 'urgent'
-                      ? '🚨 Entregas Urgentes (Próximos 3 días)'
-                      : selectedNav === 'completed'
-                      ? '✅ Entregas Completadas'
-                      : '📋 Todas las Asignaturas y Entregas'}
-                  </h2>
-                </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  {selectedNav === 'urgent'
-                    ? 'Tareas prioritarias que requieren tu atención inmediata'
-                    : selectedNav === 'completed'
-                    ? 'Historial de trabajos y prácticas ya entregadas'
-                    : 'Listado global de todos tus deberes y proyectos universitarios'}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingHomework(null);
-                  setPreselectedSubjectId(undefined);
-                  setIsHomeworkModalOpen(true);
-                }}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition cursor-pointer self-start sm:self-center active:scale-95"
-              >
-                <PlusCircle className="w-3.5 h-3.5" />
-                <span>+ Nueva Entrega</span>
-              </button>
-              </div>
-            </div>
           )}
+        </label>
+      )}
 
-          {/* Search Bar & Status Filter */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 p-2 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-xs">
-            {/* Search Input */}
-            <div className="relative flex-1">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Buscar por título, práctica, descripción..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-
-            {/* Status Filter Pills */}
-            <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl shrink-0">
-              <button
-                type="button"
-                onClick={() => setStatusFilter('all')}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                  statusFilter === 'all'
-                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                Todas
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('pending')}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                  statusFilter === 'pending'
-                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                Pendientes
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('completed')}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                  statusFilter === 'completed'
-                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                Entregadas
-              </button>
-            </div>
-          </div>
-
-          {/* Homework Items (Linear List, NOT disjointed grid blocks) */}
-          <div className="flex flex-col gap-2.5">
-            {currentViewHomework.length === 0 ? (
-              <div className="p-10 text-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col items-center gap-2">
-                <CheckCircle2 className="w-10 h-10 text-emerald-500" />
-                <h3 className="font-bold text-slate-800 dark:text-slate-200">
-                  {statusFilter === 'completed'
-                    ? 'No hay entregas completadas en este filtro'
-                    : '¡No hay entregas pendientes! Todo está al día'}
-                </h3>
-                <p className="text-xs text-slate-400 max-w-sm">
-                  {activeSubject
-                    ? `No tienes tareas pendientes para ${activeSubject.name}. Puedes añadir una nueva cuando el profesor asigne trabajo.`
-                    : 'Excelente seguimiento. Todas tus obligaciones académicas están completas.'}
-                </p>
+      {vista === 'asignaturas' ? (
+        <section aria-label="Asignaturas" className="flex flex-col border-t border-hairline">
+          {subjects.length === 0 && <p className="py-8 text-center text-[15px] text-ink-2">Aún no hay asignaturas.</p>}
+          {subjects.map((s) => {
+            const pendientes = deliveries.filter((h) => h.subjectId === s.id && h.status !== 'entregado').length;
+            const totalAsig = deliveries.filter((h) => h.subjectId === s.id).length;
+            const progreso = totalAsig ? Math.round(((totalAsig - pendientes) / totalAsig) * 100) : 0;
+            const examen = examCountdown(exams, s.id, clock.dateStr)?.split(' · ')[0];
+            return (
+              <div key={s.id} className="min-h-16 py-2.5 border-b border-hairline flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    setEditingHomework(null);
-                    setPreselectedSubjectId(activeSubject?.id);
-                    setIsHomeworkModalOpen(true);
-                  }}
-                  className="mt-2 px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold text-xs shadow-xs"
+                  onClick={() => { setSelectedNav(s.id); setVista('pendientes'); }}
+                  className="flex-1 min-w-0 text-left flex flex-col gap-[3px] cursor-pointer"
                 >
-                  + Añadir Tarea o Entrega
+                  <span className="text-base font-medium">{s.name}</span>
+                  <span className="text-[13px] text-ink-2">
+                    <span className="font-mono">{s.code}</span>
+                    {s.professor ? ` · ${s.professor}` : ''}
+                    {examen ? ` · ${examen}` : ''}
+                  </span>
+                  {totalAsig > 0 && (
+                    <span className="flex items-center gap-2 pt-1">
+                      <span aria-hidden="true" className="flex-1 max-w-40 h-1 rounded-full bg-track-2 overflow-hidden">
+                        <span className="block h-1 rounded-full bg-ink" style={{ width: `${progreso}%` }} />
+                      </span>
+                      <span className="text-[12px] font-mono text-ink-2">{totalAsig - pendientes}/{totalAsig} · {progreso}%</span>
+                    </span>
+                  )}
+                </button>
+                <span className="text-[13.5px] text-slate-700 whitespace-nowrap">{pendientes ? `${pendientes} ${pendientes === 1 ? 'pendiente' : 'pendientes'}` : 'Al día'}</span>
+                <button type="button" onClick={() => { setEditingSubject(s); setIsSubjectModalOpen(true); }} aria-label={`Editar ${s.name}`} className="flex-none w-11 h-11 rounded-full flex items-center justify-center hover:bg-black/5">
+                  <Edit2 className="w-[18px] h-[18px]" strokeWidth={1.75} />
+                </button>
+                <button type="button" onClick={() => setConfirmDeleteSubjectId(s.id)} aria-label={`Eliminar ${s.name}`} className="flex-none w-11 h-11 -mr-2 rounded-full flex items-center justify-center text-ink-2 hover:bg-black/5">
+                  <Trash2 className="w-[18px] h-[18px]" strokeWidth={1.75} />
                 </button>
               </div>
-            ) : (
-              currentViewHomework.map((hw) => {
-                const subject = subjects.find((s) => s.id === hw.subjectId);
-                const palette = COLOR_PALETTES[subject?.color || 'indigo'] || COLOR_PALETTES.indigo;
-                const typeInfo = HOMEWORK_TYPE_LABELS[hw.type] || HOMEWORK_TYPE_LABELS.otro;
-                const isDone = hw.status === 'entregado';
-
-                return (
-                  <div
-                    key={hw.id}
-                    className={`p-3.5 sm:p-4 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 ${
-                      isDone
-                        ? 'bg-slate-100/70 dark:bg-slate-850/40 border-slate-200 dark:border-slate-800 border-l-4 border-l-slate-300 dark:border-l-slate-700 opacity-75'
-                        : `${palette.cardBg} ${palette.cardBorder} border-l-4 ${palette.leftBar} ${palette.hoverBg} shadow-xs hover:shadow-sm`
-                    }`}
-                  >
-                    {/* Left: Checkbox & Info */}
-                    <div className="flex items-start gap-3 min-w-0">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleHomework(hw.id)}
-                        className="mt-1 text-slate-400 hover:text-emerald-500 transition cursor-pointer shrink-0"
-                        title={isDone ? 'Marcar como pendiente' : 'Marcar como entregado'}
-                      >
-                        {isDone ? (
-                          <CheckCircle2 className="w-5 h-5 text-emerald-500 fill-emerald-500/20" />
-                        ) : (
-                          <Circle className="w-5 h-5 text-slate-300 dark:text-slate-600 hover:text-emerald-500" />
-                        )}
-                      </button>
-
-                      <div className="flex flex-col gap-1 min-w-0">
-                        {/* Tags Row */}
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {/* Subject Pill (shown if viewing all or global views) */}
-                          {(!activeSubject || selectedNav === 'all' || selectedNav === 'urgent' || selectedNav === 'completed') && subject && (
-                            <button
-                              type="button"
-                              onClick={() => setSelectedNav(subject.id)}
-                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition cursor-pointer ${palette.bg} ${palette.text} ${palette.border} hover:brightness-95`}
-                              title={`Filtrar por ${subject.name}`}
-                            >
-                              {subject.code} &bull; {subject.name}
-                            </button>
-                          )}
-
-                          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                            {typeInfo.icon} {typeInfo.label}
-                          </span>
-
-                          {getUrgencyBadge(hw.dueDate, isDone)}
-
-                          {hw.weightPercentage && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                              {hw.weightPercentage}% nota
-                            </span>
-                          )}
-
-                          {hw.priority === 'alta' && !isDone && (
-                            <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400">
-                              Alta Prioridad
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Title */}
-                        <h4
-                          className={`text-sm sm:text-base font-bold tracking-tight ${
-                            isDone
-                              ? 'line-through text-slate-400 dark:text-slate-500'
-                              : 'text-slate-900 dark:text-white'
-                          }`}
-                        >
-                          {hw.title}
-                        </h4>
-
-                        {/* Description */}
-                        {hw.description && (
-                          <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
-                            {hw.description}
-                          </p>
-                        )}
-
-                        {/* Date info */}
-                        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                          <Calendar className="w-3.5 h-3.5 text-indigo-500" />
-                          <span>
-                            Límite: <strong className="text-slate-800 dark:text-slate-200">{formatDueDateSpanish(hw.dueDate)}</strong> a las {hw.dueTime || '23:59'}
-                          </span>
-                          {hw.estimatedHours && (
-                            <span className="hidden sm:inline text-slate-400">
-                              &bull; ~{hw.estimatedHours}h dedicación
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Right: Actions */}
-                    <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleSyncToCalendar(hw)}
-                        className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer ${
-                          hw.calendarTaskId
-                            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
-                            : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                        }`}
-                        title="Añadir esta fecha límite a la Agenda diaria"
-                      >
-                        <CalendarCheck className="w-3.5 h-3.5 text-indigo-500" />
-                        <span>{hw.calendarTaskId ? 'En Agenda' : 'Agendar'}</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingHomework(hw);
-                          setIsHomeworkModalOpen(true);
-                        }}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-                        title="Editar tarea"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteHomework(hw.id)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
-                        title="Eliminar tarea"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
+            );
+          })}
+          <div className="pt-2 flex flex-wrap gap-1 -ml-3">
+            <button type="button" onClick={() => { setEditingSubject(null); setIsSubjectModalOpen(true); }} className="h-11 px-3 rounded-full text-sm font-semibold flex items-center gap-2 hover:bg-black/5">
+              <Plus className="w-4 h-4" strokeWidth={1.75} /> Nueva asignatura
+            </button>
+            <button type="button" onClick={() => nuevoDeber('examen')} className="h-11 px-3 rounded-full text-sm font-semibold flex items-center gap-2 hover:bg-black/5">
+              <CalendarDays className="w-4 h-4" strokeWidth={1.75} /> Añadir examen
+            </button>
+            {onNavigateToMoodle && (
+              <button type="button" onClick={onNavigateToMoodle} className="h-11 px-3 rounded-full text-sm font-semibold flex items-center gap-2 hover:bg-black/5">
+                <ExternalLink className="w-4 h-4" strokeWidth={1.75} /> Ver entregas de Moodle
+              </button>
             )}
           </div>
         </section>
-      </div>
+      ) : (
+        <div className="flex flex-col gap-6">
+          {vista === 'pendientes' && examenesProximos.length > 0 && (
+            <section aria-label="Exámenes" className="flex flex-col">
+              <h2 className="text-[13px] font-semibold text-ink-2 mb-0.5">Exámenes</h2>
+              <div className="flex flex-col border-t border-hairline">{examenesProximos.map(fila)}</div>
+            </section>
+          )}
+          {grupos.filter((g) => g.items.length).map((g) => (
+            <section key={g.titulo} aria-label={g.titulo} className="flex flex-col">
+              <h2 className="text-[13px] font-semibold text-ink-2 mb-0.5">{g.titulo}</h2>
+              <div className="flex flex-col border-t border-hairline">{g.items.map(fila)}</div>
+            </section>
+          ))}
+          {listaVista.length === 0 && (vista === 'hechas' || examenesProximos.length === 0) && (
+            <div className="py-12 flex flex-col items-center gap-3 text-center">
+              <CheckCircle2 className="w-7 h-7 text-ink-2" strokeWidth={1.5} />
+              <p className="text-[15px] font-medium">{vista === 'hechas' ? 'Aún no has entregado nada aquí' : 'Todo al día'}</p>
+              {vista === 'pendientes' && (
+                <button type="button" onClick={() => nuevoDeber()} className="h-11 px-4 rounded-full border border-line-2 bg-white text-sm font-semibold">
+                  Añadir un deber
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* MODAL: ADD / EDIT SUBJECT */}
       <AnimatePresence>
@@ -1261,26 +902,26 @@ export const UniversityModule: React.FC<UniversityModuleProps> = ({
       {/* MODAL: CONFIRM DELETE SUBJECT */}
       <AnimatePresence>
         {confirmDeleteSubjectId && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 max-w-sm w-full shadow-2xl flex flex-col gap-3">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 ">
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 max-w-sm w-full shadow-2xl flex flex-col gap-3">
+              <h3 className="text-base font-bold text-slate-900">
                 ¿Eliminar esta asignatura?
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-slate-500">
                 Se eliminará la asignatura y todas sus entregas asociadas. Esta acción no se puede deshacer.
               </p>
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setConfirmDeleteSubjectId(null)}
-                  className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
                 >
                   Cancelar
                 </button>
                 <button
                   type="button"
                   onClick={() => handleDeleteSubject(confirmDeleteSubjectId)}
-                  className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-rose-600 text-white hover:bg-rose-700 shadow-xs"
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-ink text-white hover:bg-ink shadow-xs"
                 >
                   Sí, eliminar
                 </button>
@@ -1335,23 +976,23 @@ const SubjectFormModal: React.FC<SubjectFormModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-ink/40 ">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="w-full max-w-lg bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
       >
-        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800">
+        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-200">
           <div className="flex items-center gap-2">
-            <School className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-            <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+            <School className="w-5 h-5 text-indigo-600" />
+            <h2 className="text-base sm:text-lg font-bold text-slate-900">
               {subject ? 'Editar Asignatura' : 'Añadir Nueva Asignatura'}
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
           >
             <X className="w-4 h-4" />
           </button>
@@ -1361,7 +1002,7 @@ const SubjectFormModal: React.FC<SubjectFormModalProps> = ({
           {/* Nombre y Siglas */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="sm:col-span-2">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-semibold text-slate-700">
                 Nombre de la Asignatura *
               </label>
               <input
@@ -1370,11 +1011,11 @@ const SubjectFormModal: React.FC<SubjectFormModalProps> = ({
                 placeholder="ej. Inteligencia Artificial"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-semibold text-slate-700">
                 Siglas / Código
               </label>
               <input
@@ -1383,14 +1024,14 @@ const SubjectFormModal: React.FC<SubjectFormModalProps> = ({
                 placeholder="ej. IA"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-xl text-xs uppercase bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                className="mt-1 w-full px-3 py-2 rounded-xl text-xs uppercase bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
               />
             </div>
           </div>
 
           {/* Color temático */}
           <div>
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+            <label className="text-xs font-semibold text-slate-700">
               Color Temático
             </label>
             <div className="flex flex-wrap gap-2 mt-1.5">
@@ -1405,7 +1046,7 @@ const SubjectFormModal: React.FC<SubjectFormModalProps> = ({
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer ${
                       isSelected
                         ? `${pal.bg} ${pal.text} ${pal.border} ring-2 ring-indigo-500`
-                        : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                        : 'bg-slate-50 border-slate-200 text-slate-600'
                     }`}
                   >
                     <span className={`w-2.5 h-2.5 rounded-full ${pal.dot}`} />
@@ -1419,7 +1060,7 @@ const SubjectFormModal: React.FC<SubjectFormModalProps> = ({
           {/* Profesor y Aula */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-semibold text-slate-700">
                 Profesor / Contacto
               </label>
               <input
@@ -1427,11 +1068,11 @@ const SubjectFormModal: React.FC<SubjectFormModalProps> = ({
                 placeholder="ej. Dra. Martínez"
                 value={professor}
                 onChange={(e) => setProfessor(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-semibold text-slate-700">
                 Aula / Laboratorio
               </label>
               <input
@@ -1439,7 +1080,7 @@ const SubjectFormModal: React.FC<SubjectFormModalProps> = ({
                 placeholder="ej. Lab 2.4 - Módulo C"
                 value={classroom}
                 onChange={(e) => setClassroom(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
           </div>
@@ -1447,7 +1088,7 @@ const SubjectFormModal: React.FC<SubjectFormModalProps> = ({
           {/* Créditos y Cuatrimestre */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-semibold text-slate-700">
                 Créditos ECTS
               </label>
               <input
@@ -1456,11 +1097,11 @@ const SubjectFormModal: React.FC<SubjectFormModalProps> = ({
                 max={30}
                 value={credits}
                 onChange={(e) => setCredits(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-semibold text-slate-700">
                 Periodo / Semestre
               </label>
               <input
@@ -1468,14 +1109,14 @@ const SubjectFormModal: React.FC<SubjectFormModalProps> = ({
                 placeholder="ej. 1º Cuatrimestre"
                 value={semester}
                 onChange={(e) => setSemester(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
           </div>
 
           {/* Notas */}
           <div>
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+            <label className="text-xs font-semibold text-slate-700">
               Notas adicionales / Campus Virtual
             </label>
             <textarea
@@ -1483,22 +1124,22 @@ const SubjectFormModal: React.FC<SubjectFormModalProps> = ({
               placeholder="Notas de evaluación, enlaces o requisitos..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
           {/* Footer actions */}
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/20 cursor-pointer active:scale-95"
+              className="px-5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md cursor-pointer active:scale-95"
             >
               {subject ? 'Guardar Cambios' : 'Crear Asignatura'}
             </button>
@@ -1582,33 +1223,33 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-ink/40 ">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+        className="w-full max-w-lg bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
       >
-        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800">
+        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-200">
           <div className="flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-            <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+            <BookOpen className="w-5 h-5 text-indigo-600" />
+            <h2 className="text-base sm:text-lg font-bold text-slate-900">
               {homework ? 'Editar deber o examen' : type === 'examen' ? 'Añadir examen' : 'Añadir deber'}
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-4 sm:p-5 flex flex-col gap-4 overflow-y-auto">
-          {error && <p role="alert" className="text-sm text-red-600 dark:text-red-300">{error}</p>}
+          {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
           {/* Título */}
           <div>
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+            <label className="text-xs font-semibold text-slate-700">
               {type === 'examen' ? 'Título del examen *' : 'Título del deber *'}
             </label>
             <input
@@ -1618,14 +1259,14 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
               placeholder="ej. Práctica 3: Implementación de Tablas Hash"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
           {/* Asignatura y Tipo */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-semibold text-slate-700">
                 Asignatura *
               </label>
               <select
@@ -1633,7 +1274,7 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
                 required
                 value={subjectId}
                 onChange={(e) => setSubjectId(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
               >
                 {subjects.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -1644,36 +1285,36 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-semibold text-slate-700">
                 Tipo de Trabajo
               </label>
               <select
                 aria-label="Tipo de trabajo universitario"
                 value={type}
                 onChange={(e) => { setType(e.target.value as HomeworkType); if (e.target.value === 'examen') setUseNextClassDeadline(false); }}
-                className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
               >
-                <option value="practica">💻 Práctica</option>
-                <option value="ejercicios">📝 Ejercicios / Problemas</option>
-                <option value="proyecto">🚀 Proyecto</option>
-                <option value="examen">📚 Examen / Parcial</option>
-                <option value="lectura">📖 Lectura</option>
-                <option value="otro">📌 Otro</option>
+                <option value="practica">Práctica</option>
+                <option value="ejercicios">Ejercicios / Problemas</option>
+                <option value="proyecto">Proyecto</option>
+                <option value="examen">Examen / Parcial</option>
+                <option value="lectura">Lectura</option>
+                <option value="otro">Otro</option>
               </select>
             </div>
           </div>
 
           {/* Fecha Límite y Hora */}
-          {type !== 'examen' && <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/30 p-3 space-y-2">
+          {type !== 'examen' && <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-3 space-y-2">
             <button type="button" disabled={saving || !subjectId} onClick={() => setUseNextClassDeadline(true)} className="rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 text-xs font-bold disabled:opacity-50">Para la siguiente clase</button>
-            {useNextClassDeadline ? nextClass ? <p role="status" className="text-xs text-indigo-800 dark:text-indigo-200">
+            {useNextClassDeadline ? nextClass ? <p role="status" className="text-xs text-indigo-800">
               Próxima clase: {new Date(`${nextClass.date}T12:00:00Z`).toLocaleDateString('es-ES', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' })} a las {nextClass.time.slice(0,5)} · {nextClass.title}. El deber vence al empezar la clase.
-            </p> : <p role="alert" className="text-xs text-amber-700 dark:text-amber-300">No aparece ninguna clase futura de esta asignatura en Calendar. Sincroniza el calendario o indica la fecha manualmente.</p>
-              : <p className="text-xs text-slate-500 dark:text-slate-400">Usa el inicio de la próxima clase de esta asignatura en Calendar. Se ignoran todas las clases de hoy.</p>}
+            </p> : <p role="alert" className="text-xs text-amber-700">No aparece ninguna clase futura de esta asignatura en Calendar. Sincroniza el calendario o indica la fecha manualmente.</p>
+              : <p className="text-xs text-slate-500">Usa el inicio de la próxima clase de esta asignatura en Calendar. Se ignoran todas las clases de hoy.</p>}
           </div>}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-semibold text-slate-700">
                 {type === 'examen' ? 'Fecha del examen *' : 'Fecha límite de entrega *'}
               </label>
               <input
@@ -1682,11 +1323,11 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
                 required
                 value={dueDate}
                 onChange={(e) => { setDueDate(e.target.value); setUseNextClassDeadline(false); }}
-                className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-semibold text-slate-700">
                 {type === 'examen' ? 'Hora del examen · Madrid' : 'Hora límite · Madrid'}
               </label>
               <input
@@ -1695,7 +1336,7 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
                 aria-label="Hora del deber o examen"
                 value={dueTime}
                 onChange={(e) => { setDueTime(e.target.value); setUseNextClassDeadline(false); }}
-                className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
           </div>
@@ -1703,13 +1344,13 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
           {/* Prioridad y Estado */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-semibold text-slate-700">
                 Prioridad
               </label>
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as HomeworkPriority)}
-                className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
               >
                 <option value="alta">Alta (Muy importante)</option>
                 <option value="media">Media</option>
@@ -1717,13 +1358,13 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
               </select>
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-semibold text-slate-700">
                 Estado Actual
               </label>
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value as HomeworkStatus)}
-                className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
               >
                 <option value="pendiente">Pendiente</option>
                 <option value="en_progreso">En progreso / Trabajando</option>
@@ -1735,7 +1376,7 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
           {/* Peso porcentual y horas estimadas */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-semibold text-slate-700">
                 % Nota Final (opcional)
               </label>
               <input
@@ -1745,11 +1386,11 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
                 placeholder="ej. 15"
                 value={weightPercentage}
                 onChange={(e) => setWeightPercentage(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-semibold text-slate-700">
                 {type === 'examen' ? 'Horas de estudio necesarias *' : 'Horas estimadas · 2 h por defecto'}
               </label>
               <input
@@ -1762,14 +1403,14 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
                 placeholder="ej. 4"
                 value={estimatedHours}
                 onChange={(e) => setEstimatedHours(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
           </div>
 
           {/* Descripción / Instrucciones */}
           <div>
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+            <label className="text-xs font-semibold text-slate-700">
               Instrucciones / Rúbrica / Notas
             </label>
             <textarea
@@ -1777,25 +1418,25 @@ const HomeworkFormModal: React.FC<HomeworkFormModalProps> = ({
               placeholder="Detalles sobre requisitos, formato de entrega (.pdf, .zip), enlaces del campus..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="mt-1 w-full px-3 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
-          <p className="text-xs text-slate-500 dark:text-slate-400">Se incluirá automáticamente en tu plan de estudio al guardar.{type === 'examen' && ' Se reparte en sesiones de hasta 60 minutos, con práctica sin apuntes y repasos entre días.'}</p>
+          <p className="text-xs text-slate-500">Se incluirá automáticamente en tu plan de estudio al guardar.{type === 'examen' && ' Se reparte en sesiones de hasta 60 minutos, con práctica sin apuntes y repasos entre días.'}</p>
 
           {/* Footer actions */}
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={saving || (useNextClassDeadline && !nextClass)}
-              className="px-5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/20 cursor-pointer active:scale-95"
+              className="px-5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md cursor-pointer active:scale-95"
             >
               {saving ? 'Guardando…' : homework ? 'Guardar Cambios' : type === 'examen' ? 'Guardar examen' : 'Guardar deber'}
             </button>

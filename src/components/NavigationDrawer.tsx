@@ -86,19 +86,19 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                 onClose();
               }
             }}
-            className="fixed inset-y-0 left-0 z-[90] w-[82vw] max-w-80 bg-white dark:bg-slate-900 border-r border-slate-200/90 dark:border-slate-800 shadow-2xl flex flex-col justify-between overflow-hidden touch-pan-y"
+            className="fixed inset-y-0 left-0 z-[90] w-[82vw] max-w-80 bg-white border-r border-slate-200/90 shadow-2xl flex flex-col justify-between overflow-hidden touch-pan-y"
           >
             {/* Drawer Header (Respects iPhone Notch Safe Area) */}
-            <div className="p-4 pt-[max(env(safe-area-inset-top,0px),1rem)] border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+            <div className="p-4 pt-[max(env(safe-area-inset-top,0px),1rem)] border-b border-slate-100 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
                 <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-600/30 shrink-0">
                   <Calendar className="w-5 h-5" />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white leading-tight">
+                  <h3 className="font-extrabold text-sm sm:text-base text-slate-900 leading-tight">
                     Navegación
                   </h3>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 capitalize truncate">
+                  <p className="text-[11px] text-slate-500 capitalize truncate">
                     {clock.dayName}, {clock.dayNumber} {clock.monthName}
                   </p>
                 </div>
@@ -108,7 +108,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="w-11 h-11 rounded-2xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition cursor-pointer active:scale-95 touch-manipulation"
+                className="w-11 h-11 rounded-2xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center justify-center transition cursor-pointer active:scale-95 touch-manipulation"
                 title="Cerrar menú"
                 aria-label="Cerrar menú"
               >
@@ -125,7 +125,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                 </span>
 
                 {/* Tab: Google Calendar & Agenda */}
-                <button type="button" onClick={() => { setActiveTab('planner'); onClose(); }} className={`w-full text-left p-3 rounded-2xl font-bold text-sm ${activeTab === 'planner' ? 'bg-indigo-600 text-white' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+                <button type="button" onClick={() => { setActiveTab('planner'); onClose(); }} className={`w-full text-left p-3 rounded-2xl font-bold text-sm ${activeTab === 'planner' ? 'bg-indigo-600 text-white' : 'text-slate-700 hover:bg-slate-100'}`}>
                   Plan de estudio
                   <p className="text-xs font-normal mt-1">Hoy, semana, horarios y deuda</p>
                 </button>
@@ -138,11 +138,11 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                   className={`w-full flex items-center justify-between p-3 rounded-2xl font-bold text-xs transition cursor-pointer ${
                     activeTab === 'agenda'
                       ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/25'
-                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80'
+                      : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-xl ${activeTab === 'agenda' ? 'bg-white/20' : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400'}`}>
+                    <div className={`p-2 rounded-xl ${activeTab === 'agenda' ? 'bg-white/20' : 'bg-indigo-50 text-indigo-600'}`}>
                       <Calendar className="w-4 h-4" />
                     </div>
                     <div className="text-left">
@@ -152,7 +152,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                       </p>
                     </div>
                   </div>
-                  <ChevronRight className={`w-4 h-4 ${activeTab === 'agenda' ? 'text-white' : 'text-slate-300 dark:text-slate-600'}`} />
+                  <ChevronRight className={`w-4 h-4 ${activeTab === 'agenda' ? 'text-white' : 'text-slate-300'}`} />
                 </button>
 
                 {/* Tab: Deberes & Universidad */}
@@ -165,11 +165,11 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                   className={`w-full flex items-center justify-between p-3 rounded-2xl font-bold text-xs transition cursor-pointer ${
                     activeTab === 'university'
                       ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
-                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80'
+                      : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-xl ${activeTab === 'university' ? 'bg-white/20' : 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400'}`}>
+                    <div className={`p-2 rounded-xl ${activeTab === 'university' ? 'bg-white/20' : 'bg-blue-50 text-blue-600'}`}>
                       <GraduationCap className="w-4 h-4" />
                     </div>
                     <div className="text-left">
@@ -179,7 +179,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                       </p>
                     </div>
                   </div>
-                  <ChevronRight className={`w-4 h-4 ${activeTab === 'university' ? 'text-white' : 'text-slate-300 dark:text-slate-600'}`} />
+                  <ChevronRight className={`w-4 h-4 ${activeTab === 'university' ? 'text-white' : 'text-slate-300'}`} />
                 </button>
 
                 {/* Tab: Entregas Moodle (Fase 1) */}
@@ -192,11 +192,11 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                   className={`w-full flex items-center justify-between p-3 rounded-2xl font-bold text-xs transition cursor-pointer ${
                     activeTab === 'moodle'
                       ? 'bg-amber-600 text-white shadow-md shadow-amber-600/25'
-                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80'
+                      : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-xl ${activeTab === 'moodle' ? 'bg-white/20' : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400'}`}>
+                    <div className={`p-2 rounded-xl ${activeTab === 'moodle' ? 'bg-white/20' : 'bg-amber-50 text-amber-600'}`}>
                       <CalendarDays className="w-4 h-4" />
                     </div>
                     <div className="text-left">
@@ -206,7 +206,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                       </p>
                     </div>
                   </div>
-                  <ChevronRight className={`w-4 h-4 ${activeTab === 'moodle' ? 'text-white' : 'text-slate-300 dark:text-slate-600'}`} />
+                  <ChevronRight className={`w-4 h-4 ${activeTab === 'moodle' ? 'text-white' : 'text-slate-300'}`} />
                 </button>
 
                 {/* Tab: Gym & Rutinas */}
@@ -219,11 +219,11 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                   className={`w-full flex items-center justify-between p-3 rounded-2xl font-bold text-xs transition cursor-pointer ${
                     activeTab === 'gym'
                       ? 'bg-rose-600 text-white shadow-md shadow-rose-600/25'
-                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80'
+                      : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-xl ${activeTab === 'gym' ? 'bg-white/20' : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400'}`}>
+                    <div className={`p-2 rounded-xl ${activeTab === 'gym' ? 'bg-white/20' : 'bg-rose-50 text-rose-600'}`}>
                       <Dumbbell className="w-4 h-4" />
                     </div>
                     <div className="text-left">
@@ -233,7 +233,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                       </p>
                     </div>
                   </div>
-                  <ChevronRight className={`w-4 h-4 ${activeTab === 'gym' ? 'text-white' : 'text-slate-300 dark:text-slate-600'}`} />
+                  <ChevronRight className={`w-4 h-4 ${activeTab === 'gym' ? 'text-white' : 'text-slate-300'}`} />
                 </button>
               </div>
 
@@ -249,7 +249,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                     onOpenNewTaskModal();
                     onClose();
                   }}
-                  className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/80 text-xs font-bold transition cursor-pointer active:scale-98"
+                  className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition cursor-pointer active:scale-98"
                 >
                   <PlusCircle className="w-4 h-4 text-indigo-600" />
                   <span>Crear nueva tarea</span>
@@ -261,13 +261,13 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                     onOpenLinkCalendarModal?.();
                     onClose();
                   }}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/80 text-xs font-bold transition cursor-pointer active:scale-98"
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold transition cursor-pointer active:scale-98"
                 >
                   <div className="flex items-center gap-3">
-                    <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    <Calendar className="w-4 h-4 text-blue-600" />
                     <span>Mi Google Calendar</span>
                   </div>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-semibold">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-semibold">
                     Configurar
                   </span>
                 </button>
@@ -278,7 +278,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                     onOpenVisionModal();
                     onClose();
                   }}
-                  className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-xs font-bold transition cursor-pointer active:scale-98"
+                  className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold transition cursor-pointer active:scale-98"
                 >
                   <Camera className="w-4 h-4 text-cyan-500" />
                   <span>Escanear horario (Foto)</span>
@@ -287,16 +287,16 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
             </div>
 
             {/* Drawer Footer: User profile with Safe Area Padding */}
-            <div className="p-4 pb-[max(env(safe-area-inset-bottom,0px),1rem)] border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/60 flex flex-col gap-2.5">
+            <div className="p-4 pb-[max(env(safe-area-inset-bottom,0px),1rem)] border-t border-slate-100 bg-slate-50/80 flex flex-col gap-2.5">
               {/* User session row */}
               <div className="flex items-center justify-between gap-2">
                 {user ? (
                   <>
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
                         <User className="w-4 h-4" />
                       </div>
-                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[150px]">
+                      <span className="text-xs font-semibold text-slate-800 truncate max-w-[150px]">
                         {user.email}
                       </span>
                     </div>
@@ -308,7 +308,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                       }}
                       title="Cerrar sesión"
                       aria-label="Cerrar sesión"
-                      className="w-10 h-10 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center justify-center transition cursor-pointer active:scale-95 touch-manipulation"
+                      className="w-10 h-10 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition cursor-pointer active:scale-95 touch-manipulation"
                     >
                       <LogOut className="w-4 h-4" />
                     </button>

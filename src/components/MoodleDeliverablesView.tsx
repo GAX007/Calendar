@@ -68,7 +68,7 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
 
   // Filtros
   const [filtroAsignatura, setFiltroAsignatura] = useState<string>('todas');
-  const [filtroEstado, setFiltroEstado] = useState<string>('todos');
+  const [filtroEstado, setFiltroEstado] = useState<string>('pendiente');
   const [filtroEstaSemana, setFiltroEstaSemana] = useState<boolean>(false);
   const [mostrarOcultasPorGrupo, setMostrarOcultasPorGrupo] = useState<boolean>(false);
 
@@ -340,496 +340,282 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
     return null;
   }, [syncSummary, lastSyncLog]);
 
+  const DIAS_CORTOS = ['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB'];
+  const pendientesCount = entregas.filter((e) => e.estado === 'pendiente' && !e.oculta_por_grupo && !e.borrada_en_moodle).length;
+  const ultimaSync = lastSyncLog ? formatToMadridTime(lastSyncLog.fecha) : null;
+  const plazoCorto = (deadlineUtc: string, estado: EntregaEstado) => {
+    const meta = getRemainingTimeMeta(deadlineUtc, estado);
+    if (estado === 'hecha') return { text: 'Hecha', tone: 'muted' as const };
+    if (estado === 'descartada') return { text: 'Descartada', tone: 'muted' as const };
+    if (meta.isOverdue) return { text: 'Vencida', tone: 'alerta' as const };
+    if (meta.diffDays <= 0) return { text: 'Hoy', tone: 'accent' as const };
+    if (meta.diffDays === 1) return { text: 'Mañana', tone: 'accent' as const };
+    if (meta.diffDays === 2) return { text: '2 días', tone: 'accent' as const };
+    return { text: `${meta.diffDays} días`, tone: 'muted' as const };
+  };
+  const segmentoEstado = filtroEstado === 'pendiente' ? 'pendiente' : filtroEstado === 'hecha' ? 'hecha' : 'todos';
+
   return (
-    <div className="w-full max-w-5xl mx-auto px-4 py-6 space-y-6">
-      {/* HEADER PRINCIPAL */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-indigo-600 text-white shadow-md shadow-indigo-600/30">
-              <CalendarDays className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
-                Entregas de Moodle
-              </h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Sincronización ICS en tiempo real • Hora de Madrid (Europe/Madrid)
-              </p>
-            </div>
-          </div>
-
-          {/* Estado de última sincronización */}
-          <div className="mt-3 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-            <Clock className="w-3.5 h-3.5 text-slate-400" />
-            {lastSyncLog ? (
-              <span>
-                Última sincronización:{' '}
-                <strong className="text-slate-700 dark:text-slate-300">
-                  {formatToMadridTime(lastSyncLog.fecha).formatted}
-                </strong>
-                {lastSyncLog.ok ? (
-                  <span className="text-emerald-600 dark:text-emerald-400 ml-1.5 font-semibold">
-                    (OK)
-                  </span>
-                ) : (
-                  <span className="text-rose-600 dark:text-rose-400 ml-1.5 font-semibold">
-                    (Fallo)
-                  </span>
-                )}
-              </span>
-            ) : (
-              <span>Sin sincronizaciones registradas</span>
-            )}
-          </div>
+    <div className="w-full max-w-2xl mx-auto px-5 flex flex-col gap-[22px]">
+      <header className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-1 min-w-0">
+          <span className="text-sm font-medium text-ink-2">
+            {pendientesCount} {pendientesCount === 1 ? 'pendiente' : 'pendientes'}
+            {ultimaSync ? ` · sincronizado ${String(ultimaSync.day).padStart(2, '0')}/${String(ultimaSync.month).padStart(2, '0')} ${ultimaSync.time}` : ''}
+          </span>
+          <h1 className="text-[34px] leading-[1.05] font-semibold tracking-[-0.025em]">Moodle</h1>
         </div>
-
-        {/* Acciones principales y aviso de sincronización */}
-        <div className="flex flex-col sm:items-end gap-2">
-          <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
-            <button
-              type="button"
-              onClick={handleSyncNow}
-              disabled={isSyncing}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-md shadow-indigo-600/20 disabled:opacity-50 cursor-pointer active:scale-95"
-              title="Sincronizar ahora con el calendario de Moodle"
-            >
-              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-              {isSyncing ? 'Sincronizando...' : 'Sincronizar ahora'}
-            </button>
-
+        <div className="flex items-center gap-2 flex-none">
+          <button
+            type="button"
+            onClick={handleSyncNow}
+            disabled={isSyncing}
+            aria-label={isSyncing ? 'Sincronizando con Moodle' : 'Sincronizar ahora con Moodle'}
+            className="w-11 h-11 rounded-full bg-surface-2 flex items-center justify-center active:scale-95 transition disabled:opacity-60"
+          >
+            <RefreshCw className={`w-5 h-5 ${isSyncing ? 'animate-spin' : ''}`} strokeWidth={1.75} />
+          </button>
           <button
             type="button"
             onClick={() => setIsManualModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold transition cursor-pointer active:scale-95"
-            title="Añadir una entrega que no pase por Moodle"
+            aria-label="Añadir una entrega manual"
+            className="w-11 h-11 rounded-full bg-surface-2 flex items-center justify-center active:scale-95 transition"
           >
-            <Plus className="w-4 h-4 text-indigo-500" />
-            Añadir entrega manual
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsAsignaturasModalOpen(true)}
-            className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-medium border border-slate-200 dark:border-slate-700 transition cursor-pointer"
-            title="Gestionar asignaturas"
-          >
-            <BookOpen className="w-3.5 h-3.5 text-slate-400" />
-            Asignaturas
+            <Plus className="w-5 h-5" strokeWidth={1.75} />
           </button>
         </div>
+      </header>
 
-        {displaySyncSummary && (
-          <div
-            className={`text-[11px] font-semibold px-3 py-1 rounded-xl flex items-center gap-1.5 transition-all shadow-xs ${
-              displaySyncSummary.ok
-                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'
-                : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60'
-            }`}
-          >
-            {displaySyncSummary.ok ? (
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-            ) : (
-              <AlertTriangle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
-            )}
-            <span>{displaySyncSummary.text}</span>
-          </div>
-        )}
-      </div>
-    </div>
+      {displaySyncSummary && !displaySyncSummary.ok && (
+        <p role="alert" className="rounded-2xl bg-red-50 text-red-800 px-4 py-3 text-[14.5px]">{displaySyncSummary.text}</p>
+      )}
+      {syncSummary && syncSummary.ok && (
+        <p role="status" className="rounded-2xl bg-surface px-4 py-3 text-[14.5px]">{syncSummary.text}</p>
+      )}
 
-      {/* AVISO DE CAMBIOS SIN VER */}
+      {/* Changes made by teachers since the last visit */}
       <AnimatePresence>
         {cambios.length > 0 && (
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
+            initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 rounded-3xl p-5 shadow-sm space-y-3"
+            exit={{ opacity: 0, y: -8 }}
+            className="rounded-2xl bg-surface px-4 py-4 flex flex-col gap-3"
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-400">
-                  <AlertTriangle className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-sm text-amber-900 dark:text-amber-200">
-                    Aviso: Hay {cambios.length} cambio{cambios.length > 1 ? 's' : ''} detectado
-                    {cambios.length > 1 ? 's' : ''} en Moodle
-                  </h3>
-                  <p className="text-xs text-amber-700/90 dark:text-amber-400/90">
-                    Las fechas límite o los títulos de tus entregas han sido modificados por los
-                    profesores en el aula virtual.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleDismissCambios}
-                className="px-3 py-1.5 rounded-xl bg-amber-200/60 hover:bg-amber-200 dark:bg-amber-900/60 dark:hover:bg-amber-900 text-amber-900 dark:text-amber-200 text-xs font-bold transition cursor-pointer"
-              >
-                Marcar como vistos
-              </button>
+            <div className="flex flex-col gap-1">
+              <p className="text-base font-semibold flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-alerta" />
+                {cambios.length === 1 ? 'Un cambio en Moodle' : `${cambios.length} cambios en Moodle`}
+              </p>
+              <p className="text-[14px] text-ink-2">Han cambiado fechas o títulos de tus entregas.</p>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1">
+            <ul className="flex flex-col gap-2">
               {cambios.map((c) => {
                 const entregaTarget = entregas.find((e) => e.uid === c.uid);
+                const esFecha = c.campo === 'deadline_utc';
                 return (
-                  <div
-                    key={c.id}
-                    className="p-3 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-amber-200/60 dark:border-amber-800/40 text-xs space-y-1"
-                  >
-                    <div className="font-bold text-slate-800 dark:text-slate-200 truncate">
-                      {entregaTarget?.titulo || c.uid}
-                    </div>
-                    <div className="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-400">
-                      <span className="font-semibold text-amber-700 dark:text-amber-400 uppercase">
-                        {c.campo === 'deadline_utc' ? 'Fecha límite' : 'Título'}:
-                      </span>
-                      <span className="line-through text-slate-400">
-                        {c.campo === 'deadline_utc'
-                          ? formatToMadridTime(c.antes).formatted
-                          : c.antes}
-                      </span>
-                      <ArrowRight className="w-3 h-3 text-amber-500" />
-                      <span className="font-bold text-slate-900 dark:text-white">
-                        {c.campo === 'deadline_utc'
-                          ? formatToMadridTime(c.despues).formatted
-                          : c.despues}
-                      </span>
-                    </div>
-                  </div>
+                  <li key={c.id} className="text-[14px] leading-snug">
+                    <span className="font-medium">{entregaTarget?.titulo || c.uid}</span>
+                    <span className="block text-ink-2">
+                      {esFecha ? 'Fecha' : 'Título'}: <span className="line-through">{esFecha ? formatToMadridTime(c.antes).formatted : c.antes}</span>
+                      {' → '}
+                      <span className="text-ink font-medium">{esFecha ? formatToMadridTime(c.despues).formatted : c.despues}</span>
+                    </span>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
+            <button
+              type="button"
+              onClick={handleDismissCambios}
+              className="self-start h-11 px-4 rounded-full border border-line-2 bg-white text-sm font-semibold"
+            >
+              Marcar como vistos
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
+
       {completingEntrega && <CompleteEntregaDialog title={completingEntrega.titulo} onCancel={() => setCompletingEntrega(null)} onComplete={async hours => {
         await completeEntrega(completingEntrega.uid, hours);
         setEntregas(prev => prev.map(e => e.uid === completingEntrega.uid ? { ...e, estado: 'hecha' } : e));
         setCompletingEntrega(null); showToast('Entrega completada');
       }} />}
 
-      {/* BARRA DE FILTROS */}
-      {selectedEntregaUid && <div className="flex items-center justify-between gap-3 text-sm">
-        <p>Entrega abierta desde tu plan de estudio</p>
-        <button type="button" onClick={onClearSelection} className="px-3 py-2 rounded-xl bg-indigo-600 text-white font-bold">Ver todas las entregas</button>
-      </div>}
-      {!selectedEntregaUid && (
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Filtro Asignatura */}
-          <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/60 px-3 py-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-700">
-            <span className="text-slate-400 font-semibold">Asignatura:</span>
+      {selectedEntregaUid ? (
+        <div className="flex items-center justify-between gap-3 rounded-2xl bg-surface pl-4 pr-2 py-2">
+          <p className="text-[14.5px]">Entrega abierta desde tu plan</p>
+          <button type="button" onClick={onClearSelection} className="h-11 px-4 rounded-full border border-line-2 bg-white text-sm font-semibold">Ver todas</button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <nav aria-label="Estado" className="grid grid-cols-3 gap-0.5 p-[3px] rounded-[15px] bg-surface-2">
+            {([['pendiente', 'Pendientes'], ['hecha', 'Hechas'], ['todos', 'Todas']] as const).map(([valor, etiqueta]) => (
+              <button
+                key={valor}
+                type="button"
+                aria-pressed={segmentoEstado === valor}
+                onClick={() => setFiltroEstado(valor)}
+                className={`h-11 rounded-xl text-[14.5px] transition ${segmentoEstado === valor ? 'bg-white font-semibold shadow-[0_1px_2px_rgba(20,21,23,0.08)]' : 'text-ink-2 font-medium'}`}
+              >
+                {etiqueta}
+              </button>
+            ))}
+          </nav>
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar -mx-5 px-5">
+            <label className="sr-only" htmlFor="moodle-asignatura">Asignatura</label>
             <select
+              id="moodle-asignatura"
               value={filtroAsignatura}
               onChange={(e) => setFiltroAsignatura(e.target.value)}
-              className="bg-transparent text-slate-800 dark:text-slate-200 font-bold focus:outline-none cursor-pointer"
+              className="h-11 max-w-[220px] rounded-full border border-line-2 bg-white pl-4 pr-8 text-sm font-semibold text-ink"
             >
-              <option value="todas">Todas</option>
+              <option value="todas">Todas las asignaturas</option>
               {asignaturas.map((asig) => (
-                <option key={asig.codigo} value={asig.codigo}>
-                  {asig.codigo} - {asig.nombre}
-                </option>
+                <option key={asig.codigo} value={asig.codigo}>{asig.nombre}</option>
               ))}
             </select>
-          </div>
-
-          {/* Filtro Estado */}
-          <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/60 px-3 py-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-700">
-            <span className="text-slate-400 font-semibold">Estado:</span>
-            <select
-              value={filtroEstado}
-              onChange={(e) => setFiltroEstado(e.target.value)}
-              className="bg-transparent text-slate-800 dark:text-slate-200 font-bold focus:outline-none cursor-pointer"
+            <button
+              type="button"
+              aria-pressed={filtroEstaSemana}
+              onClick={() => setFiltroEstaSemana((prev) => !prev)}
+              className={`flex-none h-11 px-4 rounded-full text-sm font-semibold border transition ${filtroEstaSemana ? 'bg-ink border-ink text-white' : 'bg-white border-line-2 text-ink'}`}
             >
-              <option value="todos">Todos</option>
-              <option value="pendiente">Pendientes</option>
-              <option value="hecha">Hechas</option>
-              <option value="descartada">Descartadas</option>
-            </select>
-          </div>
-
-          {/* Toggle Esta Semana */}
-          <button
-            type="button"
-            onClick={() => setFiltroEstaSemana((prev) => !prev)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-2xl font-bold transition cursor-pointer ${
-              filtroEstaSemana
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 border border-slate-200/80 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            <Calendar className="w-3.5 h-3.5" />
-            Esta semana
-          </button>
-        </div>
-
-        {/* Grupo ocultas */}
-        {ocultasPorGrupoCount > 0 && (
-          <button
-            type="button"
-            onClick={() => setMostrarOcultasPorGrupo((prev) => !prev)}
-            className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition cursor-pointer self-start md:self-auto"
-          >
-            {mostrarOcultasPorGrupo ? (
-              <EyeOff className="w-4 h-4 text-indigo-500" />
-            ) : (
-              <Eye className="w-4 h-4 text-indigo-500" />
-            )}
-            <span>
-              {mostrarOcultasPorGrupo ? 'Ocultar' : 'Ver'} {ocultasPorGrupoCount} oculta
-              {ocultasPorGrupoCount > 1 ? 's' : ''} por grupo
-            </span>
-          </button>
-        )}
-      </div>
-      )}
-
-      {/* LISTA DE ENTREGAS */}
-      <div className="space-y-3">
-        {isLoading ? (
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-12 text-center text-slate-400">
-            <RefreshCw className="w-8 h-8 animate-spin mx-auto text-indigo-500 mb-2" />
-            <p className="text-sm">Cargando entregas...</p>
-          </div>
-        ) : entregasFiltradas.length === 0 ? (
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-12 text-center text-slate-400 space-y-3">
-            <CalendarDays className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600" />
-            <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-              {selectedEntregaUid ? 'Esta entrega ya no está disponible. Puedes consultar el resto de entregas.' : 'No hay entregas para mostrar con los filtros seleccionados'}
-            </p>
-            <p className="text-xs text-slate-500 max-w-md mx-auto">
-              {entregas.length > 0
-                ? `Hay ${entregas.length} entregas cargadas en la aplicación, pero no coinciden con los filtros actuales (asignatura "${filtroAsignatura}", estado "${filtroEstado}" o filtro de grupo).`
-                : 'No se encontraron entregas en la base de datos. Pulsa en «Sincronizar ahora» para importar desde Moodle.'}
-            </p>
-            {filtroAsignatura !== 'todas' && (
+              Esta semana
+            </button>
+            {ocultasPorGrupoCount > 0 && (
               <button
                 type="button"
-                onClick={() => setFiltroAsignatura('todas')}
-                className="mt-2 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold text-xs hover:bg-indigo-100 transition cursor-pointer"
+                aria-pressed={mostrarOcultasPorGrupo}
+                onClick={() => setMostrarOcultasPorGrupo((prev) => !prev)}
+                className={`flex-none h-11 px-4 rounded-full text-sm font-semibold border transition ${mostrarOcultasPorGrupo ? 'bg-ink border-ink text-white' : 'bg-white border-line-2 text-ink'}`}
               >
-                Restablecer a "Todas las asignaturas"
+                Otros grupos ({ocultasPorGrupoCount})
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setIsAsignaturasModalOpen(true)}
+              className="flex-none h-11 px-4 rounded-full text-sm font-semibold text-ink-2 hover:bg-black/5 flex items-center gap-2"
+            >
+              <BookOpen className="w-4 h-4" strokeWidth={1.75} /> Asignaturas
+            </button>
+          </div>
+        </div>
+      )}
+
+      <section aria-label="Entregas" className="flex flex-col border-t border-hairline">
+        {isLoading ? (
+          <div className="py-12 flex flex-col items-center gap-2.5 text-ink-2">
+            <RefreshCw className="w-6 h-6 animate-spin" strokeWidth={1.75} />
+            <p className="text-[15px]">Cargando entregas…</p>
+          </div>
+        ) : entregasFiltradas.length === 0 ? (
+          <div className="py-12 flex flex-col items-center gap-3 text-center">
+            <CalendarDays className="w-7 h-7 text-ink-2" strokeWidth={1.5} />
+            <p className="text-[15px] font-medium">
+              {selectedEntregaUid ? 'Esta entrega ya no está disponible.' : entregas.length > 0 ? 'Nada con estos filtros' : 'Aún no hay entregas'}
+            </p>
+            <p className="text-[14px] text-ink-2 max-w-xs">
+              {entregas.length > 0 ? 'Cambia el estado o la asignatura para ver más.' : 'Pulsa sincronizar para importarlas desde Moodle.'}
+            </p>
+            {filtroAsignatura !== 'todas' && (
+              <button type="button" onClick={() => setFiltroAsignatura('todas')} className="h-11 px-4 rounded-full border border-line-2 bg-white text-sm font-semibold">
+                Ver todas las asignaturas
               </button>
             )}
           </div>
         ) : (
           entregasFiltradas.map((entrega) => {
             const asig = asignaturasMap.get(entrega.asignatura_codigo);
-            const timeMeta = getRemainingTimeMeta(entrega.deadline_utc, entrega.estado);
             const madrid = formatToMadridTime(entrega.deadline_utc);
+            const plazo = plazoCorto(entrega.deadline_utc, entrega.estado);
+            const hecha = entrega.estado === 'hecha';
+            const apagada = hecha || entrega.estado === 'descartada';
+            const seleccionada = entrega.uid === selectedEntregaUid;
+            const diaSemana = DIAS_CORTOS[new Date(Date.UTC(madrid.year, madrid.month - 1, madrid.day)).getUTCDay()];
+            const meta = [
+              asig?.nombre || entrega.asignatura_codigo,
+              entrega.tipo === 'cierre_cuestionario' ? 'cuestionario' : null,
+              madrid.time,
+              entrega.horas_est ? `~${entrega.horas_est} h` : null,
+              entrega.grupo ? `grupo ${entrega.grupo}` : null,
+              entrega.oculta_por_grupo ? 'otro grupo' : null,
+              entrega.borrada_en_moodle ? 'retirada en Moodle' : null,
+            ].filter(Boolean).join(' · ');
 
             return (
               <motion.div
                 key={entrega.uid}
-                ref={entrega.uid === selectedEntregaUid ? selectedEntregaRef : undefined}
-                tabIndex={entrega.uid === selectedEntregaUid ? -1 : undefined}
-                role={entrega.uid === selectedEntregaUid ? 'region' : undefined}
-                aria-label={entrega.uid === selectedEntregaUid ? `Entrega seleccionada: ${entrega.titulo}` : undefined}
+                ref={seleccionada ? selectedEntregaRef : undefined}
+                tabIndex={seleccionada ? -1 : undefined}
+                role={seleccionada ? 'region' : undefined}
+                aria-label={seleccionada ? `Entrega seleccionada: ${entrega.titulo}` : undefined}
                 layout
-                className={`bg-white dark:bg-slate-900 border rounded-3xl p-4 sm:p-5 transition shadow-xs ${
-                  timeMeta.isUrgent
-                    ? 'border-rose-300 bg-rose-50/20 dark:border-rose-900/80 dark:bg-rose-950/20'
-                    : entrega.estado === 'hecha'
-                    ? 'border-slate-200/70 dark:border-slate-800/60 opacity-80'
-                    : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-                }`}
+                className="py-3 border-b border-hairline flex flex-col gap-2"
               >
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                  {/* Información izquierda */}
-                  <div className="space-y-2 flex-1 min-w-0">
-                    {/* Badges superiores */}
-                    <div className="flex items-center gap-2 flex-wrap text-[11px]">
-                      {/* Asignatura */}
-                      <span className="font-extrabold px-2.5 py-0.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60">
-                        {entrega.asignatura_codigo}
-                      </span>
-                      {asig && (
-                        <span className="text-slate-500 dark:text-slate-400 font-medium truncate max-w-[200px]">
-                          {asig.nombre}
-                        </span>
-                      )}
-
-                      {/* Tipo */}
-                      <span
-                        className={`px-2 py-0.5 rounded-xl font-bold uppercase tracking-wider text-[10px] ${
-                          entrega.tipo === 'cierre_cuestionario'
-                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                            : 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
-                        }`}
-                      >
-                        {entrega.tipo === 'cierre_cuestionario' ? 'Cuestionario' : 'Entrega'}
-                      </span>
-
-                      {/* Grupo si existe */}
-                      {entrega.grupo && (
-                        <span className="px-2 py-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold">
-                          Grupo {entrega.grupo}
-                        </span>
-                      )}
-
-                      {/* Oculta por grupo notice */}
-                      {entrega.oculta_por_grupo && (
-                        <span className="px-2 py-0.5 rounded-xl bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 font-bold text-[10px]">
-                          Otro grupo
-                        </span>
-                      )}
-
-                      {/* Borrada en Moodle notice */}
-                      {entrega.borrada_en_moodle && (
-                        <span className="px-2 py-0.5 rounded-xl bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 font-bold text-[10px]">
-                          Retirada en Moodle
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Título de la entrega */}
-                    <h3
-                      className={`font-bold text-sm sm:text-base text-slate-900 dark:text-white leading-snug ${
-                        entrega.estado === 'hecha' ? 'line-through text-slate-400' : ''
+                <div className="grid grid-cols-[44px_minmax(0,1fr)_auto] gap-3 items-center">
+                  <span className="flex flex-col items-center gap-px">
+                    <span className="text-[11.5px] font-semibold tracking-[0.04em] text-ink-2">{diaSemana}</span>
+                    <span className="text-[19px] font-semibold leading-[1.1]">{madrid.day}</span>
+                  </span>
+                  <button type="button" onClick={() => handleOpenEdit(entrega)} className="min-w-0 text-left flex flex-col gap-[3px] cursor-pointer">
+                    <span className={`text-base leading-[1.3] font-medium ${apagada ? 'text-ink-3' : 'text-ink'} ${hecha ? 'line-through' : ''}`}>{entrega.titulo}</span>
+                    <span className="text-[13.5px] leading-[1.35] text-ink-2">{meta}</span>
+                  </button>
+                  <span className="flex items-center gap-1">
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-[13px] whitespace-nowrap ${
+                        plazo.tone === 'accent'
+                          ? 'bg-accent text-ink font-semibold'
+                          : plazo.tone === 'alerta'
+                          ? 'bg-red-50 text-red-800 font-semibold'
+                          : 'text-ink-2 font-medium'
                       }`}
                     >
-                      {entrega.titulo}
-                    </h3>
-
-                    {/* Descripción expandible o extracto si existe */}
-                    {entrega.descripcion && (
-                      <p className={`text-xs text-slate-500 dark:text-slate-400 leading-relaxed ${selectedEntregaUid ? 'whitespace-pre-wrap break-words' : 'line-clamp-2'}`}>
-                        {entrega.descripcion}
-                      </p>
-                    )}
-
-                    {/* Meta de fecha y estimación */}
-                    <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 flex-wrap pt-1">
-                      {/* Fecha Madrid */}
-                      <div className="flex items-center gap-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">
-                          {madrid.formatted}
-                        </span>
-                        <span className="text-[10px] text-slate-400">(Madrid)</span>
-                      </div>
-
-                      {/* Tiempo restante badge */}
-                      <span
-                        className={`font-extrabold px-2 py-0.5 rounded-lg text-[11px] ${
-                          timeMeta.isUrgent
-                            ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 font-black'
-                            : timeMeta.diffDays <= 2
-                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                            : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                        }`}
-                      >
-                        {timeMeta.text}
+                      {plazo.text}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleEstado(entrega, hecha ? 'pendiente' : 'hecha')}
+                      aria-pressed={hecha}
+                      aria-label={`${hecha ? 'Marcar como pendiente' : 'Marcar como hecha'}: ${entrega.titulo}`}
+                      className="w-11 h-11 -mr-2 flex items-center justify-center cursor-pointer"
+                    >
+                      <span className={`w-[26px] h-[26px] rounded-full border-[1.5px] flex items-center justify-center text-white ${hecha ? 'bg-ink border-ink' : 'bg-white border-check'}`}>
+                        {hecha && <Check className="w-3.5 h-3.5" strokeWidth={2} />}
                       </span>
-
-                      {/* Dificultad */}
-                      {entrega.dificultad && (
-                        <div className="flex items-center gap-1 text-amber-500 font-bold">
-                          <Star className="w-3.5 h-3.5 fill-amber-500" />
-                          <span>{entrega.dificultad}/5</span>
-                        </div>
-                      )}
-
-                      {/* Horas estimadas */}
-                      {entrega.horas_est && (
-                        <div className="flex items-center gap-1 text-slate-600 dark:text-slate-400">
-                          <Clock className="w-3.5 h-3.5" />
-                          <span>~{entrega.horas_est}h est.</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Acciones derecha */}
-                  <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-800">
-                    {/* Botones de estado */}
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleToggleEstado(
-                            entrega,
-                            entrega.estado === 'hecha' ? 'pendiente' : 'hecha'
-                          )
-                        }
-                        className={`flex items-center gap-1 px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer ${
-                          entrega.estado === 'hecha'
-                            ? 'bg-emerald-600 text-white shadow-xs'
-                            : 'bg-slate-100 hover:bg-emerald-50 dark:bg-slate-800 dark:hover:bg-emerald-950/40 text-slate-700 dark:text-slate-300 hover:text-emerald-700 dark:hover:text-emerald-300'
-                        }`}
-                        title={
-                          entrega.estado === 'hecha'
-                            ? 'Marcar como pendiente'
-                            : 'Marcar como hecha'
-                        }
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span>{entrega.estado === 'hecha' ? 'Hecha' : 'Completar'}</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleToggleEstado(
-                            entrega,
-                            entrega.estado === 'descartada' ? 'pendiente' : 'descartada'
-                          )
-                        }
-                        className={`p-1.5 rounded-xl text-xs transition cursor-pointer ${
-                          entrega.estado === 'descartada'
-                            ? 'bg-slate-600 text-white'
-                            : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800'
-                        }`}
-                        title={
-                          entrega.estado === 'descartada'
-                            ? 'Restaurar de descartadas'
-                            : 'Descartar entrega'
-                        }
-                      >
-                        <XCircle className="w-4 h-4" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEdit(entrega)}
-                        className="p-1.5 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition cursor-pointer"
-                        title="Editar dificultad y horas estimadas"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
+                    </button>
+                  </span>
                 </div>
+                {seleccionada && entrega.descripcion && (
+                  <p className="ml-14 text-[14px] leading-[1.5] text-slate-700 whitespace-pre-wrap break-words">{entrega.descripcion}</p>
+                )}
               </motion.div>
             );
           })
         )}
-      </div>
+      </section>
 
       {/* MODAL: AÑADIR ENTREGA MANUAL */}
       <AnimatePresence>
         {isManualModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 ">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-lg p-6 shadow-2xl space-y-4"
+              className="bg-white border border-slate-200 rounded-3xl w-full max-w-lg p-6 shadow-2xl space-y-4"
             >
-              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-                <h3 className="font-extrabold text-base text-slate-900 dark:text-white flex items-center gap-2">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
                   <Plus className="w-5 h-5 text-indigo-600" />
                   Añadir entrega manual
                 </h3>
                 <button
                   type="button"
                   onClick={() => setIsManualModalOpen(false)}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  className="text-slate-400 hover:text-slate-600"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -837,7 +623,7 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
 
               <form onSubmit={handleCreateManual} className="space-y-4 text-xs">
                 <div>
-                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-bold text-slate-700 mb-1">
                     Título de la entrega *
                   </label>
                   <input
@@ -846,19 +632,19 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
                     value={manualTitulo}
                     onChange={(e) => setManualTitulo(e.target.value)}
                     placeholder="Ej. Memoria del proyecto final"
-                    className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+                    className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-slate-50 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-bold text-slate-700 mb-1">
                     Asignatura *
                   </label>
                   <select
                     required
                     value={manualAsignatura}
                     onChange={(e) => setManualAsignatura(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                    className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-slate-50 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
                   >
                     {asignaturas.map((asig) => (
                       <option key={asig.codigo} value={asig.codigo}>
@@ -870,7 +656,7 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block font-bold text-slate-700 mb-1">
                       Fecha límite (Madrid) *
                     </label>
                     <input
@@ -878,25 +664,25 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
                       required
                       value={manualFecha}
                       onChange={(e) => setManualFecha(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none font-medium"
+                      className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-slate-50 text-slate-900 focus:outline-none font-medium"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block font-bold text-slate-700 mb-1">
                       Hora límite (Madrid)
                     </label>
                     <input
                       type="time"
                       value={manualHora}
                       onChange={(e) => setManualHora(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none font-medium"
+                      className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-slate-50 text-slate-900 focus:outline-none font-medium"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-bold text-slate-700 mb-1">
                     Descripción o notas (opcional)
                   </label>
                   <textarea
@@ -904,7 +690,7 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
                     value={manualDescripcion}
                     onChange={(e) => setManualDescripcion(e.target.value)}
                     placeholder="Instrucciones, enlaces o detalles de entrega..."
-                    className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none font-medium"
+                    className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-slate-50 text-slate-900 focus:outline-none font-medium"
                   />
                 </div>
 
@@ -912,13 +698,13 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setIsManualModalOpen(false)}
-                    className="px-4 py-2 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold transition"
+                    className="px-4 py-2 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition shadow-md shadow-indigo-600/20"
+                    className="px-5 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition shadow-md "
                   >
                     Guardar entrega
                   </button>
@@ -932,21 +718,21 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
       {/* MODAL: EDITAR DIFICULTAD Y HORAS */}
       <AnimatePresence>
         {editingEntrega && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 ">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4"
+              className="bg-white border border-slate-200 rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4"
             >
-              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-                <h3 className="font-extrabold text-sm text-slate-900 dark:text-white">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="font-extrabold text-sm text-slate-900">
                   Editar dificultad y estimación
                 </h3>
                 <button
                   type="button"
                   onClick={() => setEditingEntrega(null)}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  className="text-slate-400 hover:text-slate-600"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -955,14 +741,14 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
               <div className="space-y-4 text-xs">
                 <div>
                   <p className="font-semibold text-slate-500 mb-1">Entrega:</p>
-                  <p className="font-bold text-slate-900 dark:text-white line-clamp-2">
+                  <p className="font-bold text-slate-900 line-clamp-2">
                     {editingEntrega.titulo}
                   </p>
                 </div>
 
                 {/* Selector de dificultad 1-5 */}
                 <div>
-                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-2">
+                  <label className="block font-bold text-slate-700 mb-2">
                     Dificultad (1 a 5 estrellas):
                   </label>
                   <div className="flex items-center gap-2">
@@ -973,8 +759,8 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
                         onClick={() => setEditDificultad(val)}
                         className={`w-9 h-9 rounded-2xl flex items-center justify-center font-bold text-sm transition cursor-pointer ${
                           editDificultad === val
-                            ? 'bg-amber-500 text-white shadow-md shadow-amber-500/30'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-amber-100'
+                            ? 'bg-ink text-white'
+                            : 'bg-surface-2 text-slate-600 hover:bg-line'
                         }`}
                       >
                         {val}
@@ -994,7 +780,7 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
 
                 {/* Horas estimadas */}
                 <div>
-                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-bold text-slate-700 mb-1">
                     Horas estimadas de trabajo:
                   </label>
                   <input
@@ -1005,25 +791,38 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
                     value={editHorasEst}
                     onChange={(e) => setEditHorasEst(e.target.value)}
                     placeholder="Ej. 3 o 4.5"
-                    className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none font-bold"
+                    className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-slate-50 text-slate-900 focus:outline-none font-bold"
                   />
                 </div>
 
-                <div className="flex justify-end gap-2 pt-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const e = editingEntrega;
+                      setEditingEntrega(null);
+                      void handleToggleEstado(e, e.estado === 'descartada' ? 'pendiente' : 'descartada');
+                    }}
+                    className="h-11 px-3 -ml-3 rounded-full text-sm font-semibold text-ink-2 hover:bg-black/5"
+                  >
+                    {editingEntrega.estado === 'descartada' ? 'Recuperar entrega' : 'Descartar entrega'}
+                  </button>
+                  <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => setEditingEntrega(null)}
-                    className="px-4 py-2 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold transition"
+                    className="px-4 py-2 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition"
                   >
                     Cancelar
                   </button>
                   <button
                     type="button"
                     onClick={handleSaveEdit}
-                    className="px-5 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition shadow-md shadow-indigo-600/20"
+                    className="px-5 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition shadow-md "
                   >
                     Guardar
                   </button>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -1034,22 +833,22 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
       {/* MODAL: GESTIÓN DE ASIGNATURAS */}
       <AnimatePresence>
         {isAsignaturasModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 ">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-2xl max-h-[85vh] flex flex-col p-6 shadow-2xl space-y-4"
+              className="bg-white border border-slate-200 rounded-3xl w-full max-w-2xl max-h-[85vh] flex flex-col p-6 shadow-2xl space-y-4"
             >
-              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-                <h3 className="font-extrabold text-base text-slate-900 dark:text-white flex items-center gap-2">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
                   <BookOpen className="w-5 h-5 text-indigo-600" />
                   Asignaturas (Catálogo inicial editable)
                 </h3>
                 <button
                   type="button"
                   onClick={() => setIsAsignaturasModalOpen(false)}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  className="text-slate-400 hover:text-slate-600"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1059,20 +858,20 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
                 {asignaturas.map((asig) => (
                   <div
                     key={asig.codigo}
-                    className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700 flex items-center justify-between gap-3"
+                    className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3"
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-extrabold px-2 py-0.5 rounded-lg bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[11px]">
+                        <span className="font-extrabold px-2 py-0.5 rounded-lg bg-indigo-100 text-indigo-700 text-[11px]">
                           {asig.codigo}
                         </span>
                         {asig.cuatrimestre && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-600">
                             {asig.cuatrimestre}
                           </span>
                         )}
                       </div>
-                      <p className="font-bold text-slate-800 dark:text-slate-200 mt-1 truncate">
+                      <p className="font-bold text-slate-800 mt-1 truncate">
                         {asig.nombre}
                       </p>
                     </div>
@@ -1099,7 +898,7 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
                             }
                           }
                         }}
-                        className="px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 font-bold hover:bg-slate-100 transition"
+                        className="px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 font-bold hover:bg-slate-100 transition"
                       >
                         Editar
                       </button>
@@ -1108,7 +907,7 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
                 ))}
               </div>
 
-              <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex justify-end pt-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsAsignaturasModalOpen(false)}

@@ -43,14 +43,14 @@ export class ModuleErrorBoundary extends React.Component<Props, State> {
     const { error } = this.state;
     if (!error) return this.props.children;
     return (
-      <div role="alert" className="max-w-xl mx-4 sm:mx-auto mt-6 rounded-2xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 p-5 text-slate-800 dark:text-slate-100">
+      <div role="alert" className="max-w-xl mx-4 sm:mx-auto mt-6 rounded-2xl border border-red-200 bg-red-50 p-5 text-slate-800">
         <h2 className="text-lg font-bold">No se ha podido abrir esta sección</h2>
-        <p className="text-sm mt-1 text-slate-600 dark:text-slate-300 break-words">{error.message}</p>
+        <p className="text-sm mt-1 text-slate-600 break-words">{error.message}</p>
         <div className="flex gap-2 mt-4 flex-wrap">
           <button type="button" onClick={() => this.setState({ error: null })} className="min-h-11 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white hover:bg-indigo-700">
             Reintentar
           </button>
-          <button type="button" onClick={() => window.location.reload()} className="min-h-11 rounded-xl border border-slate-300 dark:border-slate-600 px-4 text-sm hover:bg-slate-100 dark:hover:bg-slate-800">
+          <button type="button" onClick={() => window.location.reload()} className="min-h-11 rounded-xl border border-slate-300 px-4 text-sm hover:bg-slate-100">
             Recargar la app
           </button>
         </div>

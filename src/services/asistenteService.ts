@@ -1,10 +1,14 @@
 // Client side of the nightly assistant: summaries, notices, block status, undo and push
 import { supabase } from '../lib/supabase';
 import type { Aviso, EstadoBloque, ItemCierre, RepasoSemanal, ResumenManana } from '../asistente/logica';
-import { entradaSemana } from '../asistente/logica';
+import { entradaSemana, limitesPorCheckin, planActual } from '../asistente/logica';
+import { guionDelDia, guionEntregas, type Guion } from '../asistente/voz';
+import type { TaskItem } from '../types';
+import type { Plan } from '../planner/types';
 import { generatePlan } from '../planner/engine';
 import { madridLocal } from '../planner/time';
 import { loadPlanner, savePlan } from './plannerService';
+import { loadTodayCheckin } from './plannerRecordsService';
 
 export const ASISTENTE_ACTUALIZADO = 'asistente-actualizado';
 
@@ -55,12 +59,14 @@ export async function deshacerCierre(fecha: string): Promise<void> {
   await recalcularYGuardarSemana();
 }
 
-export async function recalcularYGuardarSemana(limites?: Record<string, number>): Promise<void> {
+export async function recalcularYGuardarSemana(limites?: Record<string, number>): Promise<Plan> {
   const ahora = madridLocal(new Date());
   const data = await loadPlanner();
   const input = entradaSemana(data, ahora.slice(0, 10), ahora, limites);
-  await savePlan(data, generatePlan(input), input.hasta, ahora);
+  const plan = generatePlan(input);
+  await savePlan(data, plan, input.hasta, ahora);
   window.dispatchEvent(new Event(ASISTENTE_ACTUALIZADO));
+  return plan;
 }
 
 export async function cargarEstadosBloques(userId: string, desde: string, hasta: string): Promise<Map<string, EstadoBloque>> {
@@ -147,3 +153,23 @@ export function actualizarBadge(n: number): void {
     // Badging API not available
   }
 }
+
+export async function contextoVoz(userId: string) {
+  const ahora = madridLocal(new Date()), hoy = ahora.slice(0, 10);
+  const [data, checkin] = await Promise.all([loadPlanner(), loadTodayCheckin(userId, hoy).catch(() => null)]);
+  const limites = limitesPorCheckin(checkin ? [checkin] : [], data.parametros.max_horas_profundas_dia);
+  return { ahora, hoy, data, limites };
+}
+
+// Spoken summary of one day (today by default): built live from the planner and the agenda, so it is correct at any time of day
+export async function prepararGuionVoz(userId: string, tareas: TaskItem[], cierre: ItemCierre[] = [], fecha?: string): Promise<Guion> {
+  const { ahora, hoy, data, limites } = await contextoVoz(userId);
+  const dia = fecha && fecha >= hoy ? fecha : hoy;
+  return guionDelDia({ data, plan: planActual(data, dia, ahora, limites), tareas, ahoraLocal: ahora, fecha: dia, cierre: dia === hoy ? cierre : [] });
+}
+
+export async function prepararGuionEntregas(userId: string, dias = 7): Promise<string[]> {
+  const { ahora, hoy, data, limites } = await contextoVoz(userId);
+  return guionEntregas(data, planActual(data, hoy, ahora, limites), ahora, dias);
+}
+

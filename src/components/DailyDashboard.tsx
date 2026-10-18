@@ -299,24 +299,24 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
 
       {/* Routine Banner for Today (if gym day) */}
       {todayRoutineInfo.isTrainingDay && onOpenGymRoutine && (
-        <div className="p-4 sm:p-5 rounded-2xl bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/60 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="p-4 sm:p-5 rounded-2xl bg-rose-50/80 border border-rose-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5 min-w-0">
             <div className="w-11 h-11 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-rose-600/20">
               <Dumbbell className="w-5 h-5" />
             </div>
             <div className="flex flex-col min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
                   {todayRoutineInfo.badge}
                 </span>
-                <span className="text-xs text-rose-600 dark:text-rose-400 font-semibold hidden sm:inline">
+                <span className="text-xs text-rose-600 font-semibold hidden sm:inline">
                   {todayRoutineInfo.duration}
                 </span>
               </div>
-              <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white tracking-tight mt-0.5 truncate">
+              <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight mt-0.5 truncate">
                 {todayRoutineInfo.title}
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+              <p className="text-xs text-slate-500 truncate">
                 {todayRoutineInfo.subtitle}
               </p>
             </div>
@@ -336,29 +336,29 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
       )}
 
       {/* Header: Title & View Switcher */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-indigo-600 dark:text-indigo-400 mb-0.5">
-            <CalendarDays className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+          <div className="flex items-center gap-2 text-xs font-semibold text-indigo-600 mb-0.5">
+            <CalendarDays className="w-4 h-4 text-indigo-600 shrink-0" />
             <span>AGENDA POR DÍAS &bull; PLANIFICADOR EN TIEMPO REAL</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
             Agenda Semanal y Diaria
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
             Organizada dinámicamente día a día con horarios, categorías y seguimiento en vivo.
           </p>
         </div>
 
         {/* View Mode Switcher */}
-        <div className="w-full sm:w-auto overflow-x-auto no-scrollbar flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 rounded-xl self-start md:self-auto shrink-0">
+        <div className="w-full sm:w-auto overflow-x-auto no-scrollbar flex items-center gap-1 p-1 bg-slate-100 border border-slate-200 rounded-xl self-start md:self-auto shrink-0">
           <button
             id="btn-view-days-feed"
             onClick={() => setAgendaMode('days-feed')}
             className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer ${
               agendaMode === 'days-feed'
-                ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-white shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-white text-indigo-600 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <ListOrdered className="w-3.5 h-3.5 shrink-0" />
@@ -370,8 +370,8 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
             onClick={() => setAgendaMode('single-day')}
             className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer ${
               agendaMode === 'single-day'
-                ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-white shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-white text-indigo-600 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <CalendarIcon className="w-3.5 h-3.5 shrink-0" />
@@ -383,8 +383,8 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
             onClick={() => setAgendaMode('weekly-columns')}
             className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer ${
               agendaMode === 'weekly-columns'
-                ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-white shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-white text-indigo-600 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
@@ -395,32 +395,32 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
 
       {/* Interactive Calendar Days Strip (Planner Navigation) */}
       <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center justify-between gap-1 text-xs text-slate-500 dark:text-slate-400 px-1">
+        <div className="flex flex-wrap items-center justify-between gap-1 text-xs text-slate-500 px-1">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-700 dark:text-slate-300">CALENDARIO SEMANAL</span>
+            <span className="font-semibold text-slate-700">CALENDARIO SEMANAL</span>
             <button
               onClick={handleJumpToToday}
-              className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800 transition cursor-pointer active:scale-95"
+              className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition cursor-pointer active:scale-95"
             >
               Ir a Hoy
             </button>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-indigo-600 dark:text-indigo-400 font-bold">
+            <span className="text-indigo-600 font-bold">
               {calendarDays[0]?.month} {calendarDays[0]?.date.split('-')[0]}
               {calendarDays[0]?.month !== calendarDays[calendarDays.length - 1]?.month && ` / ${calendarDays[calendarDays.length - 1]?.month}`}
             </span>
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setWeekOffset((w) => w - 1)}
-                className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
                 title="Semana anterior"
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => setWeekOffset((w) => w + 1)}
-                className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
                 title="Semana siguiente"
               >
                 <ChevronRight className="w-3.5 h-3.5" />
@@ -452,11 +452,11 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                 className={`relative flex flex-col items-center justify-center p-2.5 rounded-2xl border transition-all cursor-pointer ${
                   day.isToday
                     ? isSelected
-                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 shadow-md ring-2 ring-emerald-500'
-                      : 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-400/80 dark:border-emerald-500/50 shadow-xs'
+                      ? 'bg-emerald-50 border-emerald-500 shadow-md ring-2 ring-emerald-500'
+                      : 'bg-emerald-50/70 border-emerald-400/80 shadow-xs'
                     : isSelected
-                    ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-500 shadow-md ring-2 ring-indigo-500/40'
-                    : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs'
+                    ? 'bg-indigo-50 border-indigo-500 shadow-md ring-2 ring-indigo-500/40'
+                    : 'bg-white border-slate-200/90 hover:border-slate-300 shadow-xs'
                 }`}
               >
                 {day.isToday && (
@@ -468,10 +468,10 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                 <span
                   className={`text-[11px] font-bold uppercase ${
                     day.isToday
-                      ? 'text-emerald-700 dark:text-emerald-300'
+                      ? 'text-emerald-700'
                       : isSelected
-                      ? 'text-indigo-600 dark:text-indigo-400'
-                      : 'text-slate-500 dark:text-slate-400'
+                      ? 'text-indigo-600'
+                      : 'text-slate-500'
                   }`}
                 >
                   {day.dayName}
@@ -480,10 +480,10 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                 <span
                   className={`text-base sm:text-lg font-extrabold mt-0.5 ${
                     day.isToday
-                      ? 'text-emerald-800 dark:text-emerald-100'
+                      ? 'text-emerald-800'
                       : isSelected
-                      ? 'text-indigo-900 dark:text-white'
-                      : 'text-slate-900 dark:text-slate-100'
+                      ? 'text-indigo-900'
+                      : 'text-slate-900'
                   }`}
                 >
                   {day.dayNumber}
@@ -491,11 +491,11 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
 
                 <div className="flex items-center gap-1 mt-1">
                   {dayTaskCount > 0 ? (
-                    <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">
+                    <span className="text-[10px] font-bold text-indigo-600">
                       {dayTaskCount} {dayTaskCount === 1 ? 'act.' : 'acts.'}
                     </span>
                   ) : (
-                    <span className="text-[10px] text-slate-400 dark:text-slate-600">Libre</span>
+                    <span className="text-[10px] text-slate-400">Libre</span>
                   )}
                 </div>
               </button>
@@ -516,8 +516,8 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
           onClick={() => setSelectedCategory('all')}
           className={`text-xs px-3 py-1.5 rounded-xl border whitespace-nowrap transition cursor-pointer ${
             selectedCategory === 'all'
-              ? 'bg-slate-900 text-white font-bold border-slate-900 dark:bg-white dark:text-slate-900 shadow-xs'
-              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+              ? 'bg-slate-900 text-white font-bold border-slate-900 shadow-xs'
+              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
           }`}
         >
           Todas ({tasks.length})
@@ -536,7 +536,7 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
               className={`text-xs px-3 py-1.5 rounded-xl border whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
                 isSelected
                   ? `${meta.bgClass} ${meta.colorClass} ${meta.borderClass} font-bold ring-2 ring-current`
-                  : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
               }`}
             >
               <span
@@ -561,9 +561,9 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
               <button
                 type="button"
                 onClick={() => setShowPastDays((p) => !p)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer shadow-xs active:scale-95"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 transition cursor-pointer shadow-xs active:scale-95"
               >
-                <History className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <History className="w-3.5 h-3.5 text-indigo-600" />
                 <span>
                   {showPastDays
                     ? 'Ocultar historial de días anteriores'
@@ -596,24 +596,24 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                 id={`day-section-${group.date}`}
                 className={`rounded-2xl border transition-all p-4 sm:p-5 flex flex-col gap-4 ${
                   isToday
-                    ? 'bg-white dark:bg-slate-900 border-emerald-400/90 dark:border-emerald-500/60 ring-2 ring-emerald-400/30 dark:ring-emerald-500/30 shadow-md'
+                    ? 'bg-white border-emerald-400/90 ring-2 ring-emerald-400/30 shadow-md'
                     : isPast
-                    ? 'bg-slate-50/70 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 opacity-80'
-                    : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 shadow-xs'
+                    ? 'bg-slate-50/70 border-slate-200 opacity-80'
+                    : 'bg-white border-slate-200/90 shadow-xs'
                 }`}
               >
                 {/* Day Header Banner */}
-                <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
                   <div className="flex items-center gap-3">
                     <div
                       className={`w-11 h-11 rounded-xl flex flex-col items-center justify-center border font-mono ${
                         isToday
                           ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-500/20'
                           : isTomorrow
-                          ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'
+                          ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
                           : isPast
-                          ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                          ? 'bg-slate-100 text-slate-500 border-slate-200'
+                          : 'bg-slate-100 text-slate-700 border-slate-200'
                       }`}
                     >
                       <span className="text-[10px] font-bold uppercase leading-none">
@@ -626,22 +626,22 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
 
                     <div>
                       <div className="flex items-center gap-2">
-                        <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight">
+                        <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
                           {formatDayHeader(group.date)}
                         </h2>
                         {isToday && (
-                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold uppercase flex items-center gap-1.5">
+                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold uppercase flex items-center gap-1.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
                             Hoy &bull; En Vivo ({clock.timeStr})
                           </span>
                         )}
                         {isTomorrow && (
-                          <span className="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold uppercase">
+                          <span className="px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-bold uppercase">
                             Mañana
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                      <p className="text-xs text-slate-500">
                         {group.tasks.length} {group.tasks.length === 1 ? 'actividad programada' : 'actividades programadas'}{' '}
                         {dayMinutes > 0 && `• ${dayHours}h ${dayMins > 0 ? `${dayMins}m` : ''} de dedicación`}
                       </p>
@@ -653,7 +653,7 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                     {onAddNewTask && (
                       <button
                         onClick={() => onAddNewTask(group.date)}
-                        className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-white hover:bg-indigo-600 dark:hover:bg-indigo-600 px-3 py-1.5 rounded-xl border border-indigo-200 dark:border-indigo-800 transition cursor-pointer flex items-center gap-1 font-semibold"
+                        className="text-xs text-indigo-600 hover:text-white hover:bg-indigo-600 px-3 py-1.5 rounded-xl border border-indigo-200 transition cursor-pointer flex items-center gap-1 font-semibold"
                         title="Añadir tarea a este día"
                       >
                         <PlusCircle className="w-3.5 h-3.5" />
@@ -662,7 +662,7 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                     )}
                     <button
                       onClick={onOpenVisionModal}
-                      className="text-xs text-slate-600 dark:text-slate-400 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 transition cursor-pointer flex items-center gap-1"
+                      className="text-xs text-slate-600 hover:text-indigo-600 hover:bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 transition cursor-pointer flex items-center gap-1"
                       title="Escanear foto u horario"
                     >
                       <Camera className="w-3.5 h-3.5" />
@@ -673,12 +673,12 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
 
                 {/* Day Tasks List */}
                 {group.tasks.length === 0 ? (
-                  <div className="py-6 text-center text-slate-400 text-xs border border-dashed border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-900/30 flex flex-col items-center gap-2">
+                  <div className="py-6 text-center text-slate-400 text-xs border border-dashed border-slate-200 rounded-xl bg-slate-50/50 flex flex-col items-center gap-2">
                     <span>No hay actividades programadas para este día.</span>
                     {onAddNewTask && (
                       <button
                         onClick={() => onAddNewTask(group.date)}
-                        className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 font-semibold cursor-pointer"
+                        className="text-xs text-indigo-600 hover:underline flex items-center gap-1 font-semibold cursor-pointer"
                       >
                         <PlusCircle className="w-3.5 h-3.5" />
                         <span>Añadir tarea para este día</span>
@@ -694,8 +694,8 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                           <span className="w-2 h-2 rounded-full bg-white animate-ping" />
                           AHORA &bull; {clock.timeStr}
                         </div>
-                        <div className="h-[2px] flex-1 bg-gradient-to-r from-rose-500 via-rose-300 dark:via-rose-600 to-transparent" />
-                        <span className="text-[11px] font-mono text-rose-600 dark:text-rose-400 font-semibold hidden sm:inline">
+                        <div className="h-[2px] flex-1 bg-gradient-to-r from-rose-500 via-rose-300 to-transparent" />
+                        <span className="text-[11px] font-mono text-rose-600 font-semibold hidden sm:inline">
                           En directo &bull; {clock.dayProgressPercent}% del día
                         </span>
                       </div>
@@ -730,8 +730,8 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                                 <span className="w-2 h-2 rounded-full bg-white animate-ping" />
                                 AHORA &bull; {clock.timeStr}
                               </div>
-                              <div className="h-[2px] flex-1 bg-gradient-to-r from-rose-500 via-rose-300 dark:via-rose-600 to-transparent" />
-                              <span className="text-[11px] font-mono text-rose-600 dark:text-rose-400 font-semibold hidden sm:inline">
+                              <div className="h-[2px] flex-1 bg-gradient-to-r from-rose-500 via-rose-300 to-transparent" />
+                              <span className="text-[11px] font-mono text-rose-600 font-semibold hidden sm:inline">
                                 {clock.dayProgressPercent}% del día transcurrido
                               </span>
                             </div>
@@ -740,10 +740,10 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                           <div
                             className={`group rounded-xl p-3.5 border transition-all duration-200 flex items-start justify-between gap-3 ${
                               task.completed
-                                ? 'bg-slate-100/70 dark:bg-slate-850/40 border-slate-200 dark:border-slate-800 border-l-4 border-l-slate-300 dark:border-l-slate-700 opacity-60'
+                                ? 'bg-slate-100/70 border-slate-200 border-l-4 border-l-slate-300 opacity-60'
                                 : isCurrentNow
-                                ? 'bg-rose-50/90 dark:bg-rose-950/40 border-rose-300 dark:border-rose-500/70 border-l-4 border-l-rose-500 shadow-sm ring-1 ring-rose-300 dark:ring-rose-500/30'
-                                : `${meta.cardBg || 'bg-slate-50/70 dark:bg-slate-850'} ${meta.cardBorder || 'border-slate-200 dark:border-slate-750'} border-l-4 ${meta.leftBar || 'border-l-indigo-500'} ${meta.hoverBg || 'hover:bg-slate-100'} shadow-xs hover:shadow-sm`
+                                ? 'bg-rose-50/90 border-rose-300 border-l-4 border-l-rose-500 shadow-sm ring-1 ring-rose-300'
+                                : `${meta.cardBg || 'bg-slate-50/70'} ${meta.cardBorder || 'border-slate-200'} border-l-4 ${meta.leftBar || 'border-l-indigo-500'} ${meta.hoverBg || 'hover:bg-slate-100'} shadow-xs hover:shadow-sm`
                             }`}
                           >
                             <div className="flex items-start gap-3 min-w-0">
@@ -753,7 +753,7 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                                 className={`mt-0.5 rounded-full p-1 transition cursor-pointer shrink-0 ${
                                   task.completed
                                     ? 'text-emerald-500 hover:text-slate-400'
-                                    : 'text-slate-300 dark:text-slate-600 hover:text-emerald-500'
+                                    : 'text-slate-300 hover:text-emerald-500'
                                 }`}
                               >
                                 {task.completed ? (
@@ -769,24 +769,24 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                                   <span
                                     className={`font-semibold text-sm sm:text-base tracking-tight ${
                                       task.completed
-                                        ? 'line-through text-slate-400 dark:text-slate-500'
+                                        ? 'line-through text-slate-400'
                                         : isCurrentNow
-                                        ? 'text-rose-900 dark:text-rose-100 font-bold'
-                                        : 'text-slate-900 dark:text-white'
+                                        ? 'text-rose-900 font-bold'
+                                        : 'text-slate-900'
                                     }`}
                                   >
                                     {task.title}
                                   </span>
 
                                   {isCurrentNow && (
-                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-500/25 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500 uppercase animate-pulse">
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200 uppercase animate-pulse">
                                       <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
                                       En Curso
                                     </span>
                                   )}
 
                                   {isUpcoming && diffMinutes !== null && diffMinutes <= 90 && diffMinutes > 0 && (
-                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-500/40">
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
                                       Comienza en {diffMinutes} min
                                     </span>
                                   )}
@@ -804,7 +804,7 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                                         e.stopPropagation();
                                         onOpenGymRoutine(getRoutineIdForTask(task));
                                       }}
-                                      className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500/40 hover:bg-rose-100 transition cursor-pointer active:scale-95"
+                                      className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition cursor-pointer active:scale-95"
                                       title="Abrir detalles de la rutina en el módulo Gym"
                                     >
                                       <Dumbbell className="w-2.5 h-2.5 text-rose-500" />
@@ -813,7 +813,7 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                                   )}
 
                                   {task.sourceType === 'vision' && (
-                                    <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-cyan-50 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-500/20">
+                                    <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-cyan-50 text-cyan-700 border border-cyan-200">
                                       <Camera className="w-2.5 h-2.5" />
                                       Foto
                                     </span>
@@ -821,22 +821,22 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                                 </div>
 
                                 {/* Time & Duration badge */}
-                                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400 pt-0.5">
-                                  <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300 font-medium">
-                                    <Clock className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 pt-0.5">
+                                  <span className="flex items-center gap-1.5 text-slate-700 font-medium">
+                                    <Clock className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
                                     {task.time}{task.endTime ? ` - ${task.endTime}` : ''} ({Math.floor(task.durationMinutes / 60)}h{' '}
                                     {task.durationMinutes % 60 > 0 ? `${task.durationMinutes % 60}m` : ''})
                                   </span>
 
                                   {task.priority === 'alta' && (
-                                    <span className="text-rose-600 dark:text-rose-400 font-bold text-[11px]">
+                                    <span className="text-rose-600 font-bold text-[11px]">
                                       Alta Prioridad
                                     </span>
                                   )}
                                 </div>
 
                                 {task.notes && (
-                                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mt-0.5">
+                                  <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
                                     {task.notes}
                                   </p>
                                 )}
@@ -847,14 +847,14 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                             <div className="flex items-center gap-1 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                               <button
                                 onClick={() => onEditTaskRequest(task)}
-                                className="w-8 h-8 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition cursor-pointer"
+                                className="w-8 h-8 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-100 flex items-center justify-center transition cursor-pointer"
                                 title="Editar tarea"
                               >
                                 <Edit2 className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={() => onDeleteTask(task.id)}
-                                className="w-8 h-8 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center justify-center transition cursor-pointer"
+                                className="w-8 h-8 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition cursor-pointer"
                                 title="Eliminar tarea"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -872,8 +872,8 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                           <span className="w-2 h-2 rounded-full bg-white animate-ping" />
                           AHORA &bull; {clock.timeStr}
                         </div>
-                        <div className="h-[2px] flex-1 bg-gradient-to-r from-rose-500 via-rose-300 dark:via-rose-600 to-transparent" />
-                        <span className="text-[11px] font-mono text-rose-600 dark:text-rose-400 font-semibold hidden sm:inline">
+                        <div className="h-[2px] flex-1 bg-gradient-to-r from-rose-500 via-rose-300 to-transparent" />
+                        <span className="text-[11px] font-mono text-rose-600 font-semibold hidden sm:inline">
                           Tareas programadas del día finalizadas
                         </span>
                       </div>
@@ -890,20 +890,20 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
       {/* MODE 2: SINGLE DAY DETAILED HOURLY VIEW                                   */}
       {/* ========================================================================= */}
       {agendaMode === 'single-day' && (
-        <div className="rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 flex flex-col gap-4 shadow-xs">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+        <div className="rounded-2xl border border-slate-200/90 bg-white p-5 flex flex-col gap-4 shadow-xs">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 uppercase">
+                <span className="text-xs font-semibold text-indigo-600 uppercase">
                   Vista de Horas &bull; Día Detallado
                 </span>
                 {activeDate === clock.dateStr && (
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold">
                     Hoy &bull; {clock.timeStr}
                   </span>
                 )}
               </div>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+              <h2 className="text-xl font-bold text-slate-900 tracking-tight">
                 {formatDayHeader(activeDate)}
               </h2>
             </div>
@@ -922,7 +922,7 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                   const idx = calendarDays.findIndex((d) => d.date === activeDate);
                   if (idx > 0) setActiveDate(calendarDays[idx - 1].date);
                 }}
-                className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
@@ -931,7 +931,7 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                   const idx = calendarDays.findIndex((d) => d.date === activeDate);
                   if (idx < calendarDays.length - 1) setActiveDate(calendarDays[idx + 1].date);
                 }}
-                className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -966,18 +966,18 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                     key={task.id}
                     className={`flex items-start gap-4 p-4 rounded-xl border transition ${
                       isCurrentNow
-                        ? 'bg-rose-50/80 dark:bg-rose-950/30 border-rose-300 dark:border-rose-500/70 border-l-4 border-l-rose-500 shadow-xs'
-                        : `${meta.cardBg || 'bg-slate-50/70 dark:bg-slate-850'} ${meta.cardBorder || 'border-slate-200/90 dark:border-slate-800'} border-l-4 ${meta.leftBar || 'border-l-indigo-500'} ${meta.hoverBg || ''} hover:shadow-xs`
+                        ? 'bg-rose-50/80 border-rose-300 border-l-4 border-l-rose-500 shadow-xs'
+                        : `${meta.cardBg || 'bg-slate-50/70'} ${meta.cardBorder || 'border-slate-200/90'} border-l-4 ${meta.leftBar || 'border-l-indigo-500'} ${meta.hoverBg || ''} hover:shadow-xs`
                     }`}
                   >
-                    <div className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 shrink-0 min-w-[5.5rem] pt-0.5">
+                    <div className="text-xs sm:text-sm font-bold text-slate-700 shrink-0 min-w-[5.5rem] pt-0.5">
                       {task.time}{task.endTime ? ` - ${task.endTime}` : ''}
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-slate-900 dark:text-white text-base">{task.title}</h4>
+                        <h4 className="font-bold text-slate-900 text-base">{task.title}</h4>
                         {isCurrentNow && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500/50 font-bold uppercase animate-pulse">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200 font-bold uppercase animate-pulse">
                             En curso ahora
                           </span>
                         )}
@@ -993,7 +993,7 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                               e.stopPropagation();
                               onOpenGymRoutine(getRoutineIdForTask(task));
                             }}
-                            className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500/40 hover:bg-rose-100 transition cursor-pointer active:scale-95"
+                            className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition cursor-pointer active:scale-95"
                             title="Abrir detalles de la rutina en el módulo Gym"
                           >
                             <Dumbbell className="w-3 h-3 text-rose-500" />
@@ -1001,7 +1001,7 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                           </button>
                         )}
                       </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      <p className="text-xs text-slate-500 mt-1">
                         Duración: {task.durationMinutes} minutos &bull; {task.notes || 'Sin notas adicionales'}
                       </p>
                     </div>
@@ -1026,22 +1026,22 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                 key={day.date}
                 className={`rounded-2xl border p-3.5 flex flex-col gap-2.5 ${
                   day.isToday
-                    ? 'bg-emerald-50/50 dark:bg-slate-900 border-emerald-400/90 dark:border-emerald-500/50 shadow-xs ring-1 ring-emerald-400/30'
-                    : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 shadow-xs'
+                    ? 'bg-emerald-50/50 border-emerald-400/90 shadow-xs ring-1 ring-emerald-400/30'
+                    : 'bg-white border-slate-200/90 shadow-xs'
                 }`}
               >
-                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                   <div className="flex items-center gap-1.5">
-                    <span className={`font-bold text-sm ${day.isToday ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-900 dark:text-white'}`}>
+                    <span className={`font-bold text-sm ${day.isToday ? 'text-emerald-700' : 'text-slate-900'}`}>
                       {day.dayName} {day.dayNumber}
                     </span>
                     {day.isToday && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/40">
+                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-700 border border-emerald-200">
                         Hoy
                       </span>
                     )}
                   </div>
-                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                  <span className="text-xs text-slate-500">
                     {dayTasks.length} {dayTasks.length === 1 ? 'tarea' : 'tareas'}
                   </span>
                 </div>
@@ -1065,15 +1065,15 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                           key={t.id}
                           className={`p-2.5 rounded-xl border text-xs flex flex-col gap-1 transition ${
                             isCurrentNow
-                              ? 'bg-rose-50/90 dark:bg-rose-950/40 border-rose-300 dark:border-rose-500/60 border-l-4 border-l-rose-500 shadow-xs'
-                              : `${meta.cardBg || 'bg-slate-50/80 dark:bg-slate-850'} ${meta.cardBorder || 'border-slate-200/80 dark:border-slate-800'} border-l-4 ${meta.leftBar || 'border-l-indigo-500'}`
+                              ? 'bg-rose-50/90 border-rose-300 border-l-4 border-l-rose-500 shadow-xs'
+                              : `${meta.cardBg || 'bg-slate-50/80'} ${meta.cardBorder || 'border-slate-200/80'} border-l-4 ${meta.leftBar || 'border-l-indigo-500'}`
                           }`}
                         >
                           <div className="flex items-center justify-between gap-1">
-                            <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
+                            <span className="font-semibold text-slate-800 truncate">
                               {t.title}
                             </span>
-                            <span className="text-[10px] text-slate-500 dark:text-slate-400 shrink-0 font-medium">
+                            <span className="text-[10px] text-slate-500 shrink-0 font-medium">
                               {t.time}
                             </span>
                           </div>
@@ -1082,7 +1082,7 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
                               {meta.label}
                             </span>
                             {isCurrentNow && (
-                              <span className="text-[9px] font-bold uppercase text-rose-600 dark:text-rose-400 animate-pulse">
+                              <span className="text-[9px] font-bold uppercase text-rose-600 animate-pulse">
                                 Ahora
                               </span>
                             )}

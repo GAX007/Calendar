@@ -1,6 +1,6 @@
 import React from 'react';
 
-const block = 'rounded-2xl bg-slate-200/70 dark:bg-slate-800/70 animate-pulse';
+const block = 'rounded-2xl bg-slate-200/70 animate-pulse';
 
 // Placeholder while a lazily loaded module downloads
 export const ModuleSkeleton: React.FC = () => (
@@ -16,8 +16,8 @@ export const ModuleSkeleton: React.FC = () => (
 
 // First paint while the session is restored
 export const AppShellSkeleton: React.FC = () => (
-  <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col" aria-busy="true" aria-label="Iniciando CalendarAsist">
-    <div className="h-[calc(env(safe-area-inset-top,0px)+3.75rem)] border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 flex items-end pb-2 gap-2.5">
+  <div className="min-h-screen bg-slate-50 flex flex-col" aria-busy="true" aria-label="Iniciando CalendarAsist">
+    <div className="h-[calc(env(safe-area-inset-top,0px)+3.75rem)] border-b border-slate-200/80 bg-white px-3 flex items-end pb-2 gap-2.5">
       <div className={`${block} w-11 h-11`} />
       <div className="flex flex-col gap-1.5">
         <div className={`${block} w-32 h-3 rounded-md`} />

@@ -62,17 +62,17 @@ export const NextActivityCard: React.FC<NextActivityCardProps> = ({
     return (
       <div
         id="next-activity-card"
-        className="w-full rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-4 sm:p-5 flex items-center justify-between gap-4 shadow-xs"
+        className="w-full rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 flex items-center justify-between gap-4 shadow-xs"
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
             <Check className="w-5 h-5" />
           </div>
           <div>
-            <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+            <h4 className="text-sm sm:text-base font-bold text-slate-900">
               Todas las actividades al día
             </h4>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-slate-500">
               No tienes actividades pendientes programadas para este momento en tu agenda.
             </p>
           </div>
@@ -120,8 +120,8 @@ export const NextActivityCard: React.FC<NextActivityCardProps> = ({
       id="next-activity-card"
       className={`w-full rounded-2xl border transition-all duration-300 p-4 sm:p-5 shadow-xs ${
         isOngoing
-          ? 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-200 dark:border-rose-500/40 border-l-4 border-l-rose-500 ring-1 ring-rose-200 dark:ring-rose-500/20'
-          : `${meta.cardBg || 'bg-slate-50 dark:bg-slate-900'} ${meta.cardBorder || 'border-slate-200/90 dark:border-slate-800'} border-l-4 ${meta.leftBar || 'border-l-indigo-500'} hover:shadow-sm`
+          ? 'bg-rose-50/70 border-rose-200 border-l-4 border-l-rose-500 ring-1 ring-rose-200'
+          : `${meta.cardBg || 'bg-slate-50'} ${meta.cardBorder || 'border-slate-200/90'} border-l-4 ${meta.leftBar || 'border-l-indigo-500'} hover:shadow-sm`
       }`}
     >
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -130,8 +130,8 @@ export const NextActivityCard: React.FC<NextActivityCardProps> = ({
           <div
             className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border ${
               isOngoing
-                ? 'bg-rose-100 dark:bg-rose-500/20 border-rose-200 dark:border-rose-500/40 text-rose-600 dark:text-rose-400'
-                : 'bg-indigo-50 dark:bg-indigo-500/20 border-indigo-200 dark:border-indigo-500/40 text-indigo-600 dark:text-indigo-400'
+                ? 'bg-rose-100 border-rose-200 text-rose-600'
+                : 'bg-indigo-50 border-indigo-200 text-indigo-600'
             }`}
           >
             {isOngoing ? (
@@ -147,8 +147,8 @@ export const NextActivityCard: React.FC<NextActivityCardProps> = ({
               <span
                 className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
                   isOngoing
-                    ? 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/40'
-                    : 'bg-indigo-50 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-500/40'
+                    ? 'bg-rose-100 text-rose-700 border-rose-200'
+                    : 'bg-indigo-50 text-indigo-700 border-indigo-200'
                 }`}
               >
                 {isOngoing && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />}
@@ -162,7 +162,7 @@ export const NextActivityCard: React.FC<NextActivityCardProps> = ({
               </span>
 
               {timeDetailLabel && (
-                <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 hidden sm:inline">
+                <span className="text-xs font-semibold text-amber-600 hidden sm:inline">
                   &bull; {timeDetailLabel}
                 </span>
               )}
@@ -170,23 +170,23 @@ export const NextActivityCard: React.FC<NextActivityCardProps> = ({
 
             {/* Task Title */}
             <div className="flex items-center gap-2">
-              <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight truncate">
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight truncate">
                 {currentOrNext.title}
               </h3>
             </div>
 
             {/* Sub-label for mobile or extra notes */}
-            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-              <span className="flex items-center gap-1 text-slate-700 dark:text-slate-300 font-medium">
-                <Clock className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+              <span className="flex items-center gap-1 text-slate-700 font-medium">
+                <Clock className="w-3.5 h-3.5 text-indigo-600" />
                 {currentOrNext.time}
                 {currentOrNext.endTime ? ` - ${currentOrNext.endTime}` : ''}
               </span>
-              <span className="sm:hidden text-amber-600 dark:text-amber-400 font-semibold">
+              <span className="sm:hidden text-amber-600 font-semibold">
                 &bull; {timeDetailLabel}
               </span>
               {currentOrNext.notes && (
-                <span className="text-slate-400 dark:text-slate-500 hidden md:inline truncate max-w-md">
+                <span className="text-slate-400 hidden md:inline truncate max-w-md">
                   &mdash; {currentOrNext.notes}
                 </span>
               )}
@@ -225,10 +225,10 @@ export const NextActivityCard: React.FC<NextActivityCardProps> = ({
                 <button
                   type="button"
                   onClick={() => onOpenGymRoutine(getRoutineId())}
-                  className="flex items-center gap-1.5 px-3 py-2 min-h-[38px] rounded-xl border border-rose-200 dark:border-rose-500/40 bg-rose-50 dark:bg-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-500/30 text-rose-700 dark:text-rose-300 text-xs font-bold transition cursor-pointer shadow-xs active:scale-95 touch-manipulation"
+                  className="flex items-center gap-1.5 px-3 py-2 min-h-[38px] rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition cursor-pointer shadow-xs active:scale-95 touch-manipulation"
                   title="Abrir detalles de la rutina en el módulo de Gym"
                 >
-                  <Dumbbell className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                  <Dumbbell className="w-4 h-4 text-rose-600" />
                   <span>Ver Rutina</span>
                 </button>
               );
@@ -239,10 +239,10 @@ export const NextActivityCard: React.FC<NextActivityCardProps> = ({
             <button
               id="next-activity-btn-complete"
               onClick={() => onToggleTaskComplete(currentOrNext.id)}
-              className="flex items-center gap-1.5 px-3.5 py-2 min-h-[38px] rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 hover:bg-emerald-50 dark:bg-slate-800 dark:hover:bg-emerald-950/40 hover:border-emerald-300 dark:hover:border-emerald-600 hover:text-emerald-700 dark:hover:text-emerald-300 text-xs font-semibold text-slate-700 dark:text-slate-300 transition cursor-pointer active:scale-95 touch-manipulation"
+              className="flex items-center gap-1.5 px-3.5 py-2 min-h-[38px] rounded-xl border border-slate-200 bg-slate-100 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700 text-xs font-semibold text-slate-700 transition cursor-pointer active:scale-95 touch-manipulation"
               title="Marcar como completada"
             >
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
               <span>Marcar lista</span>
             </button>
           )}

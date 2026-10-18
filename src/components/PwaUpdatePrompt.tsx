@@ -145,15 +145,15 @@ export function PwaUpdatePrompt({ onManualCheckReady }: PwaUpdatePromptProps) {
     <aside
       role="status"
       aria-live="polite"
-      className="fixed top-3 left-1/2 -translate-x-1/2 z-[100] w-[94%] max-w-md bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-2xl shadow-2xl shadow-black/80 border border-indigo-500/50 backdrop-blur-xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-4 duration-300"
+      className="fixed top-3 left-1/2 -translate-x-1/2 z-[100] w-[94%] max-w-md bg-white text-ink px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-2xl shadow-2xl border border-line-2 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-4 duration-300"
     >
       <div className="flex items-center gap-2.5 min-w-0">
         <div className="w-8 h-8 rounded-xl bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center shrink-0">
-          <Sparkles className="w-4 h-4 text-indigo-300 animate-pulse" />
+          <Sparkles className="w-4 h-4 text-ink-2 animate-pulse" />
         </div>
         <div className="min-w-0">
-          <p className="text-xs font-bold text-white truncate">Nueva versión disponible</p>
-          <p className="text-[10px] text-indigo-200 truncate">Actualiza para aplicar los últimos cambios</p>
+          <p className="text-xs font-bold text-ink truncate">Nueva versión disponible</p>
+          <p className="text-[10px] text-ink-2 truncate">Actualiza para aplicar los últimos cambios</p>
         </div>
       </div>
 
@@ -162,7 +162,7 @@ export function PwaUpdatePrompt({ onManualCheckReady }: PwaUpdatePromptProps) {
           type="button"
           onClick={handleApplyUpdate}
           disabled={isUpdating}
-          className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/40 transition cursor-pointer active:scale-95 flex items-center gap-1.5 disabled:opacity-70"
+          className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md transition cursor-pointer active:scale-95 flex items-center gap-1.5 disabled:opacity-70"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isUpdating ? 'animate-spin' : ''}`} />
           <span>{isUpdating ? 'Actualizando...' : 'Actualizar'}</span>
@@ -170,7 +170,7 @@ export function PwaUpdatePrompt({ onManualCheckReady }: PwaUpdatePromptProps) {
         <button
           type="button"
           onClick={() => setNeedRefresh(false)}
-          className="p-1.5 text-slate-400 hover:text-white rounded-lg transition cursor-pointer"
+          className="p-1.5 text-slate-400 hover:text-ink rounded-lg transition cursor-pointer"
           title="Descartar por ahora"
           aria-label="Cerrar notificación de actualización"
         >

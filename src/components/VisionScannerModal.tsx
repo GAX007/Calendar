@@ -243,22 +243,22 @@ export const VisionScannerModal: React.FC<VisionScannerModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm pt-[max(env(safe-area-inset-top,0px),1rem)] pb-[max(env(safe-area-inset-bottom,0px),1rem)] overflow-y-auto">
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-ink/40 pt-[max(env(safe-area-inset-top,0px),1rem)] pb-[max(env(safe-area-inset-bottom,0px),1rem)] overflow-y-auto">
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
           transition={{ duration: 0.18 }}
-          className="w-full max-w-md bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl overflow-hidden my-auto max-h-[92dvh] flex flex-col"
+          className="w-full max-w-md bg-white rounded-2xl border border-line shadow-2xl overflow-hidden my-auto max-h-[92dvh] flex flex-col"
         >
           {/* Header */}
-          <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between shrink-0">
+          <div className="p-4 sm:p-5 border-b border-line flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-ink-2 shrink-0">
                 <Camera className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="font-semibold text-slate-100 text-sm sm:text-base">
+                <h3 className="font-semibold text-ink text-sm sm:text-base">
                   Escanear Calendario
                 </h3>
                 <p className="text-xs text-slate-400">
@@ -268,7 +268,7 @@ export const VisionScannerModal: React.FC<VisionScannerModalProps> = ({
             </div>
             <button
               onClick={onClose}
-              className="w-10 h-10 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition cursor-pointer flex items-center justify-center touch-manipulation"
+              className="w-10 h-10 rounded-lg text-slate-400 hover:text-ink hover:bg-surface-2 transition cursor-pointer flex items-center justify-center touch-manipulation"
               aria-label="Cerrar"
             >
               <X className="w-5 h-5" />
@@ -291,13 +291,13 @@ export const VisionScannerModal: React.FC<VisionScannerModalProps> = ({
                   className={`w-full p-6 sm:p-8 rounded-xl border-2 border-dashed flex flex-col items-center justify-center text-center cursor-pointer transition ${
                     isDragOver
                       ? 'border-cyan-500 bg-cyan-500/5'
-                      : 'border-slate-750 bg-slate-950/40 hover:border-slate-600 hover:bg-slate-850/40'
+                      : 'border-line-2 bg-surface hover:border-slate-600 hover:bg-slate-850/40'
                   }`}
                 >
-                  <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-cyan-400 mb-3 shadow-inner">
+                  <div className="w-12 h-12 rounded-full bg-surface-2 flex items-center justify-center text-ink-2 mb-3 ">
                     <Upload className="w-5 h-5" />
                   </div>
-                  <p className="text-sm font-medium text-slate-200 mb-1">
+                  <p className="text-sm font-medium text-slate-800 mb-1">
                     Selecciona o arrastra una captura de tu calendario
                   </p>
                   <p className="text-xs text-slate-400 max-w-xs mb-4">
@@ -310,7 +310,7 @@ export const VisionScannerModal: React.FC<VisionScannerModalProps> = ({
                       e.stopPropagation();
                       fileInputRef.current?.click();
                     }}
-                    className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-md shadow-cyan-600/20 transition cursor-pointer"
+                    className="px-4 py-2 rounded-lg bg-ink hover:bg-ink text-white text-xs font-semibold shadow-md transition cursor-pointer"
                   >
                     Elegir imagen de calendario
                   </button>
@@ -331,13 +331,13 @@ export const VisionScannerModal: React.FC<VisionScannerModalProps> = ({
               <div className="flex flex-col items-center py-4 px-2 text-center">
                 {/* Rueda de carga (Spinner) */}
                 <div className="relative mb-5 flex items-center justify-center">
-                  <div className="w-16 h-16 rounded-full border-2 border-slate-800 border-t-cyan-500 animate-spin" />
+                  <div className="w-16 h-16 rounded-full border-2 border-line border-t-cyan-500 animate-spin" />
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <Calendar className="w-6 h-6 text-cyan-400" />
+                    <Calendar className="w-6 h-6 text-ink-2" />
                   </div>
                 </div>
 
-                <h4 className="text-sm sm:text-base font-semibold text-slate-100 mb-1.5">
+                <h4 className="text-sm sm:text-base font-semibold text-ink mb-1.5">
                   Procesando calendario
                 </h4>
                 <p className="text-xs text-slate-400 mb-5 min-h-[1.25rem]">
@@ -345,9 +345,9 @@ export const VisionScannerModal: React.FC<VisionScannerModalProps> = ({
                 </p>
 
                 {/* Barra de carga (Progress Bar) */}
-                <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden mb-2">
+                <div className="w-full bg-surface-2 rounded-full h-2 overflow-hidden mb-2">
                   <motion.div
-                    className="h-full bg-gradient-to-r from-cyan-500 to-indigo-500 rounded-full"
+                    className="h-full bg-ink rounded-full"
                     initial={{ width: '10%' }}
                     animate={{ width: `${progress}%` }}
                     transition={{ ease: 'easeOut', duration: 0.3 }}
@@ -362,7 +362,7 @@ export const VisionScannerModal: React.FC<VisionScannerModalProps> = ({
                 <button
                   type="button"
                   onClick={handleCancel}
-                  className="px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-ink hover:bg-surface-2 transition cursor-pointer"
                 >
                   Cancelar
                 </button>
@@ -372,10 +372,10 @@ export const VisionScannerModal: React.FC<VisionScannerModalProps> = ({
             {/* STATE 3: ERROR */}
             {status === 'error' && (
               <div className="flex flex-col items-center py-3 text-center">
-                <div className="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 mb-3">
+                <div className="w-12 h-12 rounded-full bg-surface border border-rose-500/20 flex items-center justify-center text-ink-2 mb-3">
                   <AlertCircle className="w-6 h-6" />
                 </div>
-                <h4 className="text-sm font-semibold text-slate-100 mb-1.5">
+                <h4 className="text-sm font-semibold text-ink mb-1.5">
                   No se detectaron actividades
                 </h4>
                 <p className="text-xs text-slate-400 max-w-xs mb-5 leading-relaxed">
@@ -389,14 +389,14 @@ export const VisionScannerModal: React.FC<VisionScannerModalProps> = ({
                       setStatus('idle');
                       setTimeout(() => fileInputRef.current?.click(), 100);
                     }}
-                    className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold transition cursor-pointer"
+                    className="px-4 py-2 rounded-lg bg-ink hover:bg-ink text-white text-xs font-semibold transition cursor-pointer"
                   >
                     Intentar con otra foto
                   </button>
                   <button
                     type="button"
                     onClick={onClose}
-                    className="px-3 py-2 rounded-lg text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition cursor-pointer"
+                    className="px-3 py-2 rounded-lg text-xs text-slate-400 hover:text-ink hover:bg-surface-2 transition cursor-pointer"
                   >
                     Cerrar
                   </button>

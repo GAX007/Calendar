@@ -54,7 +54,15 @@ export async function savePlan(data: PlannerData, plan: Plan, hasta: string, aho
 export async function confirmSocial(data: PlannerData, evento: Evento, diff: DiffSocial, baseline: Plan, confirmarDeuda: boolean) {
   if (diff.requiere_confirmacion && !confirmarDeuda) throw new Error('Confirma la advertencia de deuda antes de guardar');
   if (diff.desde_local < madridLocal(new Date())) throw new Error('La vista previa ha caducado. Calcula de nuevo');
-  return mutatePlanner(data, 'social', { evento, desde_local: diff.desde_local, hasta: diff.hasta,
-    bloques: diff.plan.bloques, plan_base: baseline.bloques, nueva_deuda: diff.nueva_deuda,
-    confirmar_deuda: confirmarDeuda, entregas_snapshot: entregaSnapshot(data.entregas) });
+  try {
+    return await mutatePlanner(data, 'social', { evento, desde_local: diff.desde_local, hasta: diff.hasta,
+      bloques: diff.plan.bloques, plan_base: baseline.bloques, nueva_deuda: diff.nueva_deuda, recortes: diff.recortes,
+      confirmar_deuda: confirmarDeuda, entregas_snapshot: entregaSnapshot(data.entregas) });
+  } catch (err) {
+    // Supabase without migration_fase5_imprevisto.sql only accepts events that move no earlier block
+    if (err instanceof Error && /El corte debe coincidir/.test(err.message)) {
+      throw new Error('Para mover los bloques que chocan con el imprevisto falta aplicar supabase/migration_fase5_imprevisto.sql en Supabase');
+    }
+    throw err;
+  }
 }

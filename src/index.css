@@ -1,8 +1,90 @@
 @import "tailwindcss";
 
+/* Solo modo claro: la variante dark: ya no sigue al sistema, solo a una clase .dark que la app no pone */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Instrument Sans', 'Helvetica Neue', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* Sistema visual del rediseño */
+  --color-ink: #141517;
+  --color-ink-2: #5E6167;
+  --color-ink-3: #6F7277;
+  --color-surface: #F4F4F1;
+  --color-surface-2: #F2F2EF;
+  --color-line: #EAEAE6;
+  --color-line-2: #E2E2DD;
+  --color-line-3: #D6D6D0;
+  --color-accent: #D4F542;
+  --color-alerta: #E5484D;
+  --color-agua: #3A6FE0;
+  --color-agua-suave: #EEF3FD;
+  --color-hairline: #EFEFEB;
+  --color-track: #E8E8E3;
+  --color-track-2: #EDEDE9;
+  --color-check: #CFCFC9;
+  --color-check-2: #C9C9C3;
+
+  /* Grises neutros en lugar de slate: las pantallas que aún usan slate heredan el nuevo tono */
+  --color-slate-50: #F7F7F5;
+  --color-slate-100: #F2F2EF;
+  --color-slate-200: #EAEAE6;
+  --color-slate-300: #D6D6D0;
+  --color-slate-400: #8A8D92;
+  --color-slate-500: #6F7277;
+  --color-slate-600: #5E6167;
+  --color-slate-700: #3C3F44;
+  --color-slate-750: #303236;
+  --color-slate-800: #26282C;
+  --color-slate-850: #1D1F22;
+  --color-slate-900: #141517;
+  --color-slate-950: #0D0E10;
+
+  /* El índigo era el acento antiguo: ahora es tinta, como en el diseño */
+  --color-indigo-50: #F4F4F1;
+  --color-indigo-100: #EDEDE9;
+  --color-indigo-200: #E2E2DD;
+  --color-indigo-300: #CFCFC9;
+  --color-indigo-400: #8A8D92;
+  --color-indigo-500: #3C3F44;
+  --color-indigo-600: #141517;
+  --color-indigo-700: #141517;
+  --color-indigo-800: #0D0E10;
+  --color-indigo-900: #0D0E10;
+  --color-indigo-950: #0D0E10;
+
+  --animate-onda: onda 0.9s ease-in-out infinite;
+  --animate-subir: subir 200ms ease-out;
+  --animate-aparecer: aparecer 200ms ease-out;
+  --animate-crecer: crecer 280ms ease-out;
+  --animate-parpadeo: parpadeo 1s steps(1) infinite;
+
+  @keyframes onda {
+    0%, 100% { transform: scaleY(0.3); }
+    50% { transform: scaleY(1); }
+  }
+  @keyframes subir {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes aparecer {
+    from { opacity: 0; transform: scale(0.85); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes crecer {
+    from { max-height: 54px; }
+    to { max-height: 360px; }
+  }
+  @keyframes parpadeo {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0; }
+  }
+}
+
 /* Height reserved by the mobile bottom tab bar (hidden from md upwards) */
 :root {
-  --bottom-nav-h: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+  --bottom-nav-h: calc(4rem + env(safe-area-inset-bottom, 0px));
 }
 @media (min-width: 768px) {
   :root {
@@ -20,12 +102,19 @@
     touch-action: manipulation;
     /* The app has its own pull-to-refresh: avoid the browser reload/bounce on top of it */
     overscroll-behavior-y: none;
+    color-scheme: light;
   }
   body {
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    background: #ffffff;
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
   }
-  code, pre, .font-mono {
-    font-family: 'JetBrains Mono', monospace;
+  button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+  input::placeholder, textarea::placeholder {
+    color: var(--color-ink-3);
   }
 }
 
@@ -41,6 +130,14 @@
   input.text-2xl { font-size: 1.5rem; }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Hide scrollbar for clean horizontal pill lists */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
@@ -50,7 +147,7 @@
   scrollbar-width: none;
 }
 
-/* Custom modern scrollbar */
+/* Thin neutral scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -59,11 +156,11 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.4);
+  background: rgba(111, 114, 119, 0.35);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.7);
+  background: rgba(94, 97, 103, 0.6);
 }
 
 /* Laser scan line animation for vision schedule scanner */

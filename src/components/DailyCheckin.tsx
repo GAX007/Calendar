@@ -3,7 +3,20 @@ import { madridLocal } from '../planner/time';
 import { needsTodayCheckin, type DailyCheckin as Checkin } from '../planner/records';
 import { loadTodayCheckin, saveTodayCheckin } from '../services/plannerRecordsService';
 
-const field = 'w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm';
+const field = 'w-full h-11 rounded-xl border border-line-2 bg-white px-3 text-[15px] text-ink outline-none focus:border-ink';
+function Escala({ etiqueta, valor, onChange }: { etiqueta: string; valor: number; onChange: (n: number) => void }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-[13px] text-ink-2">{etiqueta}</span>
+      <div role="group" aria-label={etiqueta} className="grid grid-cols-5 gap-0.5 p-[3px] rounded-[14px] bg-white border border-line">
+        {[1, 2, 3, 4, 5].map(n => (
+          <button key={n} type="button" aria-pressed={valor === n} onClick={() => onChange(n)}
+            className={`h-10 rounded-[11px] text-[15px] transition ${valor === n ? 'bg-ink text-white font-semibold' : 'text-ink-2 font-medium'}`}>{n}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
 export function DailyCheckin({ userId, onSaved }: { userId: string; key?: string; onSaved?: (checkin: Checkin) => void }) {
   const [today, setToday] = useState(() => madridLocal(new Date()).slice(0, 10));
   const [record, setRecord] = useState<Checkin | null>(null);
@@ -33,18 +46,21 @@ export function DailyCheckin({ userId, onSaved }: { userId: string; key?: string
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [userId, today]);
-  return <section className="space-y-3" aria-label="Check-in de hoy">
-    {!loading && needsTodayCheckin(today, record) && <p className="rounded-xl bg-amber-50 dark:bg-amber-950/30 px-4 py-2 text-sm">
-      Falta tu check-in de hoy. <a href="#checkin-diario-form" className="underline font-medium">Completar check-in</a>
-    </p>}
-    <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:p-5">
-      <div className="flex justify-between items-center gap-3"><h2 className="font-bold">Check-in de hoy</h2><span className="text-xs text-slate-500">{today.split('-').reverse().join('/')}</span></div>
-      {loading && <p role="status" className="text-sm mt-2">Cargando check-in…</p>}
-      {error && <p role="alert" className="text-sm text-red-600 dark:text-red-300 mt-2">{error}</p>}
-      {!loading && !editing && record ? <div className="flex items-center justify-between gap-3 flex-wrap mt-3">
-        <div className="text-sm"><p>Energía: {record.energia}/5 · Sueño: {Number(record.sueno_h).toLocaleString('es-ES')} h · Fatiga física: {record.fatiga}/5</p>{record.nota && <p className="mt-1 whitespace-pre-wrap">{record.nota}</p>}</div>
-        <button type="button" className="rounded-xl border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm" onClick={() => { populate(record); setEditing(true); }}>Editar check-in</button>
-      </div> : !loading && <form id="checkin-diario-form" className="space-y-3 mt-3" onSubmit={async e => {
+  const resumen = record ? `${Number(record.sueno_h).toLocaleString('es-ES')} h de sueño · energía ${record.energia}/5 · fatiga ${record.fatiga}/5` : '';
+  return <section aria-label="Check-in de hoy">
+    {loading && <p role="status" className="text-sm text-ink-2">Cargando check-in…</p>}
+    {error && <p role="alert" className="text-sm rounded-2xl bg-red-50 text-red-800 px-4 py-3">{error}</p>}
+    {!loading && !editing && record ? (
+      <div className="flex items-center justify-between gap-3 rounded-2xl bg-surface pl-4 pr-2 py-3">
+        <div className="min-w-0 flex flex-col gap-[3px]">
+          <span className="text-[13px] text-ink-2">Check-in de hoy</span>
+          <span className="text-[15px] font-medium">{resumen}</span>
+          {record.nota && <span className="text-[13.5px] text-ink-2 whitespace-pre-wrap">{record.nota}</span>}
+        </div>
+        <button type="button" className="flex-none h-11 px-3 rounded-full text-sm font-semibold underline underline-offset-4" onClick={() => { populate(record); setEditing(true); }}>Editar</button>
+      </div>
+    ) : !loading && (
+      <form id="checkin-diario-form" className="rounded-2xl bg-surface p-4 flex flex-col gap-4" onSubmit={async e => {
         e.preventDefault(); setSaving(true); setError('');
         try {
           const value = await saveTodayCheckin(userId, today, { energia, sueno_h: sueno.trim() ? Number(sueno) : NaN, fatiga, nota });
@@ -52,16 +68,21 @@ export function DailyCheckin({ userId, onSaved }: { userId: string; key?: string
         } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
         finally { setSaving(false); }
       }}>
-        <div className="grid sm:grid-cols-3 gap-3">
-          <label className="text-sm space-y-1 block">Energía (1–5)<select className={field} value={energia} onChange={e => setEnergia(Number(e.target.value))}>{[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}</select></label>
-          <label className="text-sm space-y-1 block">Horas de sueño<input required type="number" min="0" max="16" step="0.5" className={field} value={sueno} onChange={e => setSueno(e.target.value)} /></label>
-          <label className="text-sm space-y-1 block">Fatiga física (1–5)<select className={field} value={fatiga} onChange={e => setFatiga(Number(e.target.value))}>{[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}</select></label>
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="text-base font-semibold">{needsTodayCheckin(today, record) ? '¿Cómo estás hoy?' : 'Check-in de hoy'}</h2>
+          <span className="font-mono text-[13px] text-ink-2">{today.split('-').reverse().join('/')}</span>
         </div>
-        <label className="text-sm space-y-1 block">Nota · opcional<textarea className={field} rows={2} value={nota} onChange={e => setNota(e.target.value)} /></label>
-        <div className="flex gap-2"><button type="submit" disabled={saving} className="rounded-xl bg-indigo-600 text-white px-4 py-2 text-sm font-bold disabled:opacity-50">{saving ? 'Guardando…' : 'Guardar check-in'}</button>
-          {record && <button type="button" disabled={saving} className="px-3 py-2 text-sm" onClick={() => setEditing(false)}>Cancelar</button>}
+        <label className="flex flex-col gap-1 text-[13px] text-ink-2">Horas de sueño<input required type="number" min="0" max="16" step="0.5" inputMode="decimal" className={field} value={sueno} onChange={e => setSueno(e.target.value)} /></label>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <Escala etiqueta="Energía" valor={energia} onChange={setEnergia} />
+          <Escala etiqueta="Fatiga física" valor={fatiga} onChange={setFatiga} />
         </div>
-      </form>}
-    </div>
+        <label className="flex flex-col gap-1 text-[13px] text-ink-2">Nota · opcional<textarea className={`${field} h-auto py-2.5`} rows={2} value={nota} onChange={e => setNota(e.target.value)} /></label>
+        <div className="flex gap-2">
+          <button type="submit" disabled={saving} className="h-11 rounded-full bg-ink px-5 text-[15px] font-semibold text-white disabled:opacity-40">{saving ? 'Guardando…' : 'Guardar'}</button>
+          {record && <button type="button" disabled={saving} className="h-11 rounded-full border border-line-2 bg-white px-4 text-sm font-semibold" onClick={() => setEditing(false)}>Cancelar</button>}
+        </div>
+      </form>
+    )}
   </section>;
 }

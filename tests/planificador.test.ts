@@ -88,9 +88,11 @@ it('Social pierde horas: deuda plan_social, mínima y confirmación sobre el má
   assert.equal(diff.requiere_confirmacion, true);
   assert.deepEqual(diff.versiones_minimas, ['a']);
 });
-it('El social rechaza invadir un bloque anterior y una fecha pasada', () => {
+it('El social reorganiza un bloque anterior que choca y rechaza una fecha pasada', () => {
   const i = input(), base = generatePlan(i);
-  assert.throws(() => previewSocial(i, evento({ tipo: 'social', inicio_local: '18:00', fin_local: '20:00' }), base), /bloque anterior/);
+  const diff = previewSocial(i, evento({ tipo: 'social', inicio_local: '18:00', fin_local: '20:00' }), base);
+  assert.equal(diff.desde_local, '2026-10-05T17:00');
+  assert.ok(diff.plan.bloques.filter(b => b.task_uid).every(b => b.fin_local <= '17:45' || b.inicio_local >= '20:15'));
   assert.throws(() => previewSocial(i, evento({ tipo: 'social', fecha_inicio: '2026-10-04' }), base), /futuro/);
 });
 it('Historial inmutable y capacidad profunda ya utilizada no se duplican', () => {

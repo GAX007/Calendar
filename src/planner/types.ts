@@ -82,4 +82,6 @@ export interface DiffSocial {
   nueva_deuda: Deuda[];
   horas_nuevas_deuda: number;
   requiere_confirmacion: boolean;
+  // Blocks already in progress that the event cuts short: same ID, new end
+  recortes: { id: string; fecha: string; inicio_local: string; fin_local: string }[];
 }

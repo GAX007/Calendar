@@ -199,15 +199,25 @@ export function previewSocial(input: PlanInput, evento: Evento, baseline: Plan):
     && minutes(e.inicio_local) < minutes(evento.fin_local) && minutes(e.fin_local) > minutes(evento.inicio_local))) {
     throw new Error('El imprevisto coincide con un horario fijo o bloqueado. Elige otro hueco');
   }
-  const protectedBlocks = baseline.bloques.filter(b => blockStart(b) < start);
+  // Study blocks that the event or its margin overlap are reorganised instead of blocking the event:
+  // the ones not started yet are planned again (the cut moves back to them) and one already in progress is cut short.
   const marginStart = minutes(evento.inicio_local) - input.parametros.margen_min;
-  if (protectedBlocks.some(b => b.fecha === evento.fecha_inicio && minutes(b.fin_local) > marginStart && minutes(b.inicio_local) < minutes(evento.fin_local) + input.parametros.margen_min)) {
-    throw new Error('El evento o su margen invaden un bloque anterior. Elige otro inicio: esos bloques se conservan');
-  }
+  const marginEnd = minutes(evento.fin_local) + input.parametros.margen_min;
+  const collides = (b: Bloque) => b.task_uid && b.fecha === evento.fecha_inicio && blockStart(b) < start
+    && minutes(b.fin_local) > marginStart && minutes(b.inicio_local) < marginEnd;
+  const pending = baseline.bloques.filter(b => collides(b) && blockStart(b) >= input.ahora_local);
+  const now = minutes(input.ahora_local.slice(11, 16));
+  const recortes = baseline.bloques.filter(b => collides(b) && blockStart(b) < input.ahora_local)
+    .map(b => ({ ...b, fin_local: timeString(Math.max(marginStart, now)) }))
+    .filter(b => b.fin_local < baseline.bloques.find(o => o.id === b.id)!.fin_local);
+  const cut = [start, ...pending.map(blockStart)].sort()[0];
+  const trimmed = new Map(recortes.map(b => [b.id, b]));
+  const previous = baseline.bloques.map(b => trimmed.get(b.id) || b);
   const outsideWeek = (input.bloques_previos || []).filter(b => b.fecha < input.desde || b.fecha > input.hasta);
-  const plan = generatePlan({ ...input, eventos: [...input.eventos, evento], bloques_previos: [...outsideWeek, ...baseline.bloques], corte_local: start });
-  const before = baseline.bloques.filter(b => b.task_uid && blockStart(b) >= start);
-  const after = plan.bloques.filter(b => b.task_uid && blockStart(b) >= start);
+  const plan = generatePlan({ ...input, eventos: [...input.eventos, evento], bloques_previos: [...outsideWeek, ...previous], corte_local: cut });
+  const original = new Set(recortes.map(b => b.id));
+  const before = baseline.bloques.filter(b => b.task_uid && (blockStart(b) >= cut || original.has(b.id)));
+  const after = plan.bloques.filter(b => b.task_uid && (blockStart(b) >= cut || original.has(b.id)));
   const movimientos: DiffSocial['movimientos'] = [];
   const nueva_deuda: Deuda[] = [];
   const versiones_minimas: string[] = [];
@@ -220,12 +230,15 @@ export function previewSocial(input: PlanInput, evento: Evento, baseline: Plan):
     const lost = sum(de) - sum(a);
     if (lost > 0) nueva_deuda.push({ id: `deuda:${evento.id}:${uid}`, task_uid: uid, horas_aplazadas: round(lost / 60), motivo: 'plan_social', fecha: evento.fecha_inicio });
     // Link replacements to actual persisted predecessor IDs for the audit trail.
-    for (let i = 0; i < a.length; i++) a[i].reemplaza_a = de[Math.min(i, de.length - 1)]?.id || null;
+    // A cut-short block keeps its own ID and is updated in place, so it replaces nothing.
+    const nuevos = a.filter(b => blockStart(b) >= cut);
+    for (let i = 0; i < nuevos.length; i++) nuevos[i].reemplaza_a = de[Math.min(i, de.length - 1)]?.id || null;
   }
   const horas_nuevas_deuda = round(nueva_deuda.reduce((n, d) => n + d.horas_aplazadas, 0));
   plan.deuda_total_horas = round(plan.deuda_total_horas + horas_nuevas_deuda);
-  return { plan, desde_local: start, hasta: input.hasta, movimientos, versiones_minimas, en_riesgo: plan.en_riesgo,
-    nueva_deuda, horas_nuevas_deuda, requiere_confirmacion: plan.deuda_total_horas > input.parametros.max_deuda_horas };
+  return { plan, desde_local: cut, hasta: input.hasta, movimientos, versiones_minimas, en_riesgo: plan.en_riesgo,
+    nueva_deuda, horas_nuevas_deuda, requiere_confirmacion: plan.deuda_total_horas > input.parametros.max_deuda_horas,
+    recortes: recortes.map(b => ({ id: b.id, fecha: b.fecha, inicio_local: b.inicio_local, fin_local: b.fin_local })) };
 }
 
 export function postponeFields(t: EntregaItem, tomorrow: string) {

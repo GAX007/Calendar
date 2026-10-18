@@ -116,7 +116,7 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({ enabled, onRefresh
       style={{ top: `calc(env(safe-area-inset-top, 0px) + 3.5rem + ${offset * 0.6}px)` }}
     >
       <div
-        className="w-9 h-9 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-md flex items-center justify-center text-indigo-600 dark:text-indigo-400"
+        className="w-9 h-9 rounded-full bg-white border border-slate-200 shadow-md flex items-center justify-center text-indigo-600"
         style={{ opacity: Math.max(0.25, progress) }}
       >
         <RefreshCw

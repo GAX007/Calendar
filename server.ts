@@ -25,6 +25,7 @@ import {
 import { MoodleStore } from './src/services/moodleStore';
 import { ejecutarAsistente, TAREAS, type Tarea } from './src/asistente/servidor/tareas';
 import { clienteServicio, usuarioDeToken } from './src/asistente/servidor/supabase';
+import { normalizarInterpretacion, promptAsistente, TIPOS_ACCION, type ContextoAsistente } from './src/asistente/interpretar';
 import { clavePublica, enviarPush, pushConfigurado } from './src/asistente/servidor/push';
 
 // Normalize Netlify function URLs (/.netlify/functions/api/* -> /api/* or stripped /* -> /api/*)
@@ -128,6 +129,78 @@ app.post('/api/asistente/ejecutar', async (req, res) => {
   if (!TAREAS.includes(tarea)) return res.status(400).json({ error: `Tarea desconocida. Usa: ${TAREAS.join(', ')}` });
   const informe = await ejecutarAsistente({ forzar: [tarea], usuario: user.id });
   res.status(informe.errores.length ? 500 : 200).json(informe);
+});
+
+// Voice assistant: Gemini turns a free sentence into checked actions. The app runs them with the user's own session.
+// 503 when Gemini is unavailable: the app then falls back to its local parser.
+app.post('/api/asistente/interpretar', async (req, res) => {
+  const texto = String(req.body?.texto || '').trim().slice(0, 600);
+  const contexto = req.body?.contexto as ContextoAsistente | undefined;
+  if (!texto || !contexto || typeof contexto.ahora_local !== 'string' || !Array.isArray(contexto.entregas)) {
+    return res.status(400).json({ error: 'Faltan el texto o el contexto' });
+  }
+  const ai = getGeminiClient();
+  if (!ai) return res.status(503).json({ error: 'Gemini no está configurado' });
+  const ctx: ContextoAsistente = {
+    ahora_local: contexto.ahora_local, dia_semana: String(contexto.dia_semana || ''),
+    entregas: contexto.entregas.slice(0, 40), bloques: (contexto.bloques || []).slice(0, 40),
+    agenda: (contexto.agenda || []).slice(0, 40), asignaturas: (contexto.asignaturas || []).slice(0, 30),
+  };
+  // Last turns, so a short answer to a question ("de Física") keeps its meaning
+  const historial = (Array.isArray(req.body?.historial) ? req.body.historial : []).slice(-3)
+    .map((t: any) => `Usuario: ${String(t?.usuario || '').slice(0, 300)}\nAsistente: ${String(t?.asistente || '').slice(0, 300)}`).join('\n');
+  try {
+    const { result, modelUsed } = await executeWithGeminiFallback(
+      ['gemini-3.6-flash', 'gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'],
+      (model) => ai.models.generateContent({
+        model,
+        contents: [`Contexto: ${JSON.stringify(ctx)}\n\n${historial ? `Conversación reciente:\n${historial}\n\n` : ''}Ha dicho: "${texto.replace(/"/g, "'")}"`],
+        config: {
+          systemInstruction: promptAsistente(),
+          temperature: 0.2,
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              respuesta: { type: Type.STRING },
+              acciones: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    tipo: { type: Type.STRING, enum: [...TIPOS_ACCION] },
+                    fecha: { type: Type.STRING, description: 'YYYY-MM-DD' },
+                    inicio: { type: Type.STRING, description: 'HH:mm' },
+                    fin: { type: Type.STRING, description: 'HH:mm' },
+                    titulo: { type: Type.STRING },
+                    motivo: { type: Type.STRING },
+                    uid: { type: Type.STRING },
+                    tarea_id: { type: Type.STRING },
+                    asignatura_id: { type: Type.STRING },
+                    vence_local: { type: Type.STRING, description: 'YYYY-MM-DDTHH:mm' },
+                    horas_est: { type: Type.NUMBER },
+                    tipo_deber: { type: Type.STRING },
+                    dias: { type: Type.INTEGER },
+                    pregunta: { type: Type.STRING },
+                  },
+                  required: ['tipo'],
+                },
+              },
+            },
+            required: ['respuesta', 'acciones'],
+          },
+        },
+      }),
+      12000,
+      15000
+    );
+    const interpretacion = normalizarInterpretacion(result.text || '', ctx, texto);
+    if (interpretacion.descartadas) console.warn('[asistente/interpretar] Acciones descartadas por inválidas:', result.text);
+    res.json({ ...interpretacion, modelo: modelUsed });
+  } catch (err: any) {
+    console.warn('[asistente/interpretar] Gemini no respondió:', err?.message || err);
+    res.status(503).json({ error: 'El asistente no está disponible ahora' });
+  }
 });
 
 // Live Google Calendar Sync Endpoint

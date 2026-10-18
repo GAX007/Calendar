@@ -13,7 +13,7 @@ export const SheetHandle: React.FC<SheetHandleProps> = ({ onPointerDown, dark = 
     className="sm:hidden flex justify-center -mt-2 pt-1 pb-3 touch-none cursor-grab active:cursor-grabbing"
     aria-hidden="true"
   >
-    <span className={`w-10 h-1.5 rounded-full ${dark ? 'bg-slate-600' : 'bg-slate-300 dark:bg-slate-600'}`} />
+    <span className={`w-9 h-[5px] rounded-full ${dark ? 'bg-slate-600' : 'bg-line-3'}`} />
   </div>
 );
 
