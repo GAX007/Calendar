@@ -29,6 +29,7 @@ import { accesoMoodle, clienteServicio, esCalendarioPropietario, respuestaMoodle
 import { normalizarInterpretacion, promptAsistente, TIPOS_ACCION, type ContextoAsistente } from './src/asistente/interpretar';
 import { clavePublica, enviarPush, pushConfigurado } from './src/asistente/servidor/push';
 import { interpretarConOpenAI, MODELO_INTERPRETAR, MODELO_TRANSCRIBIR, openaiDisponible, transcribirConOpenAI } from './src/asistente/servidor/openai';
+import { crearTokenAtajo, listarTokensAtajo, revocarTokenAtajo, turnoAtajo, usuarioDeTokenAtajo } from './src/asistente/servidor/atajo';
 
 // Normalize Netlify function URLs (/.netlify/functions/api/* -> /api/* or stripped /* -> /api/*)
 app.use((req, res, next) => {
@@ -154,6 +155,48 @@ app.post('/api/asistente/transcribir', async (req, res) => {
     console.warn('[asistente/transcribir] OpenAI no transcribió:', err?.message || err);
     res.status(503).json({ error: 'No se pudo transcribir' });
   }
+});
+
+// iPhone shortcut on the lock screen: audio (or text) in, the actions run on the account of the token, spoken answer out.
+// Body: the recorded audio as is (m4a), or JSON { texto }. ?c=<conversation> continues a conversation.
+app.post('/api/asistente/atajo', express.raw({ type: ['audio/*', 'video/*', 'application/octet-stream'], limit: '8mb' }), async (req, res) => {
+  try {
+    const sb = clienteServicio();
+    const userId = await usuarioDeTokenAtajo(sb, req.headers.authorization);
+    if (!userId) return res.status(401).json({ texto: 'El atajo no tiene un token válido. Crea uno nuevo en la app, en Cuenta.', seguir: false });
+    if (!openaiDisponible()) return res.status(503).json({ texto: 'El asistente no está configurado en el servidor.', seguir: false });
+    const audio = Buffer.isBuffer(req.body) && req.body.length > 800 ? req.body : undefined;
+    const texto = !audio && typeof req.body?.texto === 'string' ? req.body.texto : undefined;
+    if (!audio && !texto) return res.status(400).json({ texto: 'No ha llegado el audio.', seguir: false });
+    const conversacion = String(req.query.c || (Buffer.isBuffer(req.body) ? '' : req.body?.conversacion) || '') || undefined;
+    // "Grabar audio" in Shortcuts produces m4a; a generic content type is treated as that
+    const tipo = String(req.headers['content-type'] || '').split(';')[0];
+    const r = await turnoAtajo(sb, userId, { audio, mimeType: /^audio\//.test(tipo) ? tipo : 'audio/m4a', texto, conversacion });
+    res.json(r);
+  } catch (err: any) {
+    console.warn('[asistente/atajo]', err?.message || err);
+    res.status(500).json({ texto: 'Algo ha fallado en el servidor. Inténtalo otra vez.', seguir: false });
+  }
+});
+
+// Personal tokens for the shortcut: created and revoked from the app (signed in); shown only once
+app.get('/api/asistente/tokens', async (req, res) => {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  try { res.json({ tokens: await listarTokensAtajo(clienteServicio(), user.id) }); }
+  catch (err: any) { res.status(500).json({ error: err?.message || 'No se pudieron cargar los tokens' }); }
+});
+app.post('/api/asistente/tokens', async (req, res) => {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  try { res.json(await crearTokenAtajo(clienteServicio(), user.id, String(req.body?.nombre || ''))); }
+  catch (err: any) { res.status(500).json({ error: err?.message || 'No se pudo crear el token' }); }
+});
+app.delete('/api/asistente/tokens/:id', async (req, res) => {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  try { await revocarTokenAtajo(clienteServicio(), user.id, req.params.id); res.json({ ok: true }); }
+  catch (err: any) { res.status(500).json({ error: err?.message || 'No se pudo revocar el token' }); }
 });
 
 // Voice assistant: GPT-6 Luna (Gemini only without OPENAI_API_KEY) turns a free sentence into checked actions.

@@ -27,8 +27,10 @@ async function error(res: Response): Promise<Error> {
 
 export interface UsoOpenAI { entrada: number; salida: number }
 
-// Returns the model's JSON text (to be checked by normalizarInterpretacion) and the tokens used
-export async function interpretarConOpenAI(instrucciones: string, entrada: string, ms = 12000): Promise<{ texto: string; uso: UsoOpenAI }> {
+// Returns the model's JSON text (to be checked by normalizarInterpretacion) and the tokens used.
+// 'low' reasoning ≈ 4.5 s; 'none' ≈ 2.5 s (the shortcut uses it to fit in Netlify's time limit).
+export async function interpretarConOpenAI(instrucciones: string, entrada: string, ms = 12000,
+  esfuerzo: 'none' | 'low' = process.env.OPENAI_REASONING === 'none' ? 'none' : 'low'): Promise<{ texto: string; uso: UsoOpenAI }> {
   return conTiempo(ms, async signal => {
     const res = await fetch(`${API}/responses`, {
       method: 'POST', signal,
@@ -37,7 +39,7 @@ export async function interpretarConOpenAI(instrucciones: string, entrada: strin
         model: MODELO_INTERPRETAR,
         instructions: instrucciones,
         input: entrada,
-        reasoning: { effort: process.env.OPENAI_REASONING === 'none' ? 'none' : 'low' },
+        reasoning: { effort: esfuerzo },
         max_output_tokens: 2000,
         store: false,
         text: { format: { type: 'json_schema', name: 'interpretacion', schema: esquemaInterpretacion(), strict: true } },

@@ -4,7 +4,7 @@ import type { DiffSocial, Evento, Parametros, Plan } from '../planner/types';
 import { validateEvento, validateParametros } from '../planner/engine';
 import { assemblePlannerData, type PlannerData } from '../planner/data';
 import { madridLocal, weekStart } from '../planner/time';
-import { entregaSnapshot } from '../planner/snapshot';
+import { datosPlan, guardarEvento, guardarSocial } from '../planner/mutaciones';
 import { loadUniversityWorks } from './universityPlannerService';
 
 export type { PlannerData } from '../planner/data';
@@ -40,29 +40,15 @@ export async function mutatePlanner(data: PlannerData, action: string, payload: 
   checked(await client().rpc('mutar_planificador', { p_revision: data.revision, p_accion: action, p_datos: payload }));
 }
 export async function saveEvento(data: PlannerData, evento: Evento) {
-  validateEvento(evento);
-  return mutatePlanner(data, 'evento', evento);
+  return guardarEvento(mutatePlanner, data, evento);
 }
 export async function saveParametros(data: PlannerData, parametros: Parametros) {
   validateParametros(parametros);
   return mutatePlanner(data, 'parametros', parametros);
 }
 export async function savePlan(data: PlannerData, plan: Plan, hasta: string, ahora: string) {
-  const desde_local = [ahora, `${weekStart(hasta)}T00:00`].sort().at(-1)!;
-  return mutatePlanner(data, 'plan', { desde_local, hasta, bloques: plan.bloques, entregas_snapshot: entregaSnapshot(data.entregas) });
+  return mutatePlanner(data, 'plan', datosPlan(data, plan, hasta, ahora));
 }
 export async function confirmSocial(data: PlannerData, evento: Evento, diff: DiffSocial, baseline: Plan, confirmarDeuda: boolean) {
-  if (diff.requiere_confirmacion && !confirmarDeuda) throw new Error('Confirma la advertencia de deuda antes de guardar');
-  if (diff.desde_local < madridLocal(new Date())) throw new Error('La vista previa ha caducado. Calcula de nuevo');
-  try {
-    return await mutatePlanner(data, 'social', { evento, desde_local: diff.desde_local, hasta: diff.hasta,
-      bloques: diff.plan.bloques, plan_base: baseline.bloques, nueva_deuda: diff.nueva_deuda, recortes: diff.recortes,
-      confirmar_deuda: confirmarDeuda, entregas_snapshot: entregaSnapshot(data.entregas) });
-  } catch (err) {
-    // Supabase without migration_fase5_imprevisto.sql only accepts events that move no earlier block
-    if (err instanceof Error && /El corte debe coincidir/.test(err.message)) {
-      throw new Error('Para mover los bloques que chocan con el imprevisto falta aplicar supabase/migration_fase5_imprevisto.sql en Supabase');
-    }
-    throw err;
-  }
+  return guardarSocial(mutatePlanner, data, evento, diff, baseline, confirmarDeuda);
 }

@@ -40,9 +40,10 @@ export interface Escucha {
 export type OnParcial = (texto: string, definitivo: string, provisional: string) => void;
 // Server transcription of the recorded clip (OpenAI). Resolves '' or rejects when it is not available.
 export type Transcriptor = (audio: Blob) => Promise<string>;
-export function escuchar(onParcial?: OnParcial, transcribir?: Transcriptor): Escucha {
+// `micro`: a stream already open for the whole conversation (kept open, not stopped here)
+export function escuchar(onParcial?: OnParcial, transcribir?: Transcriptor, micro?: MediaStream): Escucha {
   const SR = constructorReconocimiento();
-  if (transcribir && puedeGrabar()) return grabarConServidor(transcribir, SR, onParcial);
+  if (transcribir && puedeGrabar()) return grabarConServidor(transcribir, SR, onParcial, micro);
   if (SR) return conReconocimiento(SR, onParcial);
   return grabarYTranscribir();
 }
@@ -50,23 +51,63 @@ export function escuchar(onParcial?: OnParcial, transcribir?: Transcriptor): Esc
 const MAX_HABLA_MS = 15000;
 const SILENCIO_MS = 1400;
 
+// Opens the microphone once, inside the user's tap: iOS Safari refuses to open it later without a gesture,
+// so the conversation keeps this stream and records every following answer on it.
+export async function abrirMicro(): Promise<MediaStream | null> {
+  if (!puedeGrabar()) return null;
+  try { return await navigator.mediaDevices.getUserMedia({ audio: true }); } catch { return null; }
+}
+export function cerrarMicro(stream: MediaStream | null | undefined): void {
+  stream?.getTracks().forEach(t => t.stop());
+}
+
+// One answer inside a conversation, on the already open stream: ends after a pause once the user spoke,
+// or resolves '' when nobody speaks for `sinVozMs` (the conversation ends). No browser recognition (needs a gesture on iOS).
+export function escucharTurno(micro: MediaStream, transcribir: Transcriptor, sinVozMs = 6000): Escucha {
+  let cancelado = false, sinVoz = false, terminar: () => void = () => undefined;
+  const texto = (async () => {
+    const trozos: Blob[] = [];
+    let recorder: MediaRecorder;
+    try { recorder = new MediaRecorder(micro); } catch { throw new Error('Este navegador no permite grabar.'); }
+    const fin = new Promise<Blob>(resolve => {
+      recorder.ondataavailable = e => { if (e.data.size) trozos.push(e.data); };
+      recorder.onstop = () => resolve(new Blob(trozos, { type: recorder.mimeType || 'audio/webm' }));
+    });
+    const pararGrabacion = () => { if (recorder.state === 'recording') recorder.stop(); };
+    terminar = pararGrabacion;
+    recorder.start();
+    const limite = setTimeout(pararGrabacion, MAX_HABLA_MS);
+    const cerrarSilencio = detectarSilencio(micro, pararGrabacion, sinVozMs, () => { sinVoz = true; pararGrabacion(); });
+    const audio = await fin;
+    clearTimeout(limite);
+    cerrarSilencio();
+    if (cancelado || sinVoz || !audio.size) return '';
+    try { return (await transcribir(audio)).trim(); } catch { return ''; }
+  })();
+  return { texto, detener: () => terminar(), cancelar: () => { cancelado = true; terminar(); } };
+}
+
 // Records the clip for the server while the browser's recognition (if any) shows the live text and detects the end.
 // The server's text wins (it knows Basque subject names); the browser's text is the fallback.
-function grabarConServidor(transcribir: Transcriptor, SR: (new () => Reconocedor) | null, onParcial?: OnParcial): Escucha {
+function grabarConServidor(transcribir: Transcriptor, SR: (new () => Reconocedor) | null, onParcial?: OnParcial, micro?: MediaStream): Escucha {
   let cancelado = false, terminar: () => void = () => undefined;
   let reconocedor: Escucha | null = null;
   const texto = (async () => {
     let stream: MediaStream;
-    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
-    catch { throw new Error('Permite el micrófono para esta app en los ajustes del navegador.'); }
-    if (cancelado) { stream.getTracks().forEach(t => t.stop()); return ''; }
+    if (micro) stream = micro;
+    else {
+      try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+      catch { throw new Error('Permite el micrófono para esta app en los ajustes del navegador.'); }
+    }
+    const soltar = () => { if (!micro) stream.getTracks().forEach(t => t.stop()); };
+    if (cancelado) { soltar(); return ''; }
     const trozos: Blob[] = [];
     let recorder: MediaRecorder;
     try { recorder = new MediaRecorder(stream); }
-    catch { stream.getTracks().forEach(t => t.stop()); return SR ? conReconocimiento(SR, onParcial).texto : ''; }
+    catch { soltar(); return SR ? conReconocimiento(SR, onParcial).texto : ''; }
     const fin = new Promise<Blob>(resolve => {
       recorder.ondataavailable = e => { if (e.data.size) trozos.push(e.data); };
-      recorder.onstop = () => { stream.getTracks().forEach(t => t.stop()); resolve(new Blob(trozos, { type: recorder.mimeType || 'audio/webm' })); };
+      recorder.onstop = () => { soltar(); resolve(new Blob(trozos, { type: recorder.mimeType || 'audio/webm' })); };
     });
     const pararGrabacion = () => { if (recorder.state === 'recording') recorder.stop(); };
     let cerrarSilencio = () => undefined as void;
@@ -101,26 +142,41 @@ function grabarConServidor(transcribir: Transcriptor, SR: (new () => Reconocedor
   };
 }
 
-// Stops the recording after a pause once the user has spoken. Returns the cleanup.
-function detectarSilencio(stream: MediaStream, alTerminar: () => void): () => void {
-  const AC = (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }).AudioContext
-    || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!AC) return () => undefined;
-  const ctx = new AC();
+// Stops the recording after a pause once the user has spoken; `alSinVoz` when nothing is said for `sinVozMs`. Returns the cleanup.
+function detectarSilencio(stream: MediaStream, alTerminar: () => void, sinVozMs?: number, alSinVoz?: () => void): () => void {
+  const propio = !audioCompartido;
+  const ctx = audioCompartido || crearAudio();
+  if (!ctx) return () => undefined;
   const analizador = ctx.createAnalyser();
   analizador.fftSize = 1024;
-  ctx.createMediaStreamSource(stream).connect(analizador);
+  const fuente = ctx.createMediaStreamSource(stream);
+  fuente.connect(analizador);
   const muestras = new Uint8Array(analizador.fftSize);
   let hablado = false, ultimoSonido = Date.now();
+  const inicio = Date.now();
   const intervalo = setInterval(() => {
     analizador.getByteTimeDomainData(muestras);
     let pico = 0;
     for (const m of muestras) pico = Math.max(pico, Math.abs(m - 128));
     if (pico > 12) { hablado = true; ultimoSonido = Date.now(); }
     else if (hablado && Date.now() - ultimoSonido > SILENCIO_MS) { limpiar(); alTerminar(); }
+    else if (!hablado && sinVozMs && alSinVoz && Date.now() - inicio > sinVozMs) { limpiar(); alSinVoz(); }
   }, 100);
-  const limpiar = () => { clearInterval(intervalo); void ctx.close().catch(() => undefined); };
+  const limpiar = () => { clearInterval(intervalo); fuente.disconnect(); if (propio) void ctx.close().catch(() => undefined); };
   return limpiar;
+}
+
+// iOS keeps an AudioContext created without a tap suspended (silent): the conversation creates one in the first tap
+let audioCompartido: AudioContext | null = null;
+function crearAudio(): AudioContext | null {
+  const AC = (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }).AudioContext
+    || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  return AC ? new AC() : null;
+}
+export function prepararAudio(): void {
+  if (typeof window === 'undefined') return;
+  audioCompartido ||= crearAudio();
+  void audioCompartido?.resume().catch(() => undefined);
 }
 
 function conReconocimiento(SR: new () => Reconocedor, onParcial?: OnParcial): Escucha {

@@ -6,6 +6,7 @@ import { useHydrationTracker } from '../hooks/useHydrationTracker';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import { activarPush, desactivarPush, estadoPush, type EstadoPush } from '../services/asistenteService';
 import { esperarVoces, guardarPreferenciasVoz, preferenciasVoz, vozDisponible } from '../utils/voz';
+import { AtajoIphone } from './AtajoIphone';
 
 const VELOCIDADES = [{ v: 0.9, label: 'Lenta' }, { v: 1, label: 'Normal' }, { v: 1.15, label: 'Rápida' }];
 
@@ -135,6 +136,8 @@ export const CuentaSheet: React.FC<Props> = ({
                   )}
                 </div>
               )}
+
+              {user && <AtajoIphone showToast={showToast} />}
 
               <div className={fila}>
                 <span className="flex items-center gap-3"><Droplets className="w-5 h-5 text-ink-2" strokeWidth={1.75} /><span className="text-base font-medium">Objetivo de agua</span></span>

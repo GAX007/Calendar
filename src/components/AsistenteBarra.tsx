@@ -108,16 +108,26 @@ export const AsistenteBarra: React.FC<Props> = ({ voz, conCuenta, isProcessing, 
   if (voz.modo) {
     const hablando = voz.estado === 'hablando';
     const pensando = voz.estado === 'pensando';
+    // Conversation: after a question the microphone reopens by itself
+    const escuchando = voz.estado === 'escuchando';
     const fraseActual = voz.frases[voz.actual] ?? voz.frases[0] ?? '';
-    const ocupado = hablando || pensando;
+    const ocupado = hablando || pensando || escuchando;
     return zona(
       <section
         aria-label={voz.modo === 'dia' ? 'Resumen hablado de tu día' : 'Respuesta del asistente'}
         className="relative grid grid-cols-[minmax(0,1fr)_52px] gap-3.5 items-end rounded-3xl bg-surface pl-[18px] pr-3.5 pt-4 pb-3.5 animate-subir"
       >
         <div className="min-w-0 self-center flex flex-col gap-3">
-          {pensando ? (
-            <p className="text-[17px] leading-[1.42] text-slate-500" aria-live="polite">Pensando…</p>
+          {escuchando ? (
+            <div aria-live="polite" className="flex flex-col gap-1">
+              <p className="text-[13px] leading-[1.35] text-ink-2 line-clamp-2">{voz.frases.join(' ')}</p>
+              <p className="text-[17px] leading-[1.42] font-semibold text-ink flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" aria-hidden="true" />
+                {voz.oidoDefinitivo || (voz.pendiente ? 'Te escucho… di «sí» o «no»' : 'Te escucho…')}
+              </p>
+            </div>
+          ) : pensando ? (
+            <p className="text-[17px] leading-[1.42] text-slate-500" aria-live="polite">{voz.conversando && voz.oidoDefinitivo ? `«${voz.oidoDefinitivo}» · Pensando…` : 'Pensando…'}</p>
           ) : hablando ? (
             <p className="text-[17px] leading-[1.42] text-ink text-pretty" aria-live="polite">{fraseActual}</p>
           ) : (
@@ -146,7 +156,7 @@ export const AsistenteBarra: React.FC<Props> = ({ voz, conCuenta, isProcessing, 
           )}
         </div>
         {ocupado ? (
-          <button type="button" onClick={voz.detener} aria-label={pensando ? 'Cancelar' : 'Parar la lectura'} className="w-[52px] h-[52px] rounded-full bg-ink flex items-center justify-center active:scale-95 transition cursor-pointer">
+          <button type="button" onClick={voz.detener} aria-label={escuchando ? 'Terminar la conversación' : pensando ? 'Cancelar' : 'Parar la lectura'} className="w-[52px] h-[52px] rounded-full bg-ink flex items-center justify-center active:scale-95 transition cursor-pointer">
             <Cuadrado />
           </button>
         ) : (
@@ -155,6 +165,7 @@ export const AsistenteBarra: React.FC<Props> = ({ voz, conCuenta, isProcessing, 
           </button>
         )}
         {hablando && <Ondas fondo="bg-accent" barra="bg-ink" className="right-1" />}
+        {escuchando && <Ondas fondo="bg-ink" barra="bg-white" className="right-1" />}
       </section>
     );
   }
@@ -211,7 +222,7 @@ export const AsistenteBarra: React.FC<Props> = ({ voz, conCuenta, isProcessing, 
           className="w-full resize-none bg-transparent px-[13px] text-[17px] leading-[1.45] text-ink outline-none"
         />
         <div className="flex items-center gap-0.5">
-          <button type="button" onClick={() => { setDictado(''); setFase('normal'); }} aria-label="Descartar el texto" className={botonIcono}>
+          <button type="button" onClick={() => { setDictado(''); setFase('normal'); voz.cancelarDictado(); }} aria-label="Descartar el texto" className={botonIcono}>
             <X className="w-[19px] h-[19px]" strokeWidth={1.75} />
           </button>
           <span className="flex-1" />
