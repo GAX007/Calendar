@@ -38,10 +38,89 @@ export interface Escucha {
 // Listens to one sentence. `onParcial` gets the text while the user is still talking,
 // plus the part already confirmed and the part that may still change.
 export type OnParcial = (texto: string, definitivo: string, provisional: string) => void;
-export function escuchar(onParcial?: OnParcial): Escucha {
+// Server transcription of the recorded clip (OpenAI). Resolves '' or rejects when it is not available.
+export type Transcriptor = (audio: Blob) => Promise<string>;
+export function escuchar(onParcial?: OnParcial, transcribir?: Transcriptor): Escucha {
   const SR = constructorReconocimiento();
+  if (transcribir && puedeGrabar()) return grabarConServidor(transcribir, SR, onParcial);
   if (SR) return conReconocimiento(SR, onParcial);
   return grabarYTranscribir();
+}
+
+const MAX_HABLA_MS = 15000;
+const SILENCIO_MS = 1400;
+
+// Records the clip for the server while the browser's recognition (if any) shows the live text and detects the end.
+// The server's text wins (it knows Basque subject names); the browser's text is the fallback.
+function grabarConServidor(transcribir: Transcriptor, SR: (new () => Reconocedor) | null, onParcial?: OnParcial): Escucha {
+  let cancelado = false, terminar: () => void = () => undefined;
+  let reconocedor: Escucha | null = null;
+  const texto = (async () => {
+    let stream: MediaStream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch { throw new Error('Permite el micrófono para esta app en los ajustes del navegador.'); }
+    if (cancelado) { stream.getTracks().forEach(t => t.stop()); return ''; }
+    const trozos: Blob[] = [];
+    let recorder: MediaRecorder;
+    try { recorder = new MediaRecorder(stream); }
+    catch { stream.getTracks().forEach(t => t.stop()); return SR ? conReconocimiento(SR, onParcial).texto : ''; }
+    const fin = new Promise<Blob>(resolve => {
+      recorder.ondataavailable = e => { if (e.data.size) trozos.push(e.data); };
+      recorder.onstop = () => { stream.getTracks().forEach(t => t.stop()); resolve(new Blob(trozos, { type: recorder.mimeType || 'audio/webm' })); };
+    });
+    const pararGrabacion = () => { if (recorder.state === 'recording') recorder.stop(); };
+    let cerrarSilencio = () => undefined as void;
+    terminar = () => { reconocedor?.detener(); pararGrabacion(); };
+    recorder.start();
+    const limite = setTimeout(terminar, MAX_HABLA_MS);
+    // The browser's recognition ends on silence; without it (or if it fails), a simple level meter does
+    let delNavegador: Promise<string> = Promise.resolve('');
+    if (SR) {
+      reconocedor = conReconocimiento(SR, onParcial);
+      delNavegador = reconocedor.texto.then(t => { pararGrabacion(); return t; }, () => { cerrarSilencio = detectarSilencio(stream, pararGrabacion); return ''; });
+    } else {
+      cerrarSilencio = detectarSilencio(stream, pararGrabacion);
+    }
+    const audio = await fin;
+    clearTimeout(limite);
+    cerrarSilencio();
+    reconocedor?.detener();
+    const navegador = await Promise.race([delNavegador, new Promise<string>(r => setTimeout(() => r(''), 1500))]);
+    if (cancelado || !audio.size) return '';
+    try {
+      const servidor = (await transcribir(audio)).trim();
+      if (servidor) return servidor;
+    } catch { /* fall back to the browser's text */ }
+    if (navegador) return navegador;
+    throw new Error('No he podido entenderte. Inténtalo otra vez.');
+  })();
+  return {
+    texto,
+    detener: () => terminar(),
+    cancelar: () => { cancelado = true; reconocedor?.cancelar(); terminar(); },
+  };
+}
+
+// Stops the recording after a pause once the user has spoken. Returns the cleanup.
+function detectarSilencio(stream: MediaStream, alTerminar: () => void): () => void {
+  const AC = (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }).AudioContext
+    || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AC) return () => undefined;
+  const ctx = new AC();
+  const analizador = ctx.createAnalyser();
+  analizador.fftSize = 1024;
+  ctx.createMediaStreamSource(stream).connect(analizador);
+  const muestras = new Uint8Array(analizador.fftSize);
+  let hablado = false, ultimoSonido = Date.now();
+  const intervalo = setInterval(() => {
+    analizador.getByteTimeDomainData(muestras);
+    let pico = 0;
+    for (const m of muestras) pico = Math.max(pico, Math.abs(m - 128));
+    if (pico > 12) { hablado = true; ultimoSonido = Date.now(); }
+    else if (hablado && Date.now() - ultimoSonido > SILENCIO_MS) { limpiar(); alTerminar(); }
+  }, 100);
+  const limpiar = () => { clearInterval(intervalo); void ctx.close().catch(() => undefined); };
+  return limpiar;
 }
 
 function conReconocimiento(SR: new () => Reconocedor, onParcial?: OnParcial): Escucha {

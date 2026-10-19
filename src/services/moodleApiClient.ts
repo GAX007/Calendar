@@ -6,7 +6,8 @@ import {
   INITIAL_ASIGNATURAS,
   MoodleSyncPasos,
 } from './moodleTypes';
-import { sessionAuthHeaders } from '../lib/supabase';
+import { sessionAuthHeaders, supabase } from '../lib/supabase';
+import { CLAVE_FILTROS_MOODLE, normalizarFiltros, type FiltrosMoodle } from '../utils/moodleFiltros';
 
 export interface SyncApiResponse {
   ok: boolean;
@@ -98,6 +99,8 @@ export async function updateEntregaApi(
     horas_est?: number | null;
     horas_reales?: number | null;
     min_viable_min?: number | null;
+    titulo?: string;
+    deadline_utc?: string;
   }
 ): Promise<EntregaItem> {
   const response = await moodleFetch(`/api/moodle/entregas/${encodeURIComponent(uid)}`, {
@@ -161,4 +164,32 @@ export async function fetchSyncLogsApi(limit: number = 10): Promise<SyncLogItem[
   }
   const data = await response.json();
   return data.logs || [];
+}
+
+// Discard or restore several deliverables at once
+export async function updateEntregasEstadoApi(uids: string[], estado: 'pendiente' | 'descartada'): Promise<EntregaItem[]> {
+  if (!uids.length) return [];
+  const response = await moodleFetch('/api/moodle/entregas/estado', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ uids, estado }),
+  });
+  const data = await response.json();
+  return data.entregas || [];
+}
+
+// The user's Moodle filters live in their own parametros row (RLS: only their account)
+export async function loadFiltrosMoodle(): Promise<FiltrosMoodle> {
+  if (!supabase) return normalizarFiltros(null);
+  const { data, error } = await supabase.from('parametros').select('valor').eq('clave', CLAVE_FILTROS_MOODLE).maybeSingle();
+  if (error) throw new Error(`No se pudieron cargar los filtros: ${error.message}`);
+  return normalizarFiltros(data?.valor);
+}
+
+export async function saveFiltrosMoodle(userId: string, filtros: FiltrosMoodle): Promise<FiltrosMoodle> {
+  if (!supabase) throw new Error('Inicia sesión para guardar filtros');
+  const valor = normalizarFiltros(filtros);
+  const { error } = await supabase.from('parametros').upsert({ user_id: userId, clave: CLAVE_FILTROS_MOODLE, valor }, { onConflict: 'user_id,clave' });
+  if (error) throw new Error(`No se pudieron guardar los filtros: ${error.message}`);
+  return valor;
 }

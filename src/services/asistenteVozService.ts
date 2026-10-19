@@ -1,17 +1,20 @@
-// Voice assistant actions: understands a sentence (Gemini, local parser as fallback) and runs it on the planner and agenda
+// Voice assistant actions: understands a sentence (OpenAI on the server, local parser as fallback) and runs it on the planner and agenda
 import { interpretarComando } from '../asistente/comandosVoz';
-import { accionesDeComando, type Accion, type ContextoAsistente, type Interpretacion } from '../asistente/interpretar';
+import { accionesDeComando, MAX_DESCARTE_SIN_CONFIRMAR, type Accion, type ContextoAsistente, type Interpretacion } from '../asistente/interpretar';
 import { cuandoHablado, duracionHablada, horaHablada } from '../asistente/voz';
 import { planActual, entradaSemana, esCandidata } from '../asistente/logica';
 import { expandEventos, previewSocial } from '../planner/engine';
 import { avisosImprevisto } from '../planner/imprevisto';
 import { addDays, blockStart, madridLocal, minutes, timeString } from '../planner/time';
+import { localDeadlineUtc } from '../planner/university';
 import type { Evento } from '../planner/types';
 import type { TaskItem, UniversityHomework, UniversitySubject } from '../types';
 import { newId } from '../utils/uuid';
-import { confirmSocial, mutatePlanner } from './plannerService';
+import { sessionAuthHeaders } from '../lib/supabase';
+import { confirmSocial, mutatePlanner, saveEvento } from './plannerService';
 import { getUniversitySubjects } from './universityService';
-import { saveUniversityWork } from './universityPlannerService';
+import { homeworkFromRow, loadUniversityWorks, saveUniversityWork } from './universityPlannerService';
+import { fetchAsignaturasApi, updateEntregaApi, updateEntregasEstadoApi } from './moodleApiClient';
 import { ASISTENTE_ACTUALIZADO, contextoVoz, recalcularYGuardarSemana } from './asistenteService';
 
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -21,7 +24,11 @@ const capital = (s: string) => s.replace(/^./, c => c.toUpperCase());
 export type Deshacer =
   | { tipo: 'eventos'; ids: string[]; tareaId?: string; titulo: string }
   | { tipo: 'deber'; deber: UniversityHomework; asignatura: UniversitySubject; titulo: string }
-  | { tipo: 'tarea'; anterior: TaskItem; titulo: string };
+  | { tipo: 'tarea'; anterior: TaskItem; titulo: string }
+  // Deliverables whose state changed (discarded): undo puts each one back
+  | { tipo: 'estados'; cambios: { uid: string; estado: 'pendiente' | 'descartada' }[]; titulo: string }
+  | { tipo: 'entrega_moodle'; uid: string; anterior: { titulo?: string; deadline_utc?: string; horas_est?: number | null }; titulo: string }
+  | { tipo: 'deber_previo'; deber: UniversityHomework; asignatura: UniversitySubject; titulo: string };
 
 export interface Resultado {
   frases: string[];
@@ -48,22 +55,31 @@ export async function construirContexto(userId: string, tareas: TaskItem[]): Pro
     ...tareas.filter(t => (t.date === hoy || t.date === manana) && !t.completed && t.time)
       .map(t => ({ tarea_id: t.id, titulo: t.title, fecha: t.date, inicio: t.time.slice(0, 5), fin: (t.endTime || t.time).slice(0, 5) })),
   ].sort((a, b) => `${a.fecha}${a.inicio}`.localeCompare(`${b.fecha}${b.inicio}`));
-  const limite = addDays(hoy, 21);
+  // Two months of pending deliverables with their subject code, so "descarta las de X" and Basque names can be matched
+  const limite = addDays(hoy, 60);
   const entregas = data.entregas.filter(esCandidata).map(t => ({ uid: t.uid, titulo: t.titulo, vence_local: madridLocal(t.deadline_utc),
-    horas_est: t.horas_est ?? null })).filter(e => e.vence_local > ahora && e.vence_local.slice(0, 10) <= limite)
-    .sort((a, b) => a.vence_local.localeCompare(b.vence_local));
-  const asignaturas = getUniversitySubjects().map(s => ({ id: s.id, code: s.code, name: s.name }));
-  return { ahora_local: ahora, dia_semana: DIAS[new Date(`${hoy}T12:00:00Z`).getUTCDay()], entregas, bloques, agenda, asignaturas };
+    horas_est: t.horas_est ?? null, asignatura: t.asignatura_codigo || undefined }))
+    .filter(e => e.vence_local > ahora && e.vence_local.slice(0, 10) <= limite)
+    .sort((a, b) => a.vence_local.localeCompare(b.vence_local)).slice(0, 60);
+  // University subjects plus the Moodle ones (code + name in Basque or Spanish); Moodle is empty for other accounts
+  const moodle = await fetchAsignaturasApi().catch(() => []);
+  const asignaturas = [
+    ...getUniversitySubjects().map(s => ({ id: s.id, code: s.code, name: s.name })),
+    ...moodle.filter(a => entregas.some(e => e.asignatura === a.codigo)).map(a => ({ id: a.codigo, code: a.codigo, name: a.nombre })),
+  ];
+  const ctx: ContextoAsistente = { ahora_local: ahora, dia_semana: DIAS[new Date(`${hoy}T12:00:00Z`).getUTCDay()], entregas, bloques, agenda, asignaturas };
+  recordarPalabras(ctx);
+  return ctx;
 }
 const weekOf = (fecha: string) => addDays(fecha, 1 - (new Date(`${fecha}T12:00:00Z`).getUTCDay() || 7));
 
-// Gemini first; without network or key, the local parser
+// The server model first (OpenAI); without network or key, the local parser
 export async function interpretarFrase(texto: string, ctx: ContextoAsistente, historial: Turno[] = []): Promise<Interpretacion & { local: boolean }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), INTERPRETAR_TIMEOUT_MS);
   try {
     const res = await fetch('/api/asistente/interpretar', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...(await sessionAuthHeaders()) }, signal: controller.signal,
       body: JSON.stringify({ texto, contexto: ctx, historial: historial.slice(-3) }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -110,6 +126,52 @@ async function guardarImprevisto(userId: string, act: Imprevisto, confirmarDeuda
   return { evento, frases, confirmar: false, movidos: diff.movimientos.length };
 }
 
+// A fixed one-off event ("me voy al cine de 18:00 a 23:00"): saved as a fixed schedule for that day and the week replanned around it
+async function guardarFijo(userId: string, act: Imprevisto) {
+  const { ahora, hoy, data, limites } = await contextoVoz(userId);
+  let inicio = act.inicio;
+  if (`${act.fecha}T${act.fin}` <= ahora) throw new Error('Esa hora ya ha pasado.');
+  if (`${act.fecha}T${inicio}` < ahora) {
+    const m = Math.ceil((minutes(ahora.slice(11, 16)) + 1) / 5) * 5;
+    if (m >= minutes(act.fin)) throw new Error('Eso ya casi ha terminado; no cambio el plan.');
+    inicio = timeString(m);
+  }
+  const evento: Evento = { id: `voz:${newId()}`, titulo: act.titulo, inicio_local: inicio, fin_local: act.fin,
+    dias_semana: null, fecha_inicio: act.fecha, fecha_fin: act.fecha, tipo: 'fijo', bloqueo: true, area: act.area };
+  // Study blocks the event overlaps, to say where they went
+  const antes = planActual(data, act.fecha, ahora, limites).bloques.filter(b => b.task_uid && b.fecha === act.fecha
+    && minutes(b.inicio_local) < minutes(act.fin) && minutes(b.fin_local) > minutes(inicio));
+  await saveEvento(data, evento);
+  const plan = await recalcularYGuardarSemana(limites);
+  const frases: string[] = [];
+  for (const b of antes.slice(0, 3)) {
+    const nuevo = plan.bloques.find(n => n.task_uid === b.task_uid && `${n.fecha}T${n.inicio_local}` >= ahora
+      && !(n.fecha === act.fecha && minutes(n.inicio_local) < minutes(act.fin) && minutes(n.fin_local) > minutes(inicio)));
+    frases.push(nuevo ? `Muevo ${b.titulo} a ${cuandoHablado(blockStart(nuevo), hoy)}.` : `${b.titulo} se queda sin hueco esta semana.`);
+  }
+  if (antes.length > 3) frases.push(`Y muevo ${antes.length - 3} bloques más.`);
+  for (const r of plan.en_riesgo.filter(r => antes.some(b => b.task_uid === r.task_uid)).slice(0, 2)) frases.push(`Ojo: ${r.titulo} queda en riesgo.`);
+  return { evento, frases, movidos: antes.length };
+}
+
+// Discards or restores deliverables: Moodle ones through the Moodle API, University ones through the planner RPC
+async function cambiarEstados(userId: string, cambios: { uid: string; estado: 'pendiente' | 'descartada' }[]) {
+  for (const estado of ['pendiente', 'descartada'] as const) {
+    const moodle = cambios.filter(c => c.estado === estado && !c.uid.startsWith('uni:')).map(c => c.uid);
+    if (moodle.length) await updateEntregasEstadoApi(moodle, estado);
+  }
+  for (const c of cambios.filter(c => c.uid.startsWith('uni:'))) {
+    const { data } = await contextoVoz(userId);
+    const e = data.entregas.find(t => t.uid === c.uid);
+    if (!e) continue;
+    await mutatePlanner(data, 'entrega', { uid: e.uid, estado: c.estado, horas_est: Number(e.horas_est) > 0 ? Number(e.horas_est) : 2,
+      min_viable_min: Math.max(20, e.min_viable_min || 60), tamano_bloque_min: e.tamano_bloque_min || null,
+      hueco_inicio_local: e.hueco_inicio_local || null, hueco_fin_local: e.hueco_fin_local || null });
+  }
+  const { limites } = await contextoVoz(userId);
+  await recalcularYGuardarSemana(limites);
+}
+
 // Free stretches of [inicio, fin] once fixed classes and events are taken out
 async function huecosLibres(userId: string, fecha: string, inicio: string, fin: string): Promise<[string, string][]> {
   const { data } = await contextoVoz(userId);
@@ -131,6 +193,13 @@ export async function ejecutarAccion(userId: string, accion: Accion, tareas: Tas
   const hoy = madridLocal(new Date()).slice(0, 10);
   switch (accion.tipo) {
     case 'anadir_actividad': {
+      if (!accion.imprevisto) {
+        const r = await guardarFijo(userId, accion);
+        const cuando = franja(accion.fecha, r.evento.inicio_local, accion.fin, hoy);
+        const tarea = tareaDeEvento(r.evento);
+        return { frases: [`Añadido como fijo: ${accion.titulo}, ${cuando}.`, ...(r.movidos ? r.frases : ['No choca con tu estudio.'])],
+          tareaNueva: tarea, deshacer: { tipo: 'eventos', ids: [r.evento.id], tareaId: tarea.id, titulo: accion.titulo } };
+      }
       const r = await guardarImprevisto(userId, accion, confirmarDeuda);
       const cuando = franja(accion.fecha, r.evento.inicio_local, accion.fin, hoy);
       if (r.confirmar) return { confirmar: true, frases: [`${capital(cuando)}: ${accion.titulo}. Si lo añado superas tu máximo de horas aplazadas. ¿Lo añado igualmente?`] };
@@ -193,6 +262,50 @@ export async function ejecutarAccion(userId: string, accion: Accion, tareas: Tas
         primero ? `Empiezas ${cuandoHablado(blockStart(primero), hoy)}.` : 'Esta semana no hay bloques para él; lo verás en el plan.'],
         deshacer: { tipo: 'deber', deber, asignatura, titulo: accion.titulo } };
     }
+    case 'descartar_entrega': {
+      await cambiarEstados(userId, [{ uid: accion.uid, estado: 'descartada' }]);
+      return { frases: [`He descartado ${accion.titulo}; ya no cuenta en tu plan.`],
+        deshacer: { tipo: 'estados', cambios: [{ uid: accion.uid, estado: 'pendiente' }], titulo: accion.titulo } };
+    }
+    case 'descartar_asignatura': {
+      const n = accion.uids.length;
+      if (n > MAX_DESCARTE_SIN_CONFIRMAR && !accion.confirmado && !confirmarDeuda) {
+        return { confirmar: true, frases: [`Son ${n} entregas pendientes de ${accion.asignatura}. ¿Las descarto todas?`] };
+      }
+      await cambiarEstados(userId, accion.uids.map(uid => ({ uid, estado: 'descartada' as const })));
+      return { frases: [`He descartado ${n === 1 ? 'la entrega pendiente' : `las ${n} entregas pendientes`} de ${accion.asignatura}.`],
+        deshacer: { tipo: 'estados', cambios: accion.uids.map(uid => ({ uid, estado: 'pendiente' as const })), titulo: `las entregas de ${accion.asignatura}` } };
+    }
+    case 'modificar_entrega': {
+      const { data } = await contextoVoz(userId);
+      const e = data.entregas.find(t => t.uid === accion.uid);
+      if (!e) throw new Error(`No encuentro ${accion.titulo}.`);
+      const dicho: string[] = [];
+      if (accion.nuevo_titulo) dicho.push(`se llama «${accion.nuevo_titulo}»`);
+      if (accion.vence_local) dicho.push(`vence ${cuandoHablado(accion.vence_local, hoy)}`);
+      if (accion.horas_est) dicho.push(`le calculo ${duracionHablada(accion.horas_est)}`);
+      let deshacer: Deshacer;
+      if (e.uid.startsWith('uni:')) {
+        const row = (await loadUniversityWorks()).find(r => `uni:${r.id}` === e.uid);
+        if (!row) throw new Error(`No encuentro ${accion.titulo}.`);
+        const anterior = homeworkFromRow(row);
+        const titulo = accion.nuevo_titulo?.replace(/^\[[^\]]+\]\s*/, '');
+        await saveUniversityWork({ ...anterior, ...(titulo ? { title: titulo } : {}),
+          ...(accion.vence_local ? { dueDate: accion.vence_local.slice(0, 10), dueTime: accion.vence_local.slice(11, 16) } : {}),
+          ...(accion.horas_est ? { estimatedHours: accion.horas_est } : {}) }, row.asignatura);
+        deshacer = { tipo: 'deber_previo', deber: anterior, asignatura: row.asignatura, titulo: accion.titulo };
+      } else {
+        await updateEntregaApi(e.uid, { ...(accion.nuevo_titulo ? { titulo: accion.nuevo_titulo } : {}),
+          ...(accion.vence_local ? { deadline_utc: localDeadlineUtc(accion.vence_local) } : {}),
+          ...(accion.horas_est ? { horas_est: accion.horas_est } : {}) });
+        deshacer = { tipo: 'entrega_moodle', uid: e.uid, titulo: accion.titulo, anterior: {
+          ...(accion.nuevo_titulo ? { titulo: e.titulo } : {}), ...(accion.vence_local ? { deadline_utc: e.deadline_utc } : {}),
+          ...(accion.horas_est ? { horas_est: e.horas_est ?? null } : {}) } };
+      }
+      const { limites } = await contextoVoz(userId);
+      await recalcularYGuardarSemana(limites);
+      return { frases: [`Cambiado: ${accion.titulo} ${dicho.join(' y ')}. He recalculado el plan.`], deshacer };
+    }
     default:
       return { frases: [] };
   }
@@ -200,6 +313,17 @@ export async function ejecutarAccion(userId: string, accion: Accion, tareas: Tas
 
 export async function deshacerVoz(userId: string, d: Deshacer): Promise<{ frases: string[]; quitarTarea?: string; restaurarTarea?: TaskItem }> {
   if (d.tipo === 'tarea') return { frases: [`He devuelto ${d.titulo} a su hora.`], restaurarTarea: d.anterior };
+  if (d.tipo === 'estados') {
+    await cambiarEstados(userId, d.cambios);
+    return { frases: [`He recuperado ${d.titulo} y he recalculado el plan.`] };
+  }
+  if (d.tipo === 'entrega_moodle' || d.tipo === 'deber_previo') {
+    if (d.tipo === 'entrega_moodle') await updateEntregaApi(d.uid, { ...d.anterior });
+    else await saveUniversityWork(d.deber, d.asignatura);
+    const { limites } = await contextoVoz(userId);
+    await recalcularYGuardarSemana(limites);
+    return { frases: [`He dejado ${d.titulo} como estaba y he recalculado el plan.`] };
+  }
   if (d.tipo === 'deber') {
     await saveUniversityWork(d.deber, d.asignatura, true);
   } else {
@@ -221,4 +345,41 @@ function tareaDeEvento(evento: Evento): TaskItem {
   return { id: `voz-${evento.id.replace(/^voz:/, '')}`, title: evento.titulo, category: categoria(evento.area), date: evento.fecha_inicio,
     time: evento.inicio_local, endTime: evento.fin_local, durationMinutes: minutes(evento.fin_local) - minutes(evento.inicio_local),
     priority: 'media', notes: 'Añadida por voz', sourceType: 'voice', confidence: 1, completed: false };
+}
+
+// Names the transcription should recognise (Basque subjects, deliverables): refreshed with every context
+let palabrasClave: string[] = [];
+const VOCABULARIO = ['Moodle', 'Galdetegia', 'Ariketak', 'PBL', 'labs', 'entrega', 'cuestionario', 'gimnasio', 'karate'];
+function recordarPalabras(ctx: ContextoAsistente) {
+  palabrasClave = [...ctx.asignaturas.flatMap(s => [s.name, s.code]), ...ctx.entregas.map(e => e.titulo.replace(/^\[[^\]]+\]\s*/, '').slice(0, 60)), ...VOCABULARIO];
+}
+
+async function palabrasParaTranscribir(): Promise<string[]> {
+  if (palabrasClave.length) return palabrasClave;
+  const moodle = await fetchAsignaturasApi().catch(() => []);
+  return [...getUniversitySubjects().flatMap(s => [s.name, s.code]), ...moodle.map(a => a.nombre), ...VOCABULARIO];
+}
+
+// "Hablar": the clip goes to OpenAI's transcription on the server; any failure leaves the browser's text
+export async function transcribirVoz(audio: Blob): Promise<string> {
+  const base64 = await new Promise<string>((resolve, reject) => {
+    const lector = new FileReader();
+    lector.onload = () => resolve(String(lector.result));
+    lector.onerror = () => reject(new Error('No se pudo leer el audio'));
+    lector.readAsDataURL(audio);
+  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch('/api/asistente/transcribir', {
+      method: 'POST', signal: controller.signal,
+      headers: { 'Content-Type': 'application/json', ...(await sessionAuthHeaders()) },
+      body: JSON.stringify({ audioBase64: base64, mimeType: audio.type.split(';')[0] || 'audio/webm', palabrasClave: await palabrasParaTranscribir() }),
+    });
+    if (!res.ok) return '';
+    const json = await res.json().catch(() => ({}));
+    return typeof json.texto === 'string' ? json.texto : '';
+  } finally {
+    clearTimeout(timer);
+  }
 }

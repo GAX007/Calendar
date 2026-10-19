@@ -621,7 +621,7 @@ function CalendarApp() {
                     else { setSelectedMoodleUid(uid); changeTab('moodle'); }
                   }} />
                 ) : activeTab === 'moodle' ? (
-                  <MoodleDeliverablesView showToast={showToast} selectedEntregaUid={selectedMoodleUid} onClearSelection={() => setSelectedMoodleUid(null)} />
+                  <MoodleDeliverablesView userId={user?.id} showToast={showToast} selectedEntregaUid={selectedMoodleUid} onClearSelection={() => setSelectedMoodleUid(null)} />
                 ) : activeTab === 'university' ? (
                   <UniversityModule
                     clock={clock}

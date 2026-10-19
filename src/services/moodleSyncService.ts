@@ -2,6 +2,7 @@ import https from 'https';
 import http from 'http';
 import { parseMoodleICS, formatToMadridTime } from '../utils/moodleIcsParser';
 import { MoodleStore, getSupabaseDiagnostics } from './moodleStore';
+import { motivoDescarte } from '../utils/moodleFiltros';
 import {
   EntregaItem,
   CambioItem,
@@ -323,6 +324,9 @@ export async function syncMoodleDeliverables(options?: {
     // Asegurar asignaturas iniciales
     await MoodleStore.ensureInitialAsignaturas(parsedEvents.map(e => e.asignatura_codigo));
 
+    // Filtros del usuario: las entregas nuevas que coinciden (y las aperturas de cuestionario) llegan descartadas
+    const filtros = await MoodleStore.getFiltros();
+
     // Obtener entregas existentes
     const existingEntregas = await MoodleStore.getAllEntregasRaw();
     const existingMap = new Map<string, EntregaItem>(existingEntregas.map((e) => [e.uid, e]));
@@ -345,7 +349,8 @@ export async function syncMoodleDeliverables(options?: {
           // Comprobar si cambió deadline_utc o título
           let hasChanges = false;
 
-          if (!sameInstant(existing.deadline_utc, event.deadline_utc)) {
+          // A deadline or title the user edited stays theirs: Moodle changes to it are not applied
+          if (!existing.deadline_editado && !sameInstant(existing.deadline_utc, event.deadline_utc)) {
             eventCambios.push({
               id: `cambio-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
               uid: event.uid,
@@ -358,7 +363,7 @@ export async function syncMoodleDeliverables(options?: {
             hasChanges = true;
           }
 
-          if (existing.titulo !== event.titulo) {
+          if (!existing.titulo_editado && existing.titulo !== event.titulo) {
             eventCambios.push({
               id: `cambio-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
               uid: event.uid,
@@ -389,11 +394,11 @@ export async function syncMoodleDeliverables(options?: {
               ...existing,
               asignatura_codigo: event.asignatura_codigo,
               titulo_raw: event.titulo_raw,
-              titulo: event.titulo,
+              titulo: existing.titulo_editado ? existing.titulo : event.titulo,
               tipo: event.tipo,
               grupo: event.grupo,
               oculta_por_grupo: event.oculta_por_grupo,
-              deadline_utc: event.deadline_utc,
+              deadline_utc: existing.deadline_editado ? existing.deadline_utc : event.deadline_utc,
               descripcion: event.descripcion,
               moodle_modificado_utc: event.moodle_modificado_utc,
               borrada_en_moodle: false,
@@ -423,7 +428,7 @@ export async function syncMoodleDeliverables(options?: {
             descripcion: event.descripcion,
             moodle_modificado_utc: event.moodle_modificado_utc,
             borrada_en_moodle: false,
-            estado: 'pendiente',
+            estado: motivoDescarte(event, filtros) ? 'descartada' : 'pendiente',
             dificultad: null,
             horas_est: null,
             horas_reales: null,
@@ -567,7 +572,36 @@ export async function updateEntregaUserFields(
     horas_est?: number | null;
     horas_reales?: number | null;
     min_viable_min?: number | null;
+    titulo?: string;
+    deadline_utc?: string;
   }
 ): Promise<EntregaItem | null> {
-  return await MoodleStore.updateEntrega(uid, fields);
+  const cambios: Partial<EntregaItem> = {};
+  for (const [k, v] of Object.entries(fields)) if (v !== undefined) (cambios as any)[k] = v;
+  if (cambios.estado !== undefined && !['pendiente', 'hecha', 'descartada'].includes(cambios.estado)) throw new Error('Estado inválido');
+  // A title or deadline set by the user is kept by later syncs
+  if (typeof cambios.titulo === 'string') {
+    cambios.titulo = cambios.titulo.trim().replace(/\s+/g, ' ').slice(0, 200);
+    if (!cambios.titulo) throw new Error('El título no puede quedar vacío');
+    cambios.titulo_editado = true;
+  }
+  if (cambios.deadline_utc !== undefined) {
+    const d = new Date(cambios.deadline_utc);
+    if (Number.isNaN(d.getTime())) throw new Error('Fecha de entrega inválida');
+    cambios.deadline_utc = d.toISOString();
+    cambios.deadline_editado = true;
+  }
+  return await MoodleStore.updateEntrega(uid, cambios);
+}
+
+// Several deliverables to one state at once (select mode, filters). Returns the updated ones.
+export async function updateEntregasEstado(uids: string[], estado: EntregaEstado): Promise<EntregaItem[]> {
+  if (!['pendiente', 'descartada'].includes(estado)) throw new Error('Solo se puede descartar o restaurar en bloque');
+  const unicos = [...new Set(uids.filter(u => typeof u === 'string' && u))].slice(0, 300);
+  const hechas: EntregaItem[] = [];
+  for (const uid of unicos) {
+    const e = await MoodleStore.updateEntrega(uid, { estado });
+    if (e) hechas.push(e);
+  }
+  return hechas;
 }

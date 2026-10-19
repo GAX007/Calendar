@@ -9,12 +9,14 @@ import {
   SyncLogItem,
   INITIAL_ASIGNATURAS,
 } from './moodleTypes';
+import { CLAVE_FILTROS_MOODLE, normalizarFiltros, type FiltrosMoodle } from '../utils/moodleFiltros';
 
 interface MoodleDataSchema {
   asignaturas: AsignaturaItem[];
   entregas: EntregaItem[];
   cambios: CambioItem[];
   sync_log: SyncLogItem[];
+  filtros?: FiltrosMoodle;
 }
 
 let supabaseClient: SupabaseClient | null = null;
@@ -110,6 +112,7 @@ function readLocalData(): MoodleDataSchema {
         entregas: Array.isArray(data.entregas) ? data.entregas : [],
         cambios: Array.isArray(data.cambios) ? data.cambios : [],
         sync_log: Array.isArray(data.sync_log) ? data.sync_log : [],
+        filtros: data.filtros,
       };
     }
   } catch (err) {
@@ -523,13 +526,28 @@ export class MoodleStore {
     writeLocalData(local);
   }
 
+  // -------------------------------------------------------------
+  // FILTROS (parametros of the owner, edited in the app)
+  // -------------------------------------------------------------
+  static async getFiltros(): Promise<FiltrosMoodle> {
+    if (await canUseSupabase()) {
+      const client = getSupabaseClient()!;
+      const { data, error } = await client.from('parametros').select('valor')
+        .eq('user_id', ownerId()).eq('clave', CLAVE_FILTROS_MOODLE).maybeSingle();
+      if (error) throw new Error(`No se pudieron cargar los filtros de Moodle: ${error.message}`);
+      return normalizarFiltros(data?.valor);
+    }
+    return normalizarFiltros(readLocalData().filtros);
+  }
+
   // Reset helper for isolated test executions
-  static _resetLocalStoreForTesting(): void {
+  static _resetLocalStoreForTesting(filtros?: FiltrosMoodle): void {
     const fresh: MoodleDataSchema = {
       asignaturas: [...INITIAL_ASIGNATURAS],
       entregas: [],
       cambios: [],
       sync_log: [],
+      filtros,
     };
     testData = fresh;
   }

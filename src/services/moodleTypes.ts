@@ -28,6 +28,9 @@ export interface EntregaItem {
   horas_reales: number | null;
   min_viable_min: number | null;
   grupo_confirmado?: boolean;
+  // The user changed the title or the deadline: the sync keeps theirs
+  titulo_editado?: boolean;
+  deadline_editado?: boolean;
   tipo_trabajo?: 'profundo' | 'ligero';
   aplazamientos?: number;
   factor_calibracion?: number;

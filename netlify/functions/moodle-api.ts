@@ -3,6 +3,7 @@ import {
   syncMoodleDeliverables,
   createManualEntrega,
   updateEntregaUserFields,
+  updateEntregasEstado,
 } from '../../src/services/moodleSyncService';
 import { accesoMoodle, respuestaMoodleAjena } from '../../src/asistente/servidor/supabase';
 
@@ -113,19 +114,31 @@ export const handler = async (event: HandlerEvent) => {
     // -------------------------------------------------------------
     // 3. ENTREGA INDIVIDUAL: PATCH /entregas/:uid
     // -------------------------------------------------------------
+    if (cleanPath === '/entregas/estado' && method === 'POST') {
+      const payload = JSON.parse(event.body || '{}');
+      try {
+        const entregas = await updateEntregasEstado(Array.isArray(payload.uids) ? payload.uids : [], payload.estado);
+        return { statusCode: 200, headers: CORS_HEADERS, body: JSON.stringify({ ok: true, entregas }) };
+      } catch (err: any) {
+        return { statusCode: 400, headers: CORS_HEADERS, body: JSON.stringify({ ok: false, error: err?.message }) };
+      }
+    }
+
     if (cleanPath.startsWith('/entregas/')) {
       const rawUid = cleanPath.replace('/entregas/', '');
       const uid = decodeURIComponent(rawUid);
 
       if (method === 'PATCH') {
         const payload = JSON.parse(event.body || '{}');
-        const { estado, dificultad, horas_est, horas_reales, min_viable_min } = payload;
+        const { estado, dificultad, horas_est, horas_reales, min_viable_min, titulo, deadline_utc } = payload;
         const updated = await updateEntregaUserFields(uid, {
           estado,
           dificultad,
           horas_est,
           horas_reales,
           min_viable_min,
+          titulo,
+          deadline_utc,
         });
         if (!updated) {
           return {

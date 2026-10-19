@@ -21,12 +21,14 @@ import {
   syncMoodleDeliverables,
   createManualEntrega,
   updateEntregaUserFields,
+  updateEntregasEstado,
 } from './src/services/moodleSyncService';
 import { MoodleStore } from './src/services/moodleStore';
 import { ejecutarAsistente, TAREAS, type Tarea } from './src/asistente/servidor/tareas';
 import { accesoMoodle, clienteServicio, esCalendarioPropietario, respuestaMoodleAjena, usuarioDeToken } from './src/asistente/servidor/supabase';
 import { normalizarInterpretacion, promptAsistente, TIPOS_ACCION, type ContextoAsistente } from './src/asistente/interpretar';
 import { clavePublica, enviarPush, pushConfigurado } from './src/asistente/servidor/push';
+import { interpretarConOpenAI, MODELO_INTERPRETAR, MODELO_TRANSCRIBIR, openaiDisponible, transcribirConOpenAI } from './src/asistente/servidor/openai';
 
 // Normalize Netlify function URLs (/.netlify/functions/api/* -> /api/* or stripped /* -> /api/*)
 app.use((req, res, next) => {
@@ -69,6 +71,7 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
+    hasOpenAIKey: openaiDisponible(),
     timestamp: new Date().toISOString(),
   });
 });
@@ -131,30 +134,69 @@ app.post('/api/asistente/ejecutar', async (req, res) => {
   res.status(informe.errores.length ? 500 : 200).json(informe);
 });
 
-// Voice assistant: Gemini turns a free sentence into checked actions. The app runs them with the user's own session.
-// 503 when Gemini is unavailable: the app then falls back to its local parser.
+// "Hablar": the recorded clip, transcribed by OpenAI with the user's subject and deliverable names as hints
+// (the browser's es-ES recognition mangles Basque names). 503 without key: the app keeps the browser's text.
+app.post('/api/asistente/transcribir', async (req, res) => {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  if (!openaiDisponible()) return res.status(503).json({ error: 'La transcripción no está configurada' });
+  const base64 = String(req.body?.audioBase64 || '').replace(/^data:[^;]+;base64,/, '');
+  const mimeType = String(req.body?.mimeType || 'audio/webm').split(';')[0];
+  if (!base64 || !/^audio\/|^video\/webm|^video\/mp4/.test(mimeType)) return res.status(400).json({ error: 'Falta el audio' });
+  const audio = Buffer.from(base64, 'base64');
+  if (audio.length < 800 || audio.length > 5 * 1024 * 1024) return res.status(400).json({ error: 'Audio vacío o demasiado largo' });
+  const palabras = (Array.isArray(req.body?.palabrasClave) ? req.body.palabrasClave : []).map(String);
+  const t0 = Date.now();
+  try {
+    const texto = await transcribirConOpenAI(audio, mimeType, palabras);
+    res.json({ texto, modelo: MODELO_TRANSCRIBIR, ms: Date.now() - t0 });
+  } catch (err: any) {
+    console.warn('[asistente/transcribir] OpenAI no transcribió:', err?.message || err);
+    res.status(503).json({ error: 'No se pudo transcribir' });
+  }
+});
+
+// Voice assistant: GPT-6 Luna (Gemini only without OPENAI_API_KEY) turns a free sentence into checked actions.
+// The app runs them with the user's own session. 503 when no model answers: the app then uses its local parser.
 app.post('/api/asistente/interpretar', async (req, res) => {
+  const user = await requireUser(req, res);
+  if (!user) return;
   const texto = String(req.body?.texto || '').trim().slice(0, 600);
   const contexto = req.body?.contexto as ContextoAsistente | undefined;
   if (!texto || !contexto || typeof contexto.ahora_local !== 'string' || !Array.isArray(contexto.entregas)) {
     return res.status(400).json({ error: 'Faltan el texto o el contexto' });
   }
-  const ai = getGeminiClient();
-  if (!ai) return res.status(503).json({ error: 'Gemini no está configurado' });
   const ctx: ContextoAsistente = {
     ahora_local: contexto.ahora_local, dia_semana: String(contexto.dia_semana || ''),
-    entregas: contexto.entregas.slice(0, 40), bloques: (contexto.bloques || []).slice(0, 40),
+    entregas: contexto.entregas.slice(0, 60), bloques: (contexto.bloques || []).slice(0, 40),
     agenda: (contexto.agenda || []).slice(0, 40), asignaturas: (contexto.asignaturas || []).slice(0, 30),
   };
-  // Last turns, so a short answer to a question ("de Física") keeps its meaning
+  // Last turns, so a short answer to a question ("de Física", "sí") keeps its meaning
   const historial = (Array.isArray(req.body?.historial) ? req.body.historial : []).slice(-3)
     .map((t: any) => `Usuario: ${String(t?.usuario || '').slice(0, 300)}\nAsistente: ${String(t?.asistente || '').slice(0, 300)}`).join('\n');
+  const entrada = `Contexto: ${JSON.stringify(ctx)}\n\n${historial ? `Conversación reciente:\n${historial}\n\n` : ''}Ha dicho: "${texto.replace(/"/g, "'")}"`;
+
+  if (openaiDisponible()) {
+    const t0 = Date.now();
+    try {
+      const { texto: json, uso } = await interpretarConOpenAI(promptAsistente(), entrada);
+      const interpretacion = normalizarInterpretacion(json, ctx, texto);
+      if (interpretacion.descartadas) console.warn('[asistente/interpretar] Acciones descartadas por inválidas:', json);
+      return res.json({ ...interpretacion, modelo: MODELO_INTERPRETAR, ms: Date.now() - t0, uso });
+    } catch (err: any) {
+      console.warn('[asistente/interpretar] OpenAI no respondió:', err?.message || err);
+      return res.status(503).json({ error: 'El asistente no está disponible ahora' });
+    }
+  }
+
+  const ai = getGeminiClient();
+  if (!ai) return res.status(503).json({ error: 'El asistente inteligente no está configurado' });
   try {
     const { result, modelUsed } = await executeWithGeminiFallback(
       ['gemini-3.6-flash', 'gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'],
       (model) => ai.models.generateContent({
         model,
-        contents: [`Contexto: ${JSON.stringify(ctx)}\n\n${historial ? `Conversación reciente:\n${historial}\n\n` : ''}Ha dicho: "${texto.replace(/"/g, "'")}"`],
+        contents: [entrada],
         config: {
           systemInstruction: promptAsistente(),
           temperature: 0.2,
@@ -182,6 +224,9 @@ app.post('/api/asistente/interpretar', async (req, res) => {
                     tipo_deber: { type: Type.STRING },
                     dias: { type: Type.INTEGER },
                     pregunta: { type: Type.STRING },
+                    asignatura: { type: Type.STRING },
+                    imprevisto: { type: Type.BOOLEAN },
+                    confirmado: { type: Type.BOOLEAN },
                   },
                   required: ['tipo'],
                 },
@@ -334,16 +379,29 @@ app.post(['/api/moodle/entregas', '/moodle/entregas'], async (req, res) => {
   }
 });
 
+// Discard or restore several deliverables at once
+app.post(['/api/moodle/entregas/estado', '/moodle/entregas/estado'], async (req, res) => {
+  try {
+    const uids = Array.isArray(req.body?.uids) ? req.body.uids : [];
+    const entregas = await updateEntregasEstado(uids, req.body?.estado);
+    res.json({ ok: true, entregas });
+  } catch (err: any) {
+    res.status(400).json({ ok: false, error: err.message });
+  }
+});
+
 app.patch(['/api/moodle/entregas/:uid', '/moodle/entregas/:uid'], async (req, res) => {
   try {
     const { uid } = req.params;
-    const { estado, dificultad, horas_est, horas_reales, min_viable_min } = req.body;
+    const { estado, dificultad, horas_est, horas_reales, min_viable_min, titulo, deadline_utc } = req.body;
     const updated = await updateEntregaUserFields(uid, {
       estado,
       dificultad,
       horas_est,
       horas_reales,
       min_viable_min,
+      titulo,
+      deadline_utc,
     });
     if (!updated) {
       return res.status(404).json({ ok: false, error: 'Entrega no encontrada' });

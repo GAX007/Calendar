@@ -4,7 +4,7 @@ import type { Accion } from '../asistente/interpretar';
 import type { TaskItem } from '../types';
 import { prepararGuionEntregas, prepararGuionVoz } from '../services/asistenteService';
 import {
-  construirContexto, deshacerVoz, ejecutarAccion, interpretarFrase, type Deshacer, type Turno,
+  construirContexto, deshacerVoz, ejecutarAccion, interpretarFrase, transcribirVoz, type Deshacer, type Turno,
 } from '../services/asistenteVozService';
 import { desbloquearVoz, esperarVoces, hablar, pararVoz, vozDisponible } from '../utils/voz';
 import { escuchar, estadoMicro, MENSAJE_INSEGURO, type Escucha } from '../utils/escuchar';
@@ -166,7 +166,9 @@ export function useAsistenteVoz(opciones: Opciones) {
     setOidoProvisional('');
     setEstado('escuchando');
     const id = ++peticion.current;
-    const e = escuchar((_, definitivo, provisional) => { setOidoDefinitivo(definitivo); setOidoProvisional(provisional); });
+    // With a session the clip is also transcribed by OpenAI, which knows the Basque subject names
+    const e = escuchar((_, definitivo, provisional) => { setOidoDefinitivo(definitivo); setOidoProvisional(provisional); },
+      ops.current.userId ? transcribirVoz : undefined);
     escucha.current = e;
     try {
       const texto = await e.texto;

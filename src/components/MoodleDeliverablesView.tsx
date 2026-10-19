@@ -44,15 +44,22 @@ import {
   marcarCambiosVistosApi,
   updateAsignaturaApi,
   moodleSyncError,
+  updateEntregasEstadoApi,
+  loadFiltrosMoodle,
+  saveFiltrosMoodle,
 } from '../services/moodleApiClient';
+import { FILTROS_VACIOS, type FiltrosMoodle } from '../utils/moodleFiltros';
+import { MoodleFiltrosSheet } from './MoodleFiltrosSheet';
 
 interface MoodleDeliverablesViewProps {
+  userId?: string;
   showToast?: (message: string) => void;
   selectedEntregaUid?: string | null;
   onClearSelection?: () => void;
 }
 
 export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
+  userId,
   showToast = (_msg: string) => {},
   selectedEntregaUid = null,
   onClearSelection,
@@ -91,6 +98,12 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
 
   const [syncSummary, setSyncSummary] = useState<{ text: string; ok: boolean } | null>(null);
 
+  // Select mode and the user's filters
+  const [seleccionando, setSeleccionando] = useState(false);
+  const [seleccion, setSeleccion] = useState<Set<string>>(new Set());
+  const [filtros, setFiltros] = useState<FiltrosMoodle>(FILTROS_VACIOS);
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
+
   // Cargar datos
   const loadData = async () => {
     try {
@@ -122,7 +135,35 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
 
   useEffect(() => {
     loadData();
+    loadFiltrosMoodle().then(setFiltros).catch(() => {});
   }, []);
+
+  // Discard or restore several deliverables at once
+  const cambiarEstadoVarias = async (lista: EntregaItem[], estado: 'pendiente' | 'descartada') => {
+    if (!lista.length) return 0;
+    const updated = await updateEntregasEstadoApi(lista.map(e => e.uid), estado);
+    const porUid = new Map(updated.map(e => [e.uid, e]));
+    setEntregas(prev => prev.map(e => porUid.get(e.uid) || e));
+    return updated.length;
+  };
+
+  const handleSeleccionar = async (estado: 'pendiente' | 'descartada') => {
+    try {
+      const n = await cambiarEstadoVarias(entregas.filter(e => seleccion.has(e.uid)), estado);
+      showToast(estado === 'descartada' ? `${n} descartadas. Están en «Descartadas».` : `${n} restauradas.`);
+      setSeleccion(new Set()); setSeleccionando(false);
+    } catch (err: any) {
+      showToast(err.message || 'No se pudieron cambiar las entregas');
+    }
+  };
+
+  const handleGuardarFiltros = async (nuevos: FiltrosMoodle, descartar: EntregaItem[]) => {
+    if (!userId) throw new Error('Inicia sesión para guardar filtros');
+    setFiltros(await saveFiltrosMoodle(userId, nuevos));
+    const n = await cambiarEstadoVarias(descartar, 'descartada');
+    setFiltrosAbiertos(false);
+    showToast(n ? `Filtros guardados: ${n} descartadas.` : 'Filtros guardados.');
+  };
 
   useEffect(() => {
     if (!selectedEntregaUid || isLoading) return;
@@ -306,8 +347,8 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
         return false;
       }
 
-      // Filtro de estado
-      if (filtroEstado !== 'todos' && e.estado !== filtroEstado) {
+      // Filtro de estado: "Todas" never shows the discarded ones, they have their own view
+      if (filtroEstado === 'todos' ? e.estado === 'descartada' : e.estado !== filtroEstado) {
         return false;
       }
 
@@ -353,7 +394,8 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
     if (meta.diffDays === 2) return { text: '2 días', tone: 'accent' as const };
     return { text: `${meta.diffDays} días`, tone: 'muted' as const };
   };
-  const segmentoEstado = filtroEstado === 'pendiente' ? 'pendiente' : filtroEstado === 'hecha' ? 'hecha' : 'todos';
+  const segmentoEstado = ['pendiente', 'hecha', 'descartada'].includes(filtroEstado) ? filtroEstado : 'todos';
+  const vistaDescartadas = segmentoEstado === 'descartada';
 
   return (
     <div className="w-full max-w-2xl mx-auto px-5 flex flex-col gap-[22px]">
@@ -449,13 +491,13 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          <nav aria-label="Estado" className="grid grid-cols-3 gap-0.5 p-[3px] rounded-[15px] bg-surface-2">
-            {([['pendiente', 'Pendientes'], ['hecha', 'Hechas'], ['todos', 'Todas']] as const).map(([valor, etiqueta]) => (
+          <nav aria-label="Estado" className="grid grid-cols-4 gap-0.5 p-[3px] rounded-[15px] bg-surface-2">
+            {([['pendiente', 'Pendientes'], ['hecha', 'Hechas'], ['descartada', 'Descartadas'], ['todos', 'Todas']] as const).map(([valor, etiqueta]) => (
               <button
                 key={valor}
                 type="button"
                 aria-pressed={segmentoEstado === valor}
-                onClick={() => setFiltroEstado(valor)}
+                onClick={() => { setFiltroEstado(valor); setSeleccion(new Set()); }}
                 className={`h-11 rounded-xl text-[14.5px] transition ${segmentoEstado === valor ? 'bg-white font-semibold shadow-[0_1px_2px_rgba(20,21,23,0.08)]' : 'text-ink-2 font-medium'}`}
               >
                 {etiqueta}
@@ -493,6 +535,21 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
                 Otros grupos ({ocultasPorGrupoCount})
               </button>
             )}
+            <button
+              type="button"
+              aria-pressed={seleccionando}
+              onClick={() => { setSeleccionando(prev => !prev); setSeleccion(new Set()); }}
+              className={`flex-none h-11 px-4 rounded-full text-sm font-semibold border transition ${seleccionando ? 'bg-ink border-ink text-white' : 'bg-white border-line-2 text-ink'}`}
+            >
+              Seleccionar
+            </button>
+            <button
+              type="button"
+              onClick={() => setFiltrosAbiertos(true)}
+              className="flex-none h-11 px-4 rounded-full text-sm font-semibold text-ink-2 hover:bg-black/5 flex items-center gap-2"
+            >
+              <Filter className="w-4 h-4" strokeWidth={1.75} /> Filtros{filtros.palabras.length + filtros.asignaturas.length ? ` (${filtros.palabras.length + filtros.asignaturas.length})` : ''}
+            </button>
             <button
               type="button"
               onClick={() => setIsAsignaturasModalOpen(true)}
@@ -575,6 +632,22 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
                     >
                       {plazo.text}
                     </span>
+                    {seleccionando ? (
+                      <label className="w-11 h-11 -mr-2 flex items-center justify-center cursor-pointer">
+                        <span className="sr-only">Seleccionar {entrega.titulo}</span>
+                        <input type="checkbox" className="w-5 h-5" checked={seleccion.has(entrega.uid)}
+                          onChange={(ev) => setSeleccion(prev => { const n = new Set(prev); if (ev.target.checked) n.add(entrega.uid); else n.delete(entrega.uid); return n; })} />
+                      </label>
+                    ) : entrega.estado === 'descartada' ? (
+                      <button type="button" onClick={() => handleToggleEstado(entrega, 'pendiente')} aria-label={`Restaurar: ${entrega.titulo}`}
+                        className="h-11 px-3 -mr-2 rounded-full text-sm font-semibold text-ink hover:bg-black/5">Restaurar</button>
+                    ) : (<>
+                    {entrega.estado === 'pendiente' && (
+                      <button type="button" onClick={() => handleToggleEstado(entrega, 'descartada')} aria-label={`No me interesa: ${entrega.titulo}`} title="No me interesa"
+                        className="w-11 h-11 flex items-center justify-center text-ink-2 rounded-full hover:bg-black/5">
+                        <EyeOff className="w-[18px] h-[18px]" strokeWidth={1.75} />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => handleToggleEstado(entrega, hecha ? 'pendiente' : 'hecha')}
@@ -586,6 +659,7 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
                         {hecha && <Check className="w-3.5 h-3.5" strokeWidth={2} />}
                       </span>
                     </button>
+                    </>)}
                   </span>
                 </div>
                 {seleccionada && entrega.descripcion && (
@@ -596,6 +670,24 @@ export const MoodleDeliverablesView: React.FC<MoodleDeliverablesViewProps> = ({
           })
         )}
       </section>
+
+      {seleccionando && (
+        <div className="sticky bottom-[calc(var(--bottom-nav-h,0px)+12px)] z-30 flex items-center justify-between gap-3 rounded-full bg-ink text-white pl-5 pr-2 py-2">
+          <span className="text-[14.5px]">{seleccion.size} {seleccion.size === 1 ? 'seleccionada' : 'seleccionadas'}</span>
+          <span className="flex gap-1">
+            <button type="button" onClick={() => setSeleccion(new Set(entregasFiltradas.map(e => e.uid)))} className="h-11 px-3 rounded-full text-sm font-semibold hover:bg-white/10">Todas</button>
+            <button type="button" disabled={!seleccion.size} onClick={() => handleSeleccionar(vistaDescartadas ? 'pendiente' : 'descartada')}
+              className="h-11 px-4 rounded-full bg-white text-ink text-sm font-semibold disabled:opacity-50">
+              {vistaDescartadas ? 'Restaurar' : 'Descartar'}
+            </button>
+          </span>
+        </div>
+      )}
+
+      {filtrosAbiertos && (
+        <MoodleFiltrosSheet filtros={filtros} asignaturas={asignaturas} entregas={entregas}
+          onCancel={() => setFiltrosAbiertos(false)} onSave={handleGuardarFiltros} />
+      )}
 
       {/* MODAL: AÑADIR ENTREGA MANUAL */}
       <AnimatePresence>
