@@ -24,7 +24,7 @@ export async function cargarPlanificador(sb: SupabaseClient, userId: string): Pr
   const own = (q: any) => q.eq('user_id', userId);
   const [parametros, moodle, university, eventos, bloques, deuda] = await Promise.all([
     todas(sb, 'parametros', own, 'clave'),
-    todas(sb, 'entregas', q => q, 'uid'),
+    todas(sb, 'entregas', own, 'uid'),
     todas(sb, 'trabajos_universidad', own, 'id') as Promise<UniversityWorkRow[]>,
     todas(sb, 'eventos', own, 'id'),
     todas(sb, 'bloques_plan', q => own(q).eq('activo', true), 'id'),

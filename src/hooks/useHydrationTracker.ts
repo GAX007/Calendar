@@ -1,7 +1,18 @@
 import { useSyncExternalStore, useCallback } from 'react';
 
+import { claveDeCuenta, esCuentaPropietaria } from '../lib/cuenta';
+
 const HYDRATION_GOAL_KEY = 'omniagenda_hydration_goal_liters';
 const HYDRATION_INTAKE_PREFIX = 'omniagenda_hydration_intake_';
+
+// Per-account keys; values saved before that (unscoped) were Xavier's, so only his account reads them
+function readValue(base: string): string | null {
+  const own = localStorage.getItem(claveDeCuenta(base));
+  return own !== null ? own : esCuentaPropietaria() ? localStorage.getItem(base) : null;
+}
+function writeValue(base: string, value: string): void {
+  localStorage.setItem(claveDeCuenta(base), value);
+}
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
@@ -19,7 +30,7 @@ function emitHydrationChange() {
 // Read current goal from localStorage
 export function getHydrationGoal(): number {
   try {
-    const saved = localStorage.getItem(HYDRATION_GOAL_KEY);
+    const saved = readValue(HYDRATION_GOAL_KEY);
     if (saved) {
       const val = parseFloat(saved);
       if (!isNaN(val) && val > 0) return val;
@@ -32,7 +43,7 @@ export function getHydrationGoal(): number {
 export function setHydrationGoal(newGoal: number): void {
   const valid = Math.max(0.5, Math.round(newGoal * 10) / 10);
   try {
-    localStorage.setItem(HYDRATION_GOAL_KEY, valid.toString());
+    writeValue(HYDRATION_GOAL_KEY, valid.toString());
   } catch {}
   emitHydrationChange();
 }
@@ -41,7 +52,7 @@ export function setHydrationGoal(newGoal: number): void {
 export function getHydrationIntake(dateStr: string): number {
   if (!dateStr) return 0;
   try {
-    const saved = localStorage.getItem(HYDRATION_INTAKE_PREFIX + dateStr);
+    const saved = readValue(HYDRATION_INTAKE_PREFIX + dateStr);
     if (saved) {
       const val = parseFloat(saved);
       if (!isNaN(val) && val >= 0) return val;
@@ -55,7 +66,7 @@ export function addHydrationWater(dateStr: string, amountLiters = 0.25): number 
   const current = getHydrationIntake(dateStr);
   const next = Math.round((current + amountLiters) * 100) / 100;
   try {
-    localStorage.setItem(HYDRATION_INTAKE_PREFIX + dateStr, next.toString());
+    writeValue(HYDRATION_INTAKE_PREFIX + dateStr, next.toString());
   } catch {}
   emitHydrationChange();
   return next;
@@ -66,7 +77,7 @@ export function removeHydrationWater(dateStr: string, amountLiters = 0.25): numb
   const current = getHydrationIntake(dateStr);
   const next = Math.max(0, Math.round((current - amountLiters) * 100) / 100);
   try {
-    localStorage.setItem(HYDRATION_INTAKE_PREFIX + dateStr, next.toString());
+    writeValue(HYDRATION_INTAKE_PREFIX + dateStr, next.toString());
   } catch {}
   emitHydrationChange();
   return next;
@@ -75,7 +86,7 @@ export function removeHydrationWater(dateStr: string, amountLiters = 0.25): numb
 // Reset intake for dateStr
 export function resetHydrationToday(dateStr: string): void {
   try {
-    localStorage.setItem(HYDRATION_INTAKE_PREFIX + dateStr, '0');
+    writeValue(HYDRATION_INTAKE_PREFIX + dateStr, '0');
   } catch {}
   emitHydrationChange();
 }

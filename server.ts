@@ -24,7 +24,7 @@ import {
 } from './src/services/moodleSyncService';
 import { MoodleStore } from './src/services/moodleStore';
 import { ejecutarAsistente, TAREAS, type Tarea } from './src/asistente/servidor/tareas';
-import { clienteServicio, usuarioDeToken } from './src/asistente/servidor/supabase';
+import { accesoMoodle, clienteServicio, esCalendarioPropietario, respuestaMoodleAjena, usuarioDeToken } from './src/asistente/servidor/supabase';
 import { normalizarInterpretacion, promptAsistente, TIPOS_ACCION, type ContextoAsistente } from './src/asistente/interpretar';
 import { clavePublica, enviarPush, pushConfigurado } from './src/asistente/servidor/push';
 
@@ -229,13 +229,11 @@ function fetchUrlText(url: string): Promise<string> {
 
 app.get('/api/google-calendar/sync-live', async (req, res) => {
   try {
-    const userEmail = ((req.query.email as string) || '').toLowerCase().trim();
     const customUrl = (req.query.url as string) || '';
 
-    // Privacy & Isolation Check:
-    // Only allow default university schedule for Xavier's email or unauthenticated local dev testing.
-    // Other registered users must provide their own custom iCal URL.
-    const isAuthorizedForDefault = !userEmail || userEmail === 'xaviervarteniuc@gmail.com';
+    // Privacy: the default university schedule is only for Xavier's account, proven by the
+    // session token (an email in the URL proves nothing). Guests and other users bring their own iCal URL.
+    const isAuthorizedForDefault = !customUrl && esCalendarioPropietario(await usuarioDeToken(req.headers.authorization).catch(() => null));
 
     if (!customUrl && !isAuthorizedForDefault) {
       return res.status(403).json({
@@ -280,6 +278,18 @@ app.get('/api/google-calendar/sync-live', async (req, res) => {
 // -------------------------------------------------------------------------
 // MOODLE ICS SYNC ENDPOINTS (Fase 1)
 // -------------------------------------------------------------------------
+// The Moodle feed is the owner's (MOODLE_OWNER_USER_ID): other accounts get an empty Moodle
+app.use(['/api/moodle', '/api/sync-now'], async (req, res, next) => {
+  try {
+    const acceso = await accesoMoodle(req.headers.authorization);
+    if (acceso.tipo === 'propietario') return next();
+    const { status, body } = respuestaMoodleAjena(acceso, req.method, req.originalUrl.split('?')[0]);
+    res.status(status).json(body);
+  } catch (err: any) {
+    res.status(503).json({ ok: false, error: err?.message || 'No se pudo comprobar la sesión' });
+  }
+});
+
 app.all(['/api/sync-now', '/api/moodle/sync-now', '/sync-now', '/moodle/sync-now'], async (req, res) => {
   try {
     const result = await syncMoodleDeliverables();

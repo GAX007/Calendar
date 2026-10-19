@@ -44,9 +44,10 @@ export async function ejecutarAsistente(opts: { ahora?: Date; forzar?: Tarea[]; 
     if (toca('semanal', esDomingo(hoy) && minuto >= 21 * 60 && minuto < 23 * 60 + 30)) await paso('semanal', () => repasoDeLaSemana(sb, userId, ahora, Boolean(opts.forzar)));
     if (toca('avisos', horaDeAvisos(ahora))) await paso('avisos', () => enviarAvisos(sb, userId, ahora, now));
   }
-  // Deliverables are shared, so one per run is enough (96 runs a day); the next run plans with the estimate
+  // One deliverable per run is enough (96 runs a day); the next run plans with the estimate.
+  // A manual run of one user only estimates that user's deliverables.
   const restante = LIMITE_MS - (Date.now() - t0);
-  if (toca('estimar', true) && geminiDisponible() && restante > 6000) await paso('estimar', () => estimarNuevas(sb, now, 1, Math.min(12000, restante - 2000)));
+  if (toca('estimar', true) && geminiDisponible() && restante > 6000) await paso('estimar', () => estimarNuevas(sb, now, 1, Math.min(12000, restante - 2000), opts.usuario));
   return informe;
 }
 
@@ -96,7 +97,7 @@ async function repasoDeLaSemana(sb: SupabaseClient, userId: string, ahora: strin
   const calibracion = calibrar(data.entregas, logs);
   const cambios = cambiosDeFactor(data.entregas, calibracion);
   for (const c of cambios) {
-    comprobar(await sb.from('entregas').update({ factor_calibracion: c.factor }).eq('uid', c.uid).eq('estado', 'pendiente'), 'calibración');
+    comprobar(await sb.from('entregas').update({ factor_calibracion: c.factor }).eq('uid', c.uid).eq('user_id', userId).eq('estado', 'pendiente'), 'calibración');
   }
   if (cambios.length) data = await cargarPlanificador(sb, userId);
   const siguiente = planActual(data, addDays(hasta, 1), ahora);
@@ -122,19 +123,23 @@ async function enviarAvisos(sb: SupabaseClient, userId: string, ahora: string, n
 }
 
 // N3: Gemini estimates new Moodle deliverables that still use the provisional 2 h
-async function estimarNuevas(sb: SupabaseClient, now: Date, max: number, presupuestoMs: number): Promise<string | null> {
-  const pendientes = comprobar(await sb.from('entregas').select('*').is('horas_est', null).is('estimado_ia_en', null).eq('estado', 'pendiente'), 'entregas') || [];
+async function estimarNuevas(sb: SupabaseClient, now: Date, max: number, presupuestoMs: number, usuario?: string): Promise<string | null> {
+  let consulta = sb.from('entregas').select('*').is('horas_est', null).is('estimado_ia_en', null).eq('estado', 'pendiente');
+  if (usuario) consulta = consulta.eq('user_id', usuario);
+  const pendientes = comprobar(await consulta, 'entregas') || [];
   const objetivo = entregasSinEstimar(pendientes, now).slice(0, max);
   if (!objetivo.length) return null;
-  const asignaturas = new Map<string, string>((comprobar(await sb.from('asignaturas').select('codigo, nombre'), 'asignaturas') || [])
-    .map((a: any) => [a.codigo, a.nombre]));
-  const logs = comprobar(await sb.from('task_logs').select('uid, horas_reales').order('creado_en', { ascending: false }).limit(30), 'task_logs') || [];
-  const hechas = new Map<string, any>((comprobar(await sb.from('entregas').select('uid, titulo, asignatura_codigo, horas_est')
-    .in('uid', logs.map((l: any) => l.uid).length ? logs.map((l: any) => l.uid) : ['-']), 'entregas') || []).map((e: any) => [e.uid, e]));
-  const precedentes: Precedente[] = logs.map((l: any) => ({ l, e: hechas.get(l.uid) })).filter(({ e }: any) => e?.horas_est > 0).slice(0, 8)
-    .map(({ l, e }: any) => ({ titulo: e.titulo, asignatura: asignaturas.get(e.asignatura_codigo) || e.asignatura_codigo, horas_est: Number(e.horas_est), horas_reales: Number(l.horas_reales) }));
   const hechasAhora: string[] = [];
   for (const t of objetivo) {
+    // Subjects and real hours of the deliverable's own account: nothing of another user feeds the estimate
+    const own = (t as any).user_id as string;
+    const asignaturas = new Map<string, string>((comprobar(await sb.from('asignaturas').select('codigo, nombre').eq('user_id', own), 'asignaturas') || [])
+      .map((a: any) => [a.codigo, a.nombre]));
+    const logs = comprobar(await sb.from('task_logs').select('uid, horas_reales').eq('user_id', own).order('creado_en', { ascending: false }).limit(30), 'task_logs') || [];
+    const hechas = new Map<string, any>((comprobar(await sb.from('entregas').select('uid, titulo, asignatura_codigo, horas_est').eq('user_id', own)
+      .in('uid', logs.map((l: any) => l.uid).length ? logs.map((l: any) => l.uid) : ['-']), 'entregas') || []).map((e: any) => [e.uid, e]));
+    const precedentes: Precedente[] = logs.map((l: any) => ({ l, e: hechas.get(l.uid) })).filter(({ e }: any) => e?.horas_est > 0).slice(0, 8)
+      .map(({ l, e }: any) => ({ titulo: e.titulo, asignatura: asignaturas.get(e.asignatura_codigo) || e.asignatura_codigo, horas_est: Number(e.horas_est), horas_reales: Number(l.horas_reales) }));
     const est = await estimarEntrega(t, asignaturas.get(t.asignatura_codigo) || t.asignatura_codigo || 'sin asignatura', precedentes, presupuestoMs);
     comprobar(await sb.from('entregas').update({
       horas_est: est.horas_est, tipo_trabajo: est.tipo_trabajo, dificultad: est.dificultad, min_viable_min: est.min_viable_min,

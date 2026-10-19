@@ -43,6 +43,7 @@ import {
   subscribeToGymChanges,
   reorderExercise,
   resetToOfficialRoutines,
+  canResetToOfficialRoutines,
 } from '../services/gymService';
 import { RealTimeClockState } from '../hooks/useRealTimeClock';
 import GymAudioEngine, {
@@ -717,7 +718,7 @@ export const GymModule: React.FC<GymModuleProps> = ({
               </button>
             )}
           </div>
-          <button
+          {canResetToOfficialRoutines(userId, userEmail) && <button
             type="button"
             onClick={() => {
               if (window.confirm('¿Restablecer todas las rutinas a la versión oficial actualizada (Lunes, Miércoles, Viernes/Sábado)?')) {
@@ -729,7 +730,7 @@ export const GymModule: React.FC<GymModuleProps> = ({
             className="self-start h-11 -ml-3 px-3 rounded-full text-sm text-ink-2 underline underline-offset-4 hover:bg-black/5"
           >
             Restablecer las rutinas oficiales
-          </button>
+          </button>}
         </section>
       )}
 

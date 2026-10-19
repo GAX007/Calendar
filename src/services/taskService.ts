@@ -1,13 +1,17 @@
 import { TaskItem } from '../types';
-import { INITIAL_TASKS } from '../data/initialTasks';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { cuentaActual } from '../lib/cuenta';
 import { isGoogleCalendarTask, mergeGoogleCalendarSnapshot } from '../utils/googleCalendarSnapshot';
 
 const BASE_STORAGE_KEY = 'calendarasist_tasks';
-const LEGACY_KEY = 'omniagenda_tasks';
 
 function getStorageKey(userId?: string): string {
   return userId ? `${BASE_STORAGE_KEY}_${userId}` : `${BASE_STORAGE_KEY}_guest`;
+}
+
+// Only a signed-in account writes to Supabase; the guest stays on this device.
+function cloudUser(userId?: string): string | null {
+  return isSupabaseConfigured() && supabase && userId ? userId : null;
 }
 
 // Convert frontend TaskItem to database row
@@ -65,26 +69,14 @@ export function isHydrationTask(task: TaskItem): boolean {
   return false;
 }
 
-// LocalStorage helpers
+// LocalStorage helpers: each account (and the guest) has its own key and nothing is seeded,
+// so no sample or foreign tasks appear as the user's own.
 export function getLocalTasks(userId?: string): TaskItem[] {
   try {
-    const key = getStorageKey(userId);
-    const saved = localStorage.getItem(key) || (!userId ? localStorage.getItem(BASE_STORAGE_KEY) || localStorage.getItem(LEGACY_KEY) : null);
+    const saved = localStorage.getItem(getStorageKey(userId));
     if (saved) {
       const parsed: TaskItem[] = JSON.parse(saved);
-      const filtered = parsed.filter((t) => !isHydrationTask(t));
-
-      // Check if stored tasks are exclusively stale sample mock tasks from September 2026
-      const hasOnlyStaleSeptemberMocks = filtered.length > 0 &&
-        filtered.every((t) => t.date && t.date.startsWith('2026-09')) &&
-        filtered.some((t) => t.id.startsWith('task-init-') || t.id.startsWith('task-gym-'));
-
-      if (hasOnlyStaleSeptemberMocks) {
-        const fresh = INITIAL_TASKS.filter((t) => !isHydrationTask(t));
-        saveLocalTasks(fresh, userId);
-        return fresh;
-      }
-
+      const filtered = parsed.filter((t) => !isHydrationTask(t) && !t.id.startsWith('task-init-'));
       if (filtered.length !== parsed.length) {
         saveLocalTasks(filtered, userId);
       }
@@ -93,7 +85,7 @@ export function getLocalTasks(userId?: string): TaskItem[] {
   } catch (err) {
     console.warn('Error reading from localStorage:', err);
   }
-  return userId ? [] : INITIAL_TASKS.filter((t) => !isHydrationTask(t));
+  return [];
 }
 
 export function saveLocalTasks(tasks: TaskItem[], userId?: string): void {
@@ -106,54 +98,40 @@ export function saveLocalTasks(tasks: TaskItem[], userId?: string): void {
   }
 }
 
-// Load tasks from Supabase with fallback to localStorage
+// Load tasks from Supabase with fallback to localStorage. The guest never reads the cloud.
 export async function loadTasks(userId?: string): Promise<{ tasks: TaskItem[]; isCloud: boolean }> {
-  if (!isSupabaseConfigured() || !supabase) {
+  const owner = cloudUser(userId);
+  if (!owner || !supabase) {
     return { tasks: getLocalTasks(userId), isCloud: false };
   }
 
   try {
-    let query = supabase
+    const { data, error } = await supabase
       .from('tasks')
       .select('*')
+      .eq('user_id', owner)
       .order('date', { ascending: true })
       .order('time', { ascending: true });
-
-    if (userId) {
-      query = query.eq('user_id', userId);
-    } else {
-      query = query.is('user_id', null);
-    }
-
-    const { data, error } = await query;
 
     if (error) {
       console.warn('Error fetching from Supabase, using local fallback:', error.message);
       return { tasks: getLocalTasks(userId), isCloud: false };
     }
 
-    if (data && data.length > 0) {
-      const allItems = data.map(fromDbRow);
+    // Defensive scoping: a row of another account is never shown
+    const own = (data || []).filter((row: any) => row.user_id === owner);
+    if (own.length > 0) {
+      const allItems = own.map(fromDbRow);
       const items = allItems.filter((t) => !isHydrationTask(t));
       const removed = allItems.filter((t) => isHydrationTask(t));
       if (removed.length > 0) {
-        removed.forEach((r) => deleteTaskFromDb(r.id));
+        removed.forEach((r) => deleteTaskFromDb(r.id, owner));
       }
       saveLocalTasks(items, userId);
       return { tasks: items, isCloud: true };
     }
 
-    // If database has 0 items for this query
-    const localTasks = getLocalTasks(userId);
-    // If it's a guest with initial tasks, seed them to DB if desired
-    if (!userId && localTasks.length > 0) {
-      try {
-        const rows = localTasks.map((t) => toDbRow(t, undefined));
-        await supabase.from('tasks').upsert(rows);
-      } catch (_) {}
-    }
-
-    return { tasks: localTasks, isCloud: true };
+    return { tasks: getLocalTasks(userId), isCloud: true };
   } catch (err) {
     console.warn('Supabase request failed, defaulting to local tasks:', err);
     return { tasks: getLocalTasks(userId), isCloud: false };
@@ -162,9 +140,10 @@ export async function loadTasks(userId?: string): Promise<{ tasks: TaskItem[]; i
 
 // Add or update tasks
 export async function upsertTasks(tasks: TaskItem[], userId?: string): Promise<void> {
-  if (isSupabaseConfigured() && supabase) {
+  const owner = cloudUser(userId);
+  if (owner && supabase && tasks.length) {
     try {
-      const rows = tasks.map((t) => toDbRow(t, userId));
+      const rows = tasks.map((t) => toDbRow(t, owner));
       const { error } = await supabase.from('tasks').upsert(rows);
       if (error) {
         console.warn('Error upserting to Supabase:', error.message);
@@ -179,13 +158,13 @@ export async function upsertTasks(tasks: TaskItem[], userId?: string): Promise<v
 export async function replaceGoogleCalendarTasks(
   incoming: TaskItem[], userId?: string, client = supabase
 ): Promise<TaskItem[]> {
+  if (!userId) client = null; // The guest keeps its calendar on this device only
   const local = getLocalTasks(userId);
   let existing = local;
   if (client) {
     const rows: TaskItem[] = [];
     for (let offset = 0; ; offset += 1000) {
-      let query = client.from('tasks').select('*').order('id').range(offset, offset + 999);
-      query = userId ? query.eq('user_id', userId) : query.is('user_id', null);
+      const query = client.from('tasks').select('*').order('id').range(offset, offset + 999).eq('user_id', userId!);
       const { data, error } = await query;
       if (error) throw new Error('No se pudo cargar el calendario guardado. Tus eventos se han conservado.');
       rows.push(...(data || []).map(fromDbRow));
@@ -205,8 +184,7 @@ export async function replaceGoogleCalendarTasks(
     const keep = new Set(imported.map(task => task.id));
     const obsolete = existing.filter(task => isGoogleCalendarTask(task) && !keep.has(task.id)).map(task => task.id);
     for (let offset = 0; offset < obsolete.length; offset += 100) {
-      let query = client.from('tasks').delete().in('id', obsolete.slice(offset, offset + 100));
-      query = userId ? query.eq('user_id', userId) : query.is('user_id', null);
+      const query = client.from('tasks').delete().in('id', obsolete.slice(offset, offset + 100)).eq('user_id', userId!);
       const { error } = await query;
       if (error) throw new Error('No se pudieron retirar los eventos antiguos. Vuelve a sincronizar.');
     }
@@ -215,11 +193,12 @@ export async function replaceGoogleCalendarTasks(
   return imported;
 }
 
-// Delete task by ID
-export async function deleteTaskFromDb(taskId: string): Promise<void> {
-  if (isSupabaseConfigured() && supabase) {
+// Delete task by ID (only rows of the signed-in account)
+export async function deleteTaskFromDb(taskId: string, userId = cuentaActual().userId): Promise<void> {
+  const owner = cloudUser(userId);
+  if (owner && supabase) {
     try {
-      const { error } = await supabase.from('tasks').delete().eq('id', taskId);
+      const { error } = await supabase.from('tasks').delete().eq('id', taskId).eq('user_id', owner);
       if (error) {
         console.warn('Error deleting from Supabase:', error.message);
       }
@@ -230,10 +209,11 @@ export async function deleteTaskFromDb(taskId: string): Promise<void> {
 }
 
 // Toggle completion
-export async function toggleTaskCompleteInDb(taskId: string, completed: boolean): Promise<void> {
-  if (isSupabaseConfigured() && supabase) {
+export async function toggleTaskCompleteInDb(taskId: string, completed: boolean, userId = cuentaActual().userId): Promise<void> {
+  const owner = cloudUser(userId);
+  if (owner && supabase) {
     try {
-      const { error } = await supabase.from('tasks').update({ completed }).eq('id', taskId);
+      const { error } = await supabase.from('tasks').update({ completed }).eq('id', taskId).eq('user_id', owner);
       if (error) {
         console.warn('Error updating completion in Supabase:', error.message);
       }
@@ -252,7 +232,8 @@ export function subscribeToTaskChanges(
   userId: string | undefined,
   onChange: (change: TaskChange) => void
 ): () => void {
-  if (!isSupabaseConfigured() || !supabase) {
+  const owner = cloudUser(userId);
+  if (!owner || !supabase) {
     return () => {};
   }
 
@@ -265,15 +246,15 @@ export function subscribeToTaskChanges(
     const row = payload.new;
     if (!row?.id) return;
     // Defensive scoping: only rows that belong to this session
-    if ((row.user_id ?? null) !== (userId ?? null)) return;
+    if (row.user_id !== owner) return;
     const task = fromDbRow(row);
     if (isHydrationTask(task)) return;
     onChange({ type: 'upsert', task });
   };
 
-  const rowFilter = userId ? { filter: `user_id=eq.${userId}` } : {};
+  const rowFilter = { filter: `user_id=eq.${owner}` };
   const channel = supabase
-    .channel(`tasks-sync-${userId || 'guest'}`)
+    .channel(`tasks-sync-${owner}`)
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks', ...rowFilter }, handleRow)
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tasks', ...rowFilter }, handleRow)
     // DELETE events can't be filtered by column; unknown ids are ignored by the consumer

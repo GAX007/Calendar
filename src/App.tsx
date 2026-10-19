@@ -14,6 +14,7 @@ import { PullToRefresh } from './components/PullToRefresh';
 import { ModuleSkeleton, AppShellSkeleton } from './components/ui/Skeletons';
 import { ModuleErrorBoundary } from './components/ui/ModuleErrorBoundary';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { setCuentaActual } from './lib/cuenta';
 import { ThemeProvider } from './context/ThemeContext';
 import { haptic } from './utils/haptics';
 import { useRealTimeClock } from './hooks/useRealTimeClock';
@@ -824,11 +825,29 @@ function CalendarApp() {
   );
 }
 
+// Each account gets a fresh app state: nothing of the previous session (tasks, caches,
+// pending saves) can be shown to or saved under the next account on this device.
+function AccountScopedApp() {
+  const { user, loading } = useAuth();
+  setCuentaActual(user?.id, user?.email);
+  // The service worker caches Moodle/Calendar API answers by URL only: drop them when the account changes
+  useEffect(() => {
+    if (loading) return;
+    const cuenta = user?.id || 'guest';
+    try {
+      if (localStorage.getItem('calendarasist_cache_owner') === cuenta) return;
+      localStorage.setItem('calendarasist_cache_owner', cuenta);
+    } catch { /* private mode */ }
+    if (typeof caches !== 'undefined') void caches.delete('api-readonly').catch(() => {});
+  }, [user?.id, loading]);
+  return <CalendarApp key={user?.id || 'guest'} />;
+}
+
 export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <CalendarApp />
+        <AccountScopedApp />
       </AuthProvider>
     </ThemeProvider>
   );

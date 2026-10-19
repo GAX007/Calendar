@@ -1,9 +1,22 @@
 import { UniversitySubject, UniversityHomework, TaskItem } from '../types';
 import { getRelativeDateStr } from '../data/initialTasks';
 import { upsertTasks, deleteTaskFromDb } from './taskService';
+import { claveDeCuenta, cuentaActual, esCuentaPropietaria } from '../lib/cuenta';
 
 const SUBJECTS_STORAGE_KEY = 'calendarasist_uni_subjects';
 const HOMEWORK_STORAGE_KEY = 'calendarasist_uni_homework';
+
+// Subjects and homework are stored per account. Data saved before that (unscoped key)
+// was Xavier's, so only his account inherits it; other accounts and the guest start empty.
+function readScoped(base: string): string | null {
+  const own = localStorage.getItem(claveDeCuenta(base));
+  if (own !== null) return own;
+  if (esCuentaPropietaria()) {
+    const importOwner = localStorage.getItem('calendarasist_uni_import_owner');
+    if (!importOwner || importOwner === cuentaActual().userId) return localStorage.getItem(base);
+  }
+  return null;
+}
 
 export const INITIAL_SUBJECTS: UniversitySubject[] = [
   {
@@ -183,7 +196,7 @@ export function isUniversityExample(homework: UniversityHomework): boolean {
 
 export function getUniversitySubjects(): UniversitySubject[] {
   try {
-    const raw = localStorage.getItem(SUBJECTS_STORAGE_KEY);
+    const raw = readScoped(SUBJECTS_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
@@ -193,12 +206,12 @@ export function getUniversitySubjects(): UniversitySubject[] {
   } catch (err) {
     console.warn('Error reading university subjects from storage:', err);
   }
-  return INITIAL_SUBJECTS;
+  return esCuentaPropietaria() ? INITIAL_SUBJECTS : [];
 }
 
 export function saveUniversitySubjects(subjects: UniversitySubject[]): void {
   try {
-    localStorage.setItem(SUBJECTS_STORAGE_KEY, JSON.stringify(subjects));
+    localStorage.setItem(claveDeCuenta(SUBJECTS_STORAGE_KEY), JSON.stringify(subjects));
   } catch (err) {
     console.warn('Error saving university subjects:', err);
   }
@@ -238,7 +251,7 @@ export function deleteSubject(subjectId: string): void {
 
 export function getUniversityHomework(): UniversityHomework[] {
   try {
-    const raw = localStorage.getItem(HOMEWORK_STORAGE_KEY);
+    const raw = readScoped(HOMEWORK_STORAGE_KEY);
     if (raw) {
       const parsed: UniversityHomework[] = JSON.parse(raw);
       if (Array.isArray(parsed)) {
@@ -252,13 +265,12 @@ export function getUniversityHomework(): UniversityHomework[] {
 }
 
 export function getUniversityHomeworkForUser(userId?: string): UniversityHomework[] {
-  const owner = localStorage.getItem('calendarasist_uni_import_owner');
-  return owner && owner !== userId ? [] : getUniversityHomework();
+  return userId === cuentaActual().userId ? getUniversityHomework() : [];
 }
 
 export function saveUniversityHomework(homework: UniversityHomework[]): void {
   try {
-    localStorage.setItem(HOMEWORK_STORAGE_KEY, JSON.stringify(homework));
+    localStorage.setItem(claveDeCuenta(HOMEWORK_STORAGE_KEY), JSON.stringify(homework));
   } catch (err) {
     console.warn('Error saving university homework:', err);
   }

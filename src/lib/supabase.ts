@@ -18,3 +18,11 @@ export const isSupabaseConfigured = (): boolean => {
 export const supabase: SupabaseClient | null = isSupabaseConfigured()
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
+
+// Cabecera con el token de la sesión para las rutas del servidor que dependen de la cuenta
+export async function sessionAuthHeaders(): Promise<Record<string, string>> {
+  if (!supabase) return {};
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}

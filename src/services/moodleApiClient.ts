@@ -6,6 +6,7 @@ import {
   INITIAL_ASIGNATURAS,
   MoodleSyncPasos,
 } from './moodleTypes';
+import { sessionAuthHeaders } from '../lib/supabase';
 
 export interface SyncApiResponse {
   ok: boolean;
@@ -19,7 +20,9 @@ export interface SyncApiResponse {
 }
 
 async function moodleFetch(url: string, init?: RequestInit): Promise<Response> {
-  const response = await fetch(url, { ...init, cache: 'no-store' });
+  // The server only returns Moodle data to the account that owns it
+  const headers = { ...(init?.headers as Record<string, string> | undefined), ...(await sessionAuthHeaders()) };
+  const response = await fetch(url, { ...init, headers, cache: 'no-store' });
   const data = await response.clone().json().catch(() => null);
   if (!data || typeof data !== 'object' || typeof data.ok !== 'boolean') {
     throw new Error('El servidor de Moodle no está disponible. La web ha devuelto una página en lugar de datos; revisa el despliegue de las funciones de Netlify.');

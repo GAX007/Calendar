@@ -2,6 +2,8 @@ import { TaskItem } from '../types';
 import { replaceGoogleCalendarTasks } from './taskService';
 import { mergeGoogleCalendarSnapshot } from '../utils/googleCalendarSnapshot';
 import { syncCalendarPlanner, type CalendarPlannerChange } from './calendarPlannerService';
+import { OWNER_EMAIL, isOwnerEmail } from '../lib/cuenta';
+import { sessionAuthHeaders } from '../lib/supabase';
 
 const pendingSyncs = new Map<string, Promise<SyncLiveResult>>();
 const lastSnapshots = new Map<string, TaskItem[]>();
@@ -11,7 +13,7 @@ export function applyLatestGoogleCalendarSnapshot(tasks: TaskItem[], userId?: st
   return snapshot ? mergeGoogleCalendarSnapshot(tasks, snapshot) : tasks;
 }
 
-export const AUTHORIZED_CALENDAR_OWNER_EMAIL = 'xaviervarteniuc@gmail.com';
+export const AUTHORIZED_CALENDAR_OWNER_EMAIL = OWNER_EMAIL;
 
 export const GOOGLE_CALENDAR_CONFIG = {
   calName: '(Ordutegia)-M2GI12E',
@@ -70,8 +72,8 @@ export function setUserCustomCalendarUrl(url: string, userId?: string): void {
 /**
  * Resolves the effective calendar URL for a given user.
  * - If user has configured their own custom iCal URL, that takes priority.
- * - For Xavier's account or unauthenticated local dev testing, falls back to the official university schedule.
- * - For other users without a custom URL, returns empty string to preserve privacy.
+ * - Only Xavier's signed-in account falls back to his university schedule.
+ * - Guests and other users without a custom URL get an empty string to preserve privacy.
  */
 export function getEffectiveCalendarUrl(userId?: string, userEmail?: string): string {
   const customUrl = getUserCustomCalendarUrl(userId);
@@ -79,11 +81,7 @@ export function getEffectiveCalendarUrl(userId?: string, userEmail?: string): st
     return customUrl;
   }
 
-  const cleanEmail = (userEmail || '').toLowerCase().trim();
-  const isXavier = cleanEmail === AUTHORIZED_CALENDAR_OWNER_EMAIL;
-  const isDevGuest = !userId && !userEmail;
-
-  if (isXavier || isDevGuest) {
+  if (userId && isOwnerEmail(userEmail)) {
     return GOOGLE_CALENDAR_CONFIG.icalUrl;
   }
 
@@ -113,15 +111,11 @@ export async function syncLiveGoogleCalendar(
 
 async function performSync(userId?: string, userEmail?: string, overrideUrl?: string): Promise<SyncLiveResult> {
   try {
-    const cleanEmail = (userEmail || '').toLowerCase().trim();
-    const effectiveUrl =
-      overrideUrl !== undefined ? overrideUrl : getEffectiveCalendarUrl(userId, cleanEmail);
+    const customUrl = (overrideUrl !== undefined ? overrideUrl : getUserCustomCalendarUrl(userId)).trim();
+    const effectiveUrl = customUrl || getEffectiveCalendarUrl(userId, userEmail);
 
-    const isXavier = cleanEmail === AUTHORIZED_CALENDAR_OWNER_EMAIL;
-    const isDevGuest = !userId && !cleanEmail;
-
-    // If no custom URL is configured and user is not authorized for the default schedule:
-    if (!effectiveUrl && !isXavier && !isDevGuest) {
+    // Without a linked calendar there is nothing to fetch (the default schedule is only Xavier's)
+    if (!effectiveUrl) {
       return {
         success: false,
         calName: '',
@@ -133,11 +127,11 @@ async function performSync(userId?: string, userEmail?: string, overrideUrl?: st
     }
 
     const params = new URLSearchParams();
-    if (cleanEmail) params.set('email', cleanEmail);
-    if (effectiveUrl) params.set('url', effectiveUrl);
+    // The default schedule is chosen by the server from the session token, never sent by URL
+    if (customUrl) params.set('url', customUrl);
 
     const queryString = params.toString() ? `?${params.toString()}` : '';
-    const res = await fetch(`/api/google-calendar/sync-live${queryString}`, { cache: 'no-store' });
+    const res = await fetch(`/api/google-calendar/sync-live${queryString}`, { cache: 'no-store', headers: await sessionAuthHeaders() });
 
     if (res.status === 403) {
       return {

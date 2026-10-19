@@ -4,6 +4,7 @@ import {
   createManualEntrega,
   updateEntregaUserFields,
 } from '../../src/services/moodleSyncService';
+import { accesoMoodle, respuestaMoodleAjena } from '../../src/asistente/servidor/supabase';
 
 interface HandlerEvent {
   path: string;
@@ -42,6 +43,14 @@ export const handler = async (event: HandlerEvent) => {
   const method = (event.httpMethod || 'GET').toUpperCase();
 
   try {
+    // The Moodle feed is the owner's (MOODLE_OWNER_USER_ID): other accounts get an empty Moodle
+    const headers = event.headers || {};
+    const acceso = await accesoMoodle(headers.authorization || headers.Authorization);
+    if (acceso.tipo !== 'propietario') {
+      const { status, body } = respuestaMoodleAjena(acceso, method, cleanPath === '' ? '/sync-now' : cleanPath);
+      return { statusCode: status, headers: CORS_HEADERS, body: JSON.stringify(body) };
+    }
+
     // -------------------------------------------------------------
     // 1. SYNC NOW: POST /sync-now
     // -------------------------------------------------------------

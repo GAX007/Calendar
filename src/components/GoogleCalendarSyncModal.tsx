@@ -18,6 +18,7 @@ import {
 import { TaskItem } from '../types';
 import { exportTasksToICS, downloadICSFile, parseICSToTasks, generateGoogleCalendarUrl } from '../utils/icsHelper';
 import { syncLiveGoogleCalendar, GOOGLE_CALENDAR_CONFIG } from '../services/googleCalendarService';
+import { isOwnerEmail } from '../lib/cuenta';
 
 interface GoogleCalendarSyncModalProps {
   isOpen: boolean;
@@ -48,6 +49,8 @@ export const GoogleCalendarSyncModal: React.FC<GoogleCalendarSyncModalProps> = (
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
+  // The official university schedule is only Xavier's; other accounts never see it embedded
+  const isOwner = Boolean(userId) && isOwnerEmail(userEmail);
 
   const handleLiveSync = async () => {
     setIsSyncingLive(true);
@@ -203,7 +206,12 @@ export const GoogleCalendarSyncModal: React.FC<GoogleCalendarSyncModalProps> = (
         {/* Content Body */}
         <div className="p-4 sm:p-6 overflow-y-auto flex-1 flex flex-col gap-4 text-xs sm:text-sm">
           {/* TAB: EMBED OFFICIAL GOOGLE CALENDAR */}
-          {activeTab === 'embed' && (
+          {activeTab === 'embed' && !isOwner && (
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Tu cuenta no tiene un calendario oficial incrustado. Vincula tu propio enlace iCal para ver tus eventos en la Agenda.
+            </p>
+          )}
+          {activeTab === 'embed' && isOwner && (
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-xs text-slate-700">
@@ -242,7 +250,7 @@ export const GoogleCalendarSyncModal: React.FC<GoogleCalendarSyncModalProps> = (
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-ink animate-pulse" />
                     <span className="font-extrabold text-sm text-slate-900">
-                      Calendario Vinculado: {GOOGLE_CALENDAR_CONFIG.calName}
+                      Calendario Vinculado: {isOwner ? GOOGLE_CALENDAR_CONFIG.calName : 'Tu enlace iCal'}
                     </span>
                   </div>
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-300">

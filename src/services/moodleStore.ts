@@ -226,6 +226,14 @@ export async function getSupabaseDiagnostics(): Promise<SupabaseDiagnostics> {
   }
 }
 
+// Every Moodle row belongs to the owner of the feed (MOODLE_OWNER_USER_ID). The service key
+// skips RLS, so each query filters by that account explicitly; without it nothing is read or written.
+function ownerId(): string {
+  const owner = sanitizeEnvValue(process.env.MOODLE_OWNER_USER_ID);
+  if (!owner) throw new Error('Falta MOODLE_OWNER_USER_ID en el servidor: no se sabe de qué cuenta son las entregas de Moodle');
+  return owner;
+}
+
 /**
  * Check whether Supabase tables are ready and accessible
  */
@@ -245,7 +253,7 @@ export class MoodleStore {
   static async getAsignaturas(): Promise<AsignaturaItem[]> {
     if (await canUseSupabase()) {
       const client = getSupabaseClient()!;
-      const { data, error } = await client.from('asignaturas').select('*').order('codigo');
+      const { data, error } = await client.from('asignaturas').select('*').eq('user_id', ownerId()).order('codigo');
       if (error) throw new Error(`No se pudieron cargar asignaturas: ${error.message}`);
       return (data || []) as AsignaturaItem[];
     }
@@ -260,6 +268,7 @@ export class MoodleStore {
         .from('asignaturas')
         .update(fields)
         .eq('codigo', codigo)
+        .eq('user_id', ownerId())
         .select()
         .single();
       if (error) throw new Error(`No se pudo actualizar la asignatura: ${error.message}`);
@@ -284,7 +293,8 @@ export class MoodleStore {
     }
     if (await canUseSupabase()) {
       const client = getSupabaseClient()!;
-      const { error } = await client.from('asignaturas').upsert(seeds, { onConflict: 'codigo', ignoreDuplicates: true });
+      const owner = ownerId();
+      const { error } = await client.from('asignaturas').upsert(seeds.map(a => ({ ...a, user_id: owner })), { onConflict: 'codigo', ignoreDuplicates: true });
       if (error) throw new Error(`No se pudieron preparar las asignaturas: ${error.message}`);
       return;
     }
@@ -311,7 +321,7 @@ export class MoodleStore {
   }): Promise<EntregaItem[]> {
     if (await canUseSupabase()) {
       const client = getSupabaseClient()!;
-      let query = client.from('entregas').select('*').order('deadline_utc', { ascending: true });
+      let query = client.from('entregas').select('*').eq('user_id', ownerId()).order('deadline_utc', { ascending: true });
       if (!options?.includeOcultas) {
         query = query.eq('oculta_por_grupo', false);
       }
@@ -346,7 +356,7 @@ export class MoodleStore {
   static async getAllEntregasRaw(): Promise<EntregaItem[]> {
     if (await canUseSupabase()) {
       const client = getSupabaseClient()!;
-      const { data, error } = await client.from('entregas').select('*');
+      const { data, error } = await client.from('entregas').select('*').eq('user_id', ownerId());
       if (error) throw new Error(`No se pudieron cargar entregas: ${error.message}`);
       if (!error && data) {
         return data as EntregaItem[];
@@ -359,7 +369,7 @@ export class MoodleStore {
   static async getEntrega(uid: string): Promise<EntregaItem | null> {
     if (await canUseSupabase()) {
       const client = getSupabaseClient()!;
-      const { data, error } = await client.from('entregas').select('*').eq('uid', uid).maybeSingle();
+      const { data, error } = await client.from('entregas').select('*').eq('uid', uid).eq('user_id', ownerId()).maybeSingle();
       if (error) throw new Error(`No se pudo cargar la entrega: ${error.message}`);
       return data as EntregaItem | null;
     }
@@ -370,7 +380,7 @@ export class MoodleStore {
   static async upsertEntrega(entrega: EntregaItem): Promise<EntregaItem> {
     if (await canUseSupabase()) {
       const client = getSupabaseClient()!;
-      const { error } = await client.from('entregas').upsert(entrega, { onConflict: 'uid' });
+      const { error } = await client.from('entregas').upsert({ ...entrega, user_id: ownerId() }, { onConflict: 'uid' });
       if (error) {
         console.error('[MoodleStore] Error en upsertEntrega en Supabase:', error.message);
         throw new Error(`Error en Supabase al guardar entrega ${entrega.uid}: ${error.message}`);
@@ -395,6 +405,7 @@ export class MoodleStore {
         .from('entregas')
         .update(fields)
         .eq('uid', uid)
+        .eq('user_id', ownerId())
         .select()
         .single();
       if (error) {
@@ -419,7 +430,7 @@ export class MoodleStore {
   static async getCambios(onlyUnseen: boolean = false): Promise<CambioItem[]> {
     if (await canUseSupabase()) {
       const client = getSupabaseClient()!;
-      let query = client.from('cambios').select('*').order('fecha', { ascending: false });
+      let query = client.from('cambios').select('*').eq('user_id', ownerId()).order('fecha', { ascending: false });
       if (onlyUnseen) {
         query = query.eq('visto', false);
       }
@@ -440,7 +451,7 @@ export class MoodleStore {
     if (cambios.length === 0) return;
     if (await canUseSupabase()) {
       const client = getSupabaseClient()!;
-      const { error } = await client.from('cambios').insert(cambios);
+      const { error } = await client.from('cambios').insert(cambios.map(c => ({ ...c, user_id: ownerId() })));
       if (error) {
         throw new Error(`No se pudieron guardar cambios: ${error.message}`);
       }
@@ -454,7 +465,7 @@ export class MoodleStore {
   static async marcarCambiosVistos(): Promise<void> {
     if (await canUseSupabase()) {
       const client = getSupabaseClient()!;
-      const { error } = await client.from('cambios').update({ visto: true }).eq('visto', false);
+      const { error } = await client.from('cambios').update({ visto: true }).eq('user_id', ownerId()).eq('visto', false);
       if (error) throw new Error(`No se pudieron marcar los cambios: ${error.message}`);
       return;
     }
@@ -472,6 +483,7 @@ export class MoodleStore {
       const { data, error } = await client
         .from('sync_log')
         .select('*')
+        .eq('user_id', ownerId())
         .order('fecha', { ascending: false })
         .limit(limit);
       if (error) throw new Error(`No se pudo cargar el historial: ${error.message}`);
@@ -487,7 +499,7 @@ export class MoodleStore {
   static async insertSyncLog(log: SyncLogItem & { detalles?: any }): Promise<void> {
     if (await canUseSupabase()) {
       const client = getSupabaseClient()!;
-      const payload: any = { ...log };
+      const payload: any = { ...log, user_id: ownerId() };
       const { error } = await client.from('sync_log').insert(payload);
       if (error) {
         console.warn('[MoodleStore] Error insertando sync_log en Supabase:', error.message);
