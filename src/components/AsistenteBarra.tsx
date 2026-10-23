@@ -73,7 +73,12 @@ export const AsistenteBarra: React.FC<Props> = ({ voz, conCuenta, isProcessing, 
     const r = await voz.dictar();
     const completo = `${prefijo.current} ${r.texto}`.trim();
     if (r.error) showToast(r.error);
-    if (completo && (!r.cancelado || prefijo.current)) {
+    if (completo && conCuenta && !r.cancelado) {
+      // Sent by itself when the sentence ends (silence): no tap on stop or send
+      setFase('normal');
+      setDictado('');
+      voz.enviar(completo, true);
+    } else if (completo && (!r.cancelado || prefijo.current)) {
       setDictado(completo);
       setFase('revisando');
     } else {

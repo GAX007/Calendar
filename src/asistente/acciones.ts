@@ -36,7 +36,9 @@ export type Deshacer =
   // Deliverables whose state changed (discarded): undo puts each one back
   | { tipo: 'estados'; cambios: { uid: string; estado: 'pendiente' | 'descartada' }[]; titulo: string }
   | { tipo: 'entrega_moodle'; uid: string; anterior: { titulo?: string; deadline_utc?: string; horas_est?: number | null }; titulo: string }
-  | { tipo: 'deber_previo'; deber: UniversityHomework; asignatura: UniversitySubject; titulo: string };
+  | { tipo: 'deber_previo'; deber: UniversityHomework; asignatura: UniversitySubject; titulo: string }
+  // A fixed schedule changed or removed: undo saves the previous version again
+  | { tipo: 'evento_previo'; evento: Evento; titulo: string };
 
 export interface Resultado {
   frases: string[];
@@ -45,6 +47,15 @@ export interface Resultado {
   confirmar?: boolean;
   tareaNueva?: TaskItem;
   tareaCambiada?: TaskItem;
+  // Agenda task removed (the app and the server delete it)
+  tareaBorrada?: string;
+}
+
+// The planner row of an event, as the RPC expects it (rows carry extra columns and HH:mm:ss times)
+function eventoLimpio(e: Evento): Evento {
+  return { id: e.id, titulo: e.titulo, inicio_local: e.inicio_local.slice(0, 5), fin_local: e.fin_local.slice(0, 5),
+    dias_semana: e.dias_semana && e.dias_semana.length ? e.dias_semana.map(Number) : null, fecha_inicio: e.fecha_inicio,
+    fecha_fin: e.fecha_fin || null, tipo: e.tipo, bloqueo: e.bloqueo, area: e.area };
 }
 
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -70,15 +81,21 @@ export async function construirContextoCon(b: BackendAsistente, tareas: TaskItem
   const bloques = [...plan.bloques, ...(planManana === plan ? [] : planManana.bloques)]
     .filter(bl => bl.task_uid && (bl.fecha === hoy || bl.fecha === manana) && `${bl.fecha}T${bl.fin_local}` > ahora)
     .map(bl => ({ task_uid: bl.task_uid!, titulo: bl.titulo, fecha: bl.fecha, inicio: bl.inicio_local, fin: bl.fin_local }));
+  // Classes and events of today and tomorrow, plus the agenda tasks of the next week (they can be moved or removed)
+  const semana = addDays(hoy, 7);
   const agenda = [
     ...expandEventos(data.eventos, hoy, manana).map(bl => ({ titulo: bl.titulo, fecha: bl.fecha, inicio: bl.inicio_local, fin: bl.fin_local })),
-    ...tareas.filter(t => (t.date === hoy || t.date === manana) && !t.completed && t.time)
+    ...tareas.filter(t => t.date >= hoy && t.date <= semana && !t.completed && t.time)
       .map(t => ({ tarea_id: t.id, titulo: t.title, fecha: t.date, inicio: t.time.slice(0, 5), fin: (t.endTime || t.time).slice(0, 5) })),
-  ].sort((x, y) => `${x.fecha}${x.inicio}`.localeCompare(`${y.fecha}${y.inicio}`));
+  ].sort((x, y) => `${x.fecha}${x.inicio}`.localeCompare(`${y.fecha}${y.inicio}`)).slice(0, 60);
+  // Fixed schedules still in force (weekly or upcoming one-off) that can be changed or removed
+  const eventos = data.eventos.filter(e => e.dias_semana && e.dias_semana.length ? !e.fecha_fin || e.fecha_fin >= hoy : e.fecha_inicio >= hoy)
+    .slice(0, 40).map(e => ({ evento_id: e.id, titulo: e.titulo, tipo: e.tipo, dias: e.dias_semana && e.dias_semana.length ? e.dias_semana.map(Number) : null,
+      fecha: e.dias_semana && e.dias_semana.length ? null : e.fecha_inicio, inicio: e.inicio_local.slice(0, 5), fin: e.fin_local.slice(0, 5) }));
   // Two months of pending deliverables with their subject code, so "descarta las de X" and Basque names can be matched
   const limite = addDays(hoy, 60);
   const entregas = data.entregas.filter(esCandidata).map(t => ({ uid: t.uid, titulo: t.titulo, vence_local: madridLocal(t.deadline_utc),
-    horas_est: t.horas_est ?? null, asignatura: t.asignatura_codigo || undefined }))
+    horas_est: t.horas_est ?? null, asignatura: t.asignatura_codigo || undefined, ...(t.es_examen ? { examen: true } : {}) }))
     .filter(e => e.vence_local > ahora && e.vence_local.slice(0, 10) <= limite)
     .sort((x, y) => x.vence_local.localeCompare(y.vence_local)).slice(0, 60);
   // University subjects plus the Moodle ones (code + name in Basque or Spanish); Moodle is empty for other accounts
@@ -87,7 +104,7 @@ export async function construirContextoCon(b: BackendAsistente, tareas: TaskItem
     ...uni.map(s => ({ id: s.id, code: s.code, name: s.name })),
     ...moodle.filter(a => entregas.some(e => e.asignatura === a.codigo)).map(a => ({ id: a.codigo, code: a.codigo, name: a.nombre })),
   ];
-  return { ahora_local: ahora, dia_semana: DIAS[new Date(`${hoy}T12:00:00Z`).getUTCDay()], entregas, bloques, agenda, asignaturas };
+  return { ahora_local: ahora, dia_semana: DIAS[new Date(`${hoy}T12:00:00Z`).getUTCDay()], entregas, bloques, agenda, asignaturas, eventos };
 }
 
 interface Franja { fecha: string; inicio: string; fin: string; titulo: string; area: Evento['area'] }
@@ -300,6 +317,54 @@ export async function ejecutarAccionCon(b: BackendAsistente, accion: Accion, tar
       await recalcular(b, limites);
       return { frases: [`Cambiado: ${accion.titulo} ${dicho.join(' y ')}. He recalculado el plan.`], deshacer };
     }
+    case 'completar_entrega': {
+      const { data, limites } = await b.cargar();
+      await b.mutar(data, 'entrega', { uid: accion.uid, estado: 'hecha' });
+      await recalcular(b, limites);
+      return { frases: [`¡Bien! ${accion.titulo}, hecha.`],
+        deshacer: { tipo: 'estados', cambios: [{ uid: accion.uid, estado: 'pendiente' }], titulo: accion.titulo } };
+    }
+    case 'borrar_deber': {
+      if (!accion.confirmado && !confirmar) return { confirmar: true, frases: [`¿Borro ${accion.titulo}? No se puede deshacer.`] };
+      const row = (await b.trabajosUni()).find(r => `uni:${r.id}` === accion.uid);
+      if (!row) throw new Error(`No encuentro ${accion.titulo}.`);
+      await b.guardarTrabajo(deberDeFila(row), row.asignatura, true);
+      const { limites } = await b.cargar();
+      await recalcular(b, limites);
+      return { frases: [`He borrado ${accion.titulo}.`] };
+    }
+    case 'completar_tarea':
+    case 'borrar_tarea': {
+      const anterior = tareas.find(t => t.id === accion.tarea_id);
+      if (!anterior) throw new Error(`No encuentro ${accion.titulo} en tu agenda.`);
+      const deshacer: Deshacer = { tipo: 'tarea', anterior, titulo: accion.titulo };
+      if (accion.tipo === 'borrar_tarea') return { frases: [`He quitado ${accion.titulo} de tu agenda.`], tareaBorrada: anterior.id, deshacer };
+      return { frases: [`Hecho: ${accion.titulo}.`], tareaCambiada: { ...anterior, completed: true }, deshacer };
+    }
+    case 'modificar_evento':
+    case 'eliminar_evento': {
+      const { data, limites } = await b.cargar();
+      const original = data.eventos.find(e => e.id === accion.evento_id);
+      if (!original) throw new Error(`No encuentro ${accion.titulo} en tus horarios.`);
+      const anterior = eventoLimpio(original);
+      if (accion.tipo === 'eliminar_evento') {
+        if (accion.semanal && !accion.confirmado && !confirmar) {
+          return { confirmar: true, frases: [`${accion.titulo} se repite cada semana. ¿Lo quito de todas las semanas?`] };
+        }
+        await b.mutar(data, 'eliminar_evento', { id: anterior.id });
+        await recalcular(b, limites);
+        return { frases: [`He quitado ${accion.titulo} y he recalculado el plan.`], deshacer: { tipo: 'evento_previo', evento: anterior, titulo: accion.titulo } };
+      }
+      const cambiado: Evento = { ...anterior, ...(accion.nuevo_titulo ? { titulo: accion.nuevo_titulo } : {}),
+        ...(accion.inicio ? { inicio_local: accion.inicio } : {}), ...(accion.fin ? { fin_local: accion.fin } : {}),
+        ...(accion.fecha && !anterior.dias_semana ? { fecha_inicio: accion.fecha, fecha_fin: accion.fecha } : {}) };
+      await guardarEvento((d, a, p) => b.mutar(d, a, p), data, cambiado);
+      await recalcular(b, limites);
+      const cuando = anterior.dias_semana ? `de ${horaHablada(cambiado.inicio_local)} a ${horaHablada(cambiado.fin_local)}`
+        : franja(cambiado.fecha_inicio, cambiado.inicio_local, cambiado.fin_local, hoy);
+      return { frases: [`Cambiado: ${cambiado.titulo}, ${cuando}. He recalculado el plan.`],
+        deshacer: { tipo: 'evento_previo', evento: anterior, titulo: accion.titulo } };
+    }
     default:
       return { frases: [] };
   }
@@ -310,6 +375,12 @@ export async function deshacerCon(b: BackendAsistente, d: Deshacer): Promise<{ f
   if (d.tipo === 'estados') {
     await cambiarEstados(b, d.cambios);
     return { frases: [`He recuperado ${d.titulo} y he recalculado el plan.`] };
+  }
+  if (d.tipo === 'evento_previo') {
+    const { data, limites } = await b.cargar();
+    await guardarEvento((x, a, p) => b.mutar(x, a, p), data, d.evento);
+    await recalcular(b, limites);
+    return { frases: [`He dejado ${d.titulo} como estaba y he recalculado el plan.`] };
   }
   if (d.tipo === 'entrega_moodle' || d.tipo === 'deber_previo') {
     if (d.tipo === 'entrega_moodle') await b.editarMoodle(d.uid, { ...d.anterior });

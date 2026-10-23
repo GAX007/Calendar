@@ -270,6 +270,8 @@ app.post('/api/asistente/interpretar', async (req, res) => {
                     asignatura: { type: Type.STRING },
                     imprevisto: { type: Type.BOOLEAN },
                     confirmado: { type: Type.BOOLEAN },
+                    evento_id: { type: Type.STRING },
+                    detalle: { type: Type.BOOLEAN },
                   },
                   required: ['tipo'],
                 },

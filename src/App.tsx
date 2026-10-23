@@ -257,7 +257,7 @@ function CalendarApp() {
     cierre: parte.cierreItems,
     onActividadAnadida: (t) => { setTasks((prev) => [t, ...prev]); upsertTasks([t], userIdRef.current); },
     onActividadQuitada: (id) => { setTasks((prev) => prev.filter((t) => t.id !== id)); deleteTaskFromDb(id); },
-    onTareaCambiada: (t) => { setTasks((prev) => prev.map((x) => (x.id === t.id ? t : x))); upsertTasks([t], userIdRef.current); },
+    onTareaCambiada: (t) => { setTasks((prev) => (prev.some((x) => x.id === t.id) ? prev.map((x) => (x.id === t.id ? t : x)) : [t, ...prev])); upsertTasks([t], userIdRef.current); },
   });
   const cerrarVoz = voz.cerrar;
   useEffect(() => {

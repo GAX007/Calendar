@@ -2,7 +2,7 @@
 import { supabase } from '../lib/supabase';
 import type { Aviso, EstadoBloque, ItemCierre, RepasoSemanal, ResumenManana } from '../asistente/logica';
 import { entradaSemana, limitesPorCheckin, planActual } from '../asistente/logica';
-import { guionDelDia, guionEntregas, type Guion } from '../asistente/voz';
+import { guionBreve, guionDelDia, guionEntregas, type Guion } from '../asistente/voz';
 import type { TaskItem } from '../types';
 import type { Plan } from '../planner/types';
 import { generatePlan } from '../planner/engine';
@@ -161,11 +161,13 @@ export async function contextoVoz(userId: string) {
   return { ahora, hoy, data, limites };
 }
 
-// Spoken summary of one day (today by default): built live from the planner and the agenda, so it is correct at any time of day
-export async function prepararGuionVoz(userId: string, tareas: TaskItem[], cierre: ItemCierre[] = [], fecha?: string): Promise<Guion> {
+// Spoken summary of one day (today by default): built live from the planner and the agenda, so it is correct at any time of day.
+// Short (up to 4 sentences) unless the user asked for the detail.
+export async function prepararGuionVoz(userId: string, tareas: TaskItem[], cierre: ItemCierre[] = [], fecha?: string, detalle = false): Promise<Guion> {
   const { ahora, hoy, data, limites } = await contextoVoz(userId);
   const dia = fecha && fecha >= hoy ? fecha : hoy;
-  return guionDelDia({ data, plan: planActual(data, dia, ahora, limites), tareas, ahoraLocal: ahora, fecha: dia, cierre: dia === hoy ? cierre : [] });
+  const input = { data, plan: planActual(data, dia, ahora, limites), tareas, ahoraLocal: ahora, fecha: dia, cierre: dia === hoy ? cierre : [] };
+  return detalle ? guionDelDia(input) : guionBreve(input);
 }
 
 export async function prepararGuionEntregas(userId: string, dias = 7): Promise<string[]> {

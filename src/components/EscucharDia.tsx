@@ -107,7 +107,7 @@ export function EscucharDia({ userId, tareas, cierre, onActividadAnadida, onActi
     if (interp.respuesta && !interp.acciones.some(a => CONSULTAS.has(a.tipo))) salida.push(interp.respuesta);
     for (const accion of interp.acciones) {
       try {
-        if (accion.tipo === 'resumen') salida.push(...(await prepararGuionVoz(userId, tareasRef.current, cierre, accion.fecha)).frases);
+        if (accion.tipo === 'resumen') salida.push(...(await prepararGuionVoz(userId, tareasRef.current, cierre, accion.fecha, accion.detalle)).frases);
         else if (accion.tipo === 'entregas') salida.push(...await prepararGuionEntregas(userId, accion.dias));
         else if (accion.tipo === 'deshacer') salida.push(...await deshacer());
         else if (accion.tipo === 'parar') return [];

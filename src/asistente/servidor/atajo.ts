@@ -6,9 +6,9 @@ import crypto from 'crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { construirContextoCon, deshacerCon, ejecutarAccionCon, type BackendAsistente, type Deshacer, type Resultado } from '../acciones';
 import { normalizarInterpretacion, promptAsistente, type Accion, type ContextoAsistente } from '../interpretar';
-import { respuestaSiNo, seguirEscuchando } from '../conversacion';
+import { quitarEco, respuestaSiNo, seguirEscuchando, terminaEnPregunta, ultimaPregunta } from '../conversacion';
 import { ahoraMadrid, limitesPorCheckin, planActual } from '../logica';
-import { guionDelDia, guionEntregas } from '../voz';
+import { guionBreve, guionDelDia, guionEntregas } from '../voz';
 import { addDays } from '../../planner/time';
 import type { UniversityWorkRow } from '../../planner/university';
 import type { TaskItem, UniversitySubject } from '../../types';
@@ -22,6 +22,7 @@ import { interpretarConOpenAI, limpiarPalabrasClave, transcribirConOpenAI } from
 
 export const PREFIJO_TOKEN = 'ca_';
 const CONVERSACION_MINUTOS = 15;
+const CONVERSACION_SIN_ID_MINUTOS = 3;
 const VOCABULARIO = ['Moodle', 'Galdetegia', 'Ariketak', 'PBL', 'labs', 'entrega', 'cuestionario', 'gimnasio', 'karate'];
 
 export const hashToken = (token: string) => crypto.createHash('sha256').update(token.trim()).digest('hex');
@@ -99,17 +100,24 @@ async function aplicarEnAgenda(sb: SupabaseClient, userId: string, r: Partial<Re
   for (const t of [r.tareaNueva, r.tareaCambiada, r.restaurarTarea].filter(Boolean) as TaskItem[]) {
     comprobar(await sb.from('tasks').upsert(toDbRow(t, userId)), 'tasks');
   }
-  if (r.quitarTarea) comprobar(await sb.from('tasks').delete().eq('id', r.quitarTarea).eq('user_id', userId), 'tasks');
+  for (const id of [r.quitarTarea, r.tareaBorrada].filter(Boolean) as string[]) {
+    comprobar(await sb.from('tasks').delete().eq('id', id).eq('user_id', userId), 'tasks');
+  }
 }
 
 // --- Conversation (so "sí" or "la de Física" after a question keeps its meaning) -----------
 interface Conversacion { id: string; historial: { usuario: string; asistente: string }[]; pendiente: Accion | null; deshacer: Deshacer | null }
 
+// With the id the shortcut sends back, the conversation lasts 15 minutes. Without it (the variable was not wired into
+// the URL, or the shortcut was launched again to answer), the user's latest conversation of the last 3 minutes goes on.
 async function cargarConversacion(sb: SupabaseClient, userId: string, id?: string): Promise<Conversacion> {
   const nueva: Conversacion = { id: newId(), historial: [], pendiente: null, deshacer: null };
-  if (!id || !/^[0-9a-f-]{36}$/i.test(id)) return nueva;
-  const fila = comprobar(await sb.from('asistente_conversaciones').select('*').eq('id', id).eq('user_id', userId).maybeSingle(), 'asistente_conversaciones') as any;
-  if (!fila || Date.now() - new Date(fila.actualizado_en).getTime() > CONVERSACION_MINUTOS * 60000) return nueva;
+  const conId = Boolean(id && /^[0-9a-f-]{36}$/i.test(id));
+  const consulta = sb.from('asistente_conversaciones').select('*').eq('user_id', userId);
+  const fila = comprobar(await (conId ? consulta.eq('id', id!) : consulta.order('actualizado_en', { ascending: false }).limit(1)).maybeSingle(),
+    'asistente_conversaciones') as any;
+  const vigencia = (conId ? CONVERSACION_MINUTOS : CONVERSACION_SIN_ID_MINUTOS) * 60000;
+  if (!fila || Date.now() - new Date(fila.actualizado_en).getTime() > vigencia) return nueva;
   return { id: fila.id, historial: fila.historial || [], pendiente: fila.pendiente || null, deshacer: fila.deshacer || null };
 }
 
@@ -132,14 +140,27 @@ export async function turnoAtajo(sb: SupabaseClient, userId: string, entrada: { 
     const pistas = limpiarPalabrasClave([...ctx.asignaturas.flatMap(s => [s.name, s.code]), ...ctx.entregas.map(e => e.titulo.replace(/^\[[^\]]+\]\s*/, '')), ...VOCABULARIO]);
     texto = (await transcribirConOpenAI(entrada.audio, entrada.mimeType || 'audio/m4a', pistas)).trim();
   }
-  if (!texto) return { texto: 'No te he oído. Vuelve a intentarlo.', seguir: false, conversacion: conv.id, oido: '' };
+  // What the assistant asked last: an answer to it keeps the conversation going
+  const ultimo = conv.historial.at(-1)?.asistente || '';
+  const preguntaAbierta = Boolean(conv.pendiente) || terminaEnPregunta([ultimo]);
+  // The recording may have caught the end of the spoken answer: drop that echo
+  texto = quitarEco(texto, ultimo);
+  if (!texto) {
+    const repetir = preguntaAbierta ? `No te he oído bien. ${ultimaPregunta(ultimo)}` : 'No te he oído. Vuelve a intentarlo.';
+    return { texto: repetir, seguir: preguntaAbierta, conversacion: conv.id, oido: '' };
+  }
 
   const salida: string[] = [];
+  let actuo = false;
   let aclaracion = false, pendiente: Accion | null = null, terminar = false;
   const ejecutar = async (accion: Accion, confirmar: boolean) => {
     const r = await ejecutarAccionCon(b, accion, tareas, confirmar);
-    if (r.confirmar) pendiente = accion;
-    else { await aplicarEnAgenda(sb, userId, r); if (r.deshacer) conv.deshacer = r.deshacer; }
+    actuo = true;
+    if (r.confirmar) {
+      pendiente = accion;
+      // The confirmation question replaces the model's own sentence, so it is not asked twice
+      if (salida.length === 1 && !confirmar) salida.length = 0;
+    } else { await aplicarEnAgenda(sb, userId, r); if (r.deshacer) conv.deshacer = r.deshacer; }
     salida.push(...r.frases);
     return !r.confirmar;
   };
@@ -147,7 +168,7 @@ export async function turnoAtajo(sb: SupabaseClient, userId: string, entrada: { 
   const corta = conv.pendiente ? respuestaSiNo(texto) : null;
   try {
     if (conv.pendiente && corta === 'si') await ejecutar(conv.pendiente, true);
-    else if (conv.pendiente && corta === 'no') salida.push('Vale, no lo hago.');
+    else if (conv.pendiente && corta === 'no') { actuo = true; salida.push('Vale, no lo hago.'); }
     else {
       const historial = conv.historial.map(t => `Usuario: ${t.usuario}\nAsistente: ${t.asistente}`).join('\n');
       const prompt = `Contexto: ${JSON.stringify(ctx)}\n\n${historial ? `Conversación reciente:\n${historial}\n\n` : ''}Ha dicho: "${texto.replace(/"/g, "'")}"`;
@@ -156,10 +177,15 @@ export async function turnoAtajo(sb: SupabaseClient, userId: string, entrada: { 
       const interp = normalizarInterpretacion(json, ctx, texto);
       if (interp.respuesta && !interp.acciones.some(a => a.tipo === 'resumen' || a.tipo === 'entregas')) salida.push(interp.respuesta);
       for (const accion of interp.acciones) {
-        if (accion.tipo === 'resumen') salida.push(...guionDelDia({ data, plan: planActual(data, accion.fecha, ahora, limites), tareas, ahoraLocal: ahora, fecha: accion.fecha }).frases);
-        else if (accion.tipo === 'entregas') salida.push(...guionEntregas(data, planActual(data, hoy, ahora, limites), ahora, accion.dias));
+        if (accion.tipo === 'resumen') {
+          actuo = true;
+          const input = { data, plan: planActual(data, accion.fecha, ahora, limites), tareas, ahoraLocal: ahora, fecha: accion.fecha };
+          salida.push(...(accion.detalle ? guionDelDia(input) : guionBreve(input)).frases);
+        }
+        else if (accion.tipo === 'entregas') { actuo = true; salida.push(...guionEntregas(data, planActual(data, hoy, ahora, limites), ahora, accion.dias)); }
         else if (accion.tipo === 'deshacer') {
           if (!conv.deshacer) { salida.push('No hay nada que deshacer.'); continue; }
+          actuo = true;
           const r = await deshacerCon(b, conv.deshacer);
           await aplicarEnAgenda(sb, userId, r);
           conv.deshacer = null;
@@ -172,6 +198,12 @@ export async function turnoAtajo(sb: SupabaseClient, userId: string, entrada: { 
     }
   } catch (err) {
     salida.push(err instanceof Error ? err.message : String(err));
+  }
+  // An answer to an open question that did nothing and asked nothing: ask again instead of ending the conversation
+  if (preguntaAbierta && !actuo && !aclaracion && !pendiente && !terminar) {
+    salida.length = 0;
+    salida.push(`No te he entendido. ${ultimaPregunta(ultimo)}`);
+    pendiente = conv.pendiente;
   }
   if (!salida.length) salida.push('No te he entendido. Prueba con «¿qué tengo hoy?» o «me voy al cine de 6 a 9».');
   conv.pendiente = pendiente;

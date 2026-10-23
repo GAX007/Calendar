@@ -102,3 +102,14 @@ export function desbloquearVoz(): void {
   enCurso = [u];
   window.speechSynthesis.speak(u);
 }
+
+// Resolves when the device has really stopped speaking (iOS fires onend early sometimes), plus a short pause,
+// so the microphone that opens next does not hear the assistant's own voice.
+export async function esperarFinVoz(pausaMs = 600, maxMs = 20000): Promise<void> {
+  if (vozDisponible()) {
+    const inicio = Date.now();
+    const synth = window.speechSynthesis;
+    while ((synth.speaking || synth.pending) && Date.now() - inicio < maxMs) await new Promise(r => setTimeout(r, 100));
+  }
+  await new Promise(r => setTimeout(r, pausaMs));
+}

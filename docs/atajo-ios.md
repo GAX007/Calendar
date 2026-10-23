@@ -16,26 +16,48 @@ y te lee la respuesta. Si el asistente te pregunta algo («¿Las descarto todas?
 ## 2. Crear el atajo «Asistente»
 
 Abre **Atajos** → **+** (nuevo atajo) → nómbralo **Asistente**. Añade estas acciones en este orden
-(escribe el nombre en el buscador de acciones):
+(escribe el nombre de la acción en el buscador de acciones).
 
-1. **Texto** → déjalo vacío.
-2. **Establecer variable** → nombre `Conversación`, valor: *Texto*.
-3. **Repetir** → **6** veces. Dentro de «Repetir» van los pasos 4 a 13:
+> **Qué buscar en Atajos.** Solo hay que buscar estas acciones, con este nombre exacto:
+> **Texto** · **Establecer variable** · **Repetir** · **Grabar audio** · **Obtener contenido de URL** ·
+> **Obtener valor del diccionario** · **Leer texto** · **Si** · **Detener este atajo** · **Esperar**.
+>
+> «Conversación» **no es una acción**: es el nombre que tú le pones a una variable en el paso 2.
+> `texto`, `conversacion` y `seguir` tampoco son acciones: son las **claves** de la respuesta del servidor
+> (un diccionario JSON) que escribes dentro de «Obtener valor del diccionario».
+> Para meter una variable en un campo (como la URL), toca el campo: encima del teclado sale una barra con las
+> variables disponibles; si no aparece la que buscas, toca **Seleccionar variable**.
+
+1. Busca la acción **Texto** (icono amarillo) y añádela. Déjala vacía.
+2. Busca la acción **Establecer variable** (icono naranja) y añádela. Toca *Nombre de la variable* y escribe
+   `Conversación`. A su derecha debe poner **Texto** (el resultado del paso 1); si no, tócalo y elige *Texto*.
+3. Busca **Repetir** → pon **6** veces. Arrastra los pasos 4 a 14 para que queden **dentro** de «Repetir»
+   (entre «Repetir» y «Fin de Repetir»). Si quedan debajo de «Fin de Repetir», el atajo solo da una vuelta y
+   **la conversación se corta** tras la primera pregunta: los bloques de dentro salen un poco metidos a la derecha.
 4. **Grabar audio** → toca la flecha: *Calidad* **Normal**, *Empezar a grabar* **Inmediatamente**, *Terminar de grabar* **Al tocar**.
    (Grabas, y tocas la pantalla al acabar de hablar.)
 5. **Obtener contenido de URL**:
-   - URL: `https://calendaragent.netlify.app/api/asistente/atajo?c=` y, justo detrás, la variable **Conversación**.
+   - URL: escribe `https://calendaragent.netlify.app/api/asistente/atajo?c=` y, justo detrás (sin espacio),
+     inserta la variable **Conversación** desde la barra de variables.
    - Toca la flecha: *Método* **POST**.
    - *Encabezados* → **Añadir nuevo encabezado**: clave `Authorization`, valor `Bearer ` (con espacio) y pega tu token detrás.
    - *Cuerpo de la solicitud* → **Archivo** → elige *Audio grabado*.
-6. **Obtener valor de diccionario** → *Valor* de la clave `texto` en *Contenido de la URL*.
-7. **Leer texto** → *Valor del diccionario*. Toca la flecha: idioma **Español (España)**, *Esperar hasta terminar* activado.
-8. **Obtener valor de diccionario** → *Valor* de la clave `conversacion` en *Contenido de la URL*.
-9. **Establecer variable** → `Conversación` = *Valor del diccionario* (el del paso 8).
-10. **Obtener valor de diccionario** → *Valor* de la clave `seguir` en *Contenido de la URL*.
-11. **Si** → *Valor del diccionario* (paso 10) **es** **Falso**.
-12. Dentro del «Si»: **Detener este atajo**.
-13. **Fin del Si** (Atajos lo añade solo).
+6. **Obtener valor del diccionario** → toca *Clave* y escribe `texto`; en *Diccionario* elige *Contenido de la URL*.
+7. **Leer texto** → el texto a leer es *Valor del diccionario* (el del paso 6). Toca la flecha: idioma
+   **Español (España)** y **Esperar hasta terminar** activado. Esto es importante: si no espera, la grabación
+   siguiente empieza mientras habla y graba su propia voz en vez de tu respuesta.
+8. Otra vez **Obtener valor del diccionario** → clave `conversacion` (sin tilde, en minúsculas); diccionario: *Contenido de la URL*.
+9. Otra vez **Establecer variable** → nombre `Conversación` (el mismo del paso 2); valor: *Valor del diccionario* (el del paso 8).
+10. Otra vez **Obtener valor del diccionario** → clave `seguir`; diccionario: *Contenido de la URL*.
+11. **Si** → *Valor del diccionario* (el del paso 10) **es** **Falso**.
+12. Dentro del «Si» (entre «Si» y «Otro»/«Fin del Si»): **Detener este atajo**.
+13. **Fin del Si** (Atajos lo añade solo; si sale «Otro», déjalo vacío).
+14. Debajo de «Fin del Si» y todavía dentro de «Repetir»: **Esperar** → **1** segundo. Deja un respiro entre la voz
+    y la siguiente grabación.
+
+Cuando el asistente te pregunta algo («¿Las descarto todas?»), el atajo vuelve a grabar solo: contesta «sí» o «no» y
+toca la pantalla al acabar. Si aun así se cierra, vuelve a lanzar el atajo antes de 3 minutos y di la respuesta: el
+servidor recuerda tu última conversación ese tiempo aunque la variable *Conversación* no esté bien puesta.
 
 Prueba el atajo con ▶︎: di «¿qué tengo hoy?». La primera vez iOS pide permiso para el micrófono y para conectarse a
 `calendaragent.netlify.app`: pulsa **Permitir siempre**.
@@ -63,7 +85,9 @@ con Face ID y sigue hablando.
 Lo mismo que el botón «Hablar» de la app: «me voy al cine de 18:00 a 23:00», «mañana tengo un imprevisto de 5 a 7»,
 «descarta las entregas de Programazio Aurreratua» (te pide confirmación si son más de 3: responde «sí» o «no»),
 «la práctica de PA es para el viernes», «dale 5 horas a los labs», «apúntame un examen de Física el 12»,
-«¿qué tengo mañana?», «¿qué entregas tengo?», «deshaz lo último» (en la misma conversación).
+«¿qué tengo mañana?» (resumen corto; «dímelo todo» para el detalle), «¿qué entregas tengo?», «el examen de Física es a las 12»,
+«la clase de inglés ahora es a las 5», «quita la clase de inglés» (pide confirmación si es semanal), «ya he entregado la práctica 2»,
+«borra la tarea del dentista», «borra los ejercicios del tema 3» (pide confirmación: no se puede deshacer), «deshaz lo último» (en la misma conversación).
 
 ## Seguridad
 

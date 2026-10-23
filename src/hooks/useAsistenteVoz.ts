@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ItemCierre } from '../asistente/logica';
 import type { Accion } from '../asistente/interpretar';
-import { respuestaSiNo, seguirEscuchando, SILENCIO_FIN_CONVERSACION_MS } from '../asistente/conversacion';
+import { quitarEco, respuestaSiNo, seguirEscuchando, SILENCIO_FIN_CONVERSACION_MS } from '../asistente/conversacion';
 import type { TaskItem } from '../types';
 import { prepararGuionEntregas, prepararGuionVoz } from '../services/asistenteService';
 import {
   construirContexto, deshacerVoz, ejecutarAccion, interpretarFrase, transcribirVoz, type Deshacer, type Turno,
 } from '../services/asistenteVozService';
-import { desbloquearVoz, esperarVoces, hablar, pararVoz, vozDisponible } from '../utils/voz';
+import { desbloquearVoz, esperarFinVoz, esperarVoces, hablar, pararVoz, vozDisponible } from '../utils/voz';
 import {
   abrirMicro, cerrarMicro, escuchar, escucharTurno, estadoMicro, MENSAJE_INSEGURO, prepararAudio, type Escucha,
 } from '../utils/escuchar';
@@ -66,7 +66,9 @@ export function useAsistenteVoz(opciones: Opciones) {
   const micro = useRef<MediaStream | null>(null);
   const siguiente = useRef<(() => void) | null>(null);
   const turnos = useRef(0);
-  const escucharRespuestaRef = useRef<() => Promise<void>>(async () => undefined);
+  // What the assistant said last, to tell its own echo from the user's answer
+  const ultimoDicho = useRef('');
+  const escucharRespuestaRef = useRef<(reintento?: boolean) => Promise<void>>(async () => undefined);
   const pendienteRef = useRef<Accion | null>(null);
   const ultimaRef = useRef<Deshacer | null>(null);
   const setPendiente = useCallback((a: Accion | null) => { pendienteRef.current = a; setPendienteEstado(a); }, []);
@@ -83,6 +85,7 @@ export function useAsistenteVoz(opciones: Opciones) {
   useEffect(() => () => { peticion.current++; escucha.current?.cancelar(); pararVoz(); cerrarMicro(micro.current); }, []);
 
   const responder = useCallback((lista: string[], id: number, enVoz: boolean) => {
+    ultimoDicho.current = lista.join(' ');
     if (id !== peticion.current) return;
     setFrases(lista);
     setActual(-1);
@@ -123,6 +126,7 @@ export function useAsistenteVoz(opciones: Opciones) {
     if (r.confirmar) { setPendiente(accion); if (r.deshacer) setUltima(r.deshacer); return { frases: r.frases, seguir: false }; }
     if (r.tareaNueva) onActividadAnadida?.(r.tareaNueva);
     if (r.tareaCambiada) onTareaCambiada?.(r.tareaCambiada);
+    if (r.tareaBorrada) ops.current.onActividadQuitada?.(r.tareaBorrada);
     if (r.deshacer) { setUltima(r.deshacer); haptic(15); }
     return { frases: r.frases, seguir: true };
   }, [setPendiente, setUltima]);
@@ -161,13 +165,15 @@ export function useAsistenteVoz(opciones: Opciones) {
     if (interp.respuesta && !interp.acciones.some(a => CONSULTAS.has(a.tipo))) salida.push(interp.respuesta);
     for (const accion of interp.acciones) {
       try {
-        if (accion.tipo === 'resumen') salida.push(...(await prepararGuionVoz(userId, ops.current.tareas, cierre, accion.fecha)).frases);
+        if (accion.tipo === 'resumen') salida.push(...(await prepararGuionVoz(userId, ops.current.tareas, cierre, accion.fecha, accion.detalle)).frases);
         else if (accion.tipo === 'entregas') salida.push(...await prepararGuionEntregas(userId, accion.dias));
         else if (accion.tipo === 'deshacer') salida.push(...await deshacer(ultimaActual));
         else if (accion.tipo === 'parar') { terminarConversacion(); return []; }
         else if (accion.tipo === 'pedir_aclaracion') { aclaracion = true; if (!salida.includes(accion.pregunta)) salida.push(accion.pregunta); }
         else {
           const r = await aplicar(accion, false);
+          // A confirmation question replaces the model's own sentence, so it is not asked twice
+          if (!r.seguir && salida.length === 1 && salida[0] === interp.respuesta) salida.length = 0;
           salida.push(...r.frases);
           if (!r.seguir) break;
         }
@@ -183,20 +189,26 @@ export function useAsistenteVoz(opciones: Opciones) {
   }, enVoz), [ejecutar, aplicar, deshacer, prepararSiguiente, setPendiente, terminarConversacion]);
 
   // Next turn of a conversation: records on the open stream until a pause; silence ends the conversation
-  const escucharRespuesta = useCallback(async () => {
+  const escucharRespuesta = useCallback(async (reintento = false) => {
     const stream = micro.current;
     if (!stream) { terminarConversacion(); return; }
     const id = ++peticion.current;
-    turnos.current++;
+    if (!reintento) turnos.current++;
     setOidoDefinitivo('');
     setOidoProvisional('');
+    // The microphone opens only once the voice has really finished, plus a pause: otherwise it hears the assistant
+    await esperarFinVoz();
+    if (id !== peticion.current) return;
     setEstado('escuchando');
     haptic(8);
     const e = escucharTurno(stream, transcribirVoz, SILENCIO_FIN_CONVERSACION_MS);
     escucha.current = e;
-    const texto = await e.texto.catch(() => '');
+    const oido = await e.texto.catch(() => '');
     if (id !== peticion.current) return;
     escucha.current = null;
+    // Whatever repeats the assistant's last answer is its own echo, not the user's answer
+    const texto = quitarEco(oido, ultimoDicho.current);
+    if (!texto && oido && !reintento) { void escucharRespuestaRef.current(true); return; }
     if (!texto) { setEstado('parado'); terminarConversacion(); return; }
     setOidoDefinitivo(texto);
     const espera = pendienteRef.current;

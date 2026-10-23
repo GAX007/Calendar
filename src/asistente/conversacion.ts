@@ -28,3 +28,31 @@ export function seguirEscuchando(opciones: { frases: string[]; pendiente: boolea
   if (opciones.turnos >= MAX_TURNOS_SEGUIDOS) return false;
   return opciones.pendiente || opciones.aclaracion || terminaEnPregunta(opciones.frases);
 }
+
+const palabras = (v: string) => normal(v).split(' ').filter(Boolean);
+
+// The microphone sometimes hears the assistant's own voice (it speaks through the speaker while recording starts).
+// Removes the words at the start of what was heard that repeat the assistant's last answer, and returns the rest:
+// "¿Las descarto todas? Sí" → "Sí"; an exact echo → "".
+export function quitarEco(oido: string, ultimoAsistente: string): string {
+  const o = palabras(oido), a = palabras(ultimoAsistente);
+  if (!o.length || a.length < 2) return oido.trim();
+  // Longest start of what was heard that appears, in order, inside the assistant's text
+  let mejor = 0;
+  for (let inicio = 0; inicio < a.length; inicio++) {
+    let n = 0;
+    while (n < o.length && inicio + n < a.length && o[n] === a[inicio + n]) n++;
+    mejor = Math.max(mejor, n);
+  }
+  // One or two words could be a real answer that repeats the question ("todas", "todas sí"): only 3+ words are an echo
+  if (mejor < 3) return oido.trim();
+  if (mejor >= o.length) return '';
+  // Keep the original words (with accents) after the echoed part; punctuation-only words do not count
+  return oido.trim().split(/\s+/).filter(w => normal(w)).slice(mejor).join(' ');
+}
+
+// The question to repeat when the answer was not understood: the last sentence that asks something
+export function ultimaPregunta(texto: string): string {
+  const frases = texto.match(/[^.!?¿¡]*[¿¡]?[^.!?¿¡]*[.!?]+/g)?.map(f => f.trim()).filter(Boolean) || [texto.trim()];
+  return [...frases].reverse().find(f => f.endsWith('?')) || '¿Me lo repites?';
+}

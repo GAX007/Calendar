@@ -115,12 +115,13 @@ function grabarConServidor(transcribir: Transcriptor, SR: (new () => Reconocedor
     recorder.start();
     const limite = setTimeout(terminar, MAX_HABLA_MS);
     // The browser's recognition ends on silence; without it (or if it fails), a simple level meter does
+    // The end of the sentence is detected by silence (the level meter), so nothing has to be tapped to send it.
+    // iOS recognition does not always end by itself; whichever ends first stops both.
+    cerrarSilencio = detectarSilencio(stream, () => terminar());
     let delNavegador: Promise<string> = Promise.resolve('');
     if (SR) {
       reconocedor = conReconocimiento(SR, onParcial);
-      delNavegador = reconocedor.texto.then(t => { pararGrabacion(); return t; }, () => { cerrarSilencio = detectarSilencio(stream, pararGrabacion); return ''; });
-    } else {
-      cerrarSilencio = detectarSilencio(stream, pararGrabacion);
+      delNavegador = reconocedor.texto.then(t => { pararGrabacion(); return t; }, () => '');
     }
     const audio = await fin;
     clearTimeout(limite);
