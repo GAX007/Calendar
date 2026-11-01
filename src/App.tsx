@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowUp, Undo2 } from 'lucide-react';
 import { TaskItem } from './types';
@@ -33,6 +33,8 @@ import {
   isHydrationTask,
 } from './services/taskService';
 import { mergeGoogleCalendarSnapshot } from './utils/googleCalendarSnapshot';
+import { getLocalGymRoutines, subscribeToGymChanges } from './services/gymService';
+import { conDescripcionDeRutina } from './utils/rutinaDeTarea';
 
 // Heavy modules and modals load on demand (separate chunks)
 const GymModule = lazy(() => import('./components/GymModule').then((m) => ({ default: m.GymModule })));
@@ -78,6 +80,18 @@ function CalendarApp() {
 
   // Load tasks from Supabase or localStorage fallback
   const [tasks, setTasks] = useState<TaskItem[]>(() => getLocalTasks(user?.id));
+
+  // Gym sessions show their routine's full text as description
+  const [gymRoutines, setGymRoutines] = useState(() => getLocalGymRoutines(user?.id, user?.email));
+  useEffect(() => {
+    const load = () => setGymRoutines(getLocalGymRoutines(user?.id, user?.email));
+    load();
+    return subscribeToGymChanges(load);
+  }, [user?.id, user?.email]);
+  const tasksConRutina = useMemo(
+    () => conDescripcionDeRutina(tasks, gymRoutines, clock.dateStr),
+    [tasks, gymRoutines, clock.dateStr]
+  );
   const [isCloudConnected, setIsCloudConnected] = useState<boolean>(false);
   const [isLoadingDb, setIsLoadingDb] = useState<boolean>(true);
 
@@ -253,7 +267,7 @@ function CalendarApp() {
   const parte = useParteDelDia(user?.id);
   const voz = useAsistenteVoz({
     userId: user?.id,
-    tareas: tasks,
+    tareas: tasksConRutina,
     cierre: parte.cierreItems,
     onActividadAnadida: (t) => { setTasks((prev) => [t, ...prev]); upsertTasks([t], userIdRef.current); },
     onActividadQuitada: (id) => { setTasks((prev) => prev.filter((t) => t.id !== id)); deleteTaskFromDb(id); },
@@ -564,7 +578,7 @@ function CalendarApp() {
       <main className={`flex-1 ${activeTab === 'agenda' ? 'pb-[calc(var(--bottom-nav-h)+7rem)] md:pb-36' : 'pb-[calc(var(--bottom-nav-h)+2rem)] md:pb-16'}`}>
         {activeTab === 'agenda' ? (
           <HoyView
-            tasks={tasks}
+            tasks={tasksConRutina}
             clock={clock}
             iniciales={iniciales}
             parte={parte}
@@ -587,7 +601,7 @@ function CalendarApp() {
             showToast={showToast}
             vistaSemana={
           <GoogleCalendarView
-          tasks={tasks}
+          tasks={tasksConRutina}
           clock={clock}
           userId={user?.id}
           userEmail={user?.email}
@@ -719,7 +733,7 @@ function CalendarApp() {
             onLiveSyncSuccess={(newTasks) => setTasks((prev) => mergeGoogleCalendarSnapshot(prev, newTasks))}
             isOpen={isSyncModalOpen}
             onClose={() => setIsSyncModalOpen(false)}
-            tasks={tasks}
+            tasks={tasksConRutina}
             onImportTasks={(importedTasks) => {
               setTasks((prev) => [...new Map([...prev, ...importedTasks].map(task => [task.id, task])).values()]);
               upsertTasks(importedTasks, user?.id);

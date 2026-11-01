@@ -34,6 +34,7 @@ import {
   CalendarPlus,
 } from 'lucide-react';
 import { GymRoutine, ExerciseItem, TaskItem } from '../types';
+import { CONTRAST_RULE, descripcionRutina } from '../data/initialGymRoutines';
 import {
   getLocalGymRoutines,
   saveGymRoutine,
@@ -532,7 +533,7 @@ export const GymModule: React.FC<GymModuleProps> = ({
       endTime: endTimeStr,
       durationMinutes: scheduleModalRoutine.estimatedMinutes || 60,
       priority: 'alta',
-      notes: `Rutina: ${scheduleModalRoutine.focus || scheduleModalRoutine.subtitle}. ${scheduleModalRoutine.exercises.length} ejercicios programados.`,
+      notes: descripcionRutina(scheduleModalRoutine),
       sourceType: 'manual',
       completed: false,
       extractedFields: {
@@ -614,6 +615,9 @@ export const GymModule: React.FC<GymModuleProps> = ({
               <h2 className="text-[22px] leading-[1.2] font-semibold tracking-[-0.015em]">{tituloRutina(activeRoutine)}</h2>
               {(activeRoutine.subtitle || activeRoutine.focus) && (
                 <p className="text-[14.5px] leading-[1.45] text-ink-2 text-pretty">{activeRoutine.subtitle || activeRoutine.focus}</p>
+              )}
+              {activeRoutine.exercises.some((ex) => /^A[12]\./.test(ex.name)) && (
+                <p className="text-[13.5px] leading-[1.45] text-ink-2 text-pretty rounded-xl bg-surface-2 border border-line px-3 py-2">{CONTRAST_RULE}</p>
               )}
             </div>
             <button

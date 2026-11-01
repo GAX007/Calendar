@@ -242,8 +242,8 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
       return {
         routineId: 'routine-lunes-pierna-cadera-golpeo',
         badge: 'Rutina de Hoy • Lunes',
-        title: 'LUNES: Foco Pierna (Fuerza Base y Cadera) + Activación de Golpeo',
-        subtitle: '6 ejercicios: Balón medicinal, Landmine Gyaku Tsuki, Sentadilla (100-105kg), Hip Thrust, Cuádriceps y Keiser',
+        title: 'LUNES: Contraste de Pierna (Arranque y Patada) + Capacidad Láctica',
+        subtitle: 'Sentadilla (115-120kg) + Saltos, Hip Thrust, Rotación Landmine y Bici láctica',
         duration: '~65 min',
         isTrainingDay: true,
       };
@@ -252,9 +252,9 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
       return {
         routineId: 'routine-miercoles-torso-cuello',
         badge: 'Rutina de Hoy • Miércoles',
-        title: 'MIÉRCOLES: Foco Torso (Fuerza) + Blindaje Cervical',
-        subtitle: '5 ejercicios: Saltos balísticos, Press Banca (55-60kg), Press Militar, Remo y Blindaje Cervical',
-        duration: '~60 min',
+        title: 'MIÉRCOLES: Contraste de Empuje (Pegada de Puño) + Cuello',
+        subtitle: 'Press Banca (65kg) + Landmine Punch, Dominadas, Press Militar y Cuello isométrico',
+        duration: '~55 min',
         isTrainingDay: true,
       };
     }
@@ -262,9 +262,9 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
       return {
         routineId: 'routine-viernes-sabado-hibrido-core',
         badge: `Rutina de Hoy • ${day}`,
-        title: 'VIERNES o SÁBADO: Día Híbrido (Cadena Posterior y Volumen) + Core',
-        subtitle: '5 ejercicios: Peso Muerto Rumano, Zancadas atrás, Press Inclinado, Jalón al Pecho y Core Pallof',
-        duration: '~65 min',
+        title: 'VIERNES o SÁBADO: Cadena Posterior Rápida + Estabilidad Unilateral',
+        subtitle: 'Peso Muerto Rumano (95-100kg) + Saltos de longitud, Zancadas, Remo y Pallof',
+        duration: '~50 min',
         isTrainingDay: true,
       };
     }

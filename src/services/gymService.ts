@@ -1,9 +1,9 @@
 import { GymRoutine, ExerciseItem } from '../types';
-import { INITIAL_GYM_ROUTINES } from '../data/initialGymRoutines';
+import { INITIAL_GYM_ROUTINES, GYM_ROUTINES_UPDATED_AT } from '../data/initialGymRoutines';
 import { isOwnerEmail } from '../lib/cuenta';
 
 const BASE_GYM_STORAGE_KEY = 'omniagenda_gym_routines';
-const GYM_ROUTINES_VERSION = '2026-09-28-v1';
+const GYM_ROUTINES_VERSION = '2026-11-01-fase2';
 const GYM_VERSION_KEY = 'omniagenda_gym_version';
 const GYM_CHANGE_EVENT = 'omniagenda_gym_routines_updated';
 
@@ -93,7 +93,7 @@ export function getLocalGymRoutines(userId?: string, userEmail?: string): GymRou
             r.id === 'routine-pierna' ||
             r.id === 'routine-core' ||
             r.id === 'routine-lunes-pierna-pecho' ||
-            r.updatedAt !== '2026-09-28'
+            r.updatedAt !== GYM_ROUTINES_UPDATED_AT
         );
         if (!isLegacy) {
           return parsed;
