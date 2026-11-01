@@ -78,6 +78,7 @@ export interface GymRoutine {
   targetDays?: string[]; // ej. ["Lunes", "Jueves"]
   estimatedMinutes?: number; // ej. 60
   focus?: string; // ej. "Hipertrofia & Transferencia a Karate"
+  warmup?: string[]; // Calentamiento y aproximaciones: primera línea = título del bloque
   exercises: ExerciseItem[];
   updatedAt?: string;
 }

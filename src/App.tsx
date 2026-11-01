@@ -14,7 +14,7 @@ import { PullToRefresh } from './components/PullToRefresh';
 import { ModuleSkeleton, AppShellSkeleton } from './components/ui/Skeletons';
 import { ModuleErrorBoundary } from './components/ui/ModuleErrorBoundary';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { setCuentaActual } from './lib/cuenta';
+import { setCuentaActual, isOwnerEmail } from './lib/cuenta';
 import { ThemeProvider } from './context/ThemeContext';
 import { haptic } from './utils/haptics';
 import { useRealTimeClock } from './hooks/useRealTimeClock';
@@ -35,6 +35,7 @@ import {
 import { mergeGoogleCalendarSnapshot } from './utils/googleCalendarSnapshot';
 import { getLocalGymRoutines, subscribeToGymChanges } from './services/gymService';
 import { conDescripcionDeRutina } from './utils/rutinaDeTarea';
+import { eventosRecuperacionFase2 } from './data/fase2Recuperacion';
 
 // Heavy modules and modals load on demand (separate chunks)
 const GymModule = lazy(() => import('./components/GymModule').then((m) => ({ default: m.GymModule })));
@@ -284,6 +285,25 @@ function CalendarApp() {
     if (user?.email) return user.email.slice(0, 2).toUpperCase();
     return 'Tú';
   })();
+
+  // Fase 2: mobility, night decompression and weigh-in events are added once to Xavier's agenda
+  useEffect(() => {
+    // Only once the cloud agenda is loaded, so the new events are saved there too
+    if (isLoadingDb || !isCloudConnected || !user?.id || !isOwnerEmail(user.email)) return;
+    const flag = `omniagenda_fase2_recuperacion_v1_${user.email!.toLowerCase().trim()}`;
+    try {
+      if (localStorage.getItem(flag)) return;
+    } catch {}
+    const existentes = new Set(tasks.map((t) => t.id));
+    const nuevos = eventosRecuperacionFase2(tasks).filter((t) => !existentes.has(t.id));
+    if (nuevos.length) {
+      setTasks((prev) => [...nuevos, ...prev.filter((t) => !nuevos.some((n) => n.id === t.id))]);
+      upsertTasks(nuevos, user.id);
+    }
+    try {
+      localStorage.setItem(flag, new Date().toISOString());
+    } catch {}
+  }, [isLoadingDb, isCloudConnected, user?.id, user?.email]);
 
   // Preload the other modules once the agenda is ready and the main thread is idle
   useEffect(() => {

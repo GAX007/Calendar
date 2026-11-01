@@ -14,6 +14,12 @@ export const INITIAL_GYM_ROUTINES: GymRoutine[] = [
     targetDays: ['Lunes'],
     estimatedMinutes: 65,
     focus: 'Contraste de Pierna (Arranque y Patada) + Capacidad Láctica',
+    warmup: [
+      'Calentamiento y Aproximaciones - 15 min',
+      'Movilidad rápida (5 min): 10 sentadillas profundas abriendo cadera, 10 balanceos de pierna/lado, 10 puentes de glúteo.',
+      'Series de aproximación Sentadilla (subir rápido sin fatigar): Barra vacía (20kg) x 8 -> 60kg x 5 -> 85kg x 3 -> 105kg x 1 rep rápida + 2 saltos verticales al 70% (Descansar 2 min antes de la 1ª serie efectiva de 115-120kg).',
+      'Aproximaciones resto de ejercicios: En Hip Thrust hacer 1x5 con 50kg antes de los 80kg; en Rotación Landmine hacer 1x4/lado con barra vacía antes de cargar discos.',
+    ],
     updatedAt: GYM_ROUTINES_UPDATED_AT,
     exercises: [
       {
@@ -82,6 +88,12 @@ export const INITIAL_GYM_ROUTINES: GymRoutine[] = [
     targetDays: ['Miércoles'],
     estimatedMinutes: 55,
     focus: 'Contraste de Empuje (Pegada de Puño) + Cuello',
+    warmup: [
+      'Calentamiento y Aproximaciones - 14 min',
+      'Movilidad hombros (5 min): 15 dislocaciones con goma, 15 band pull-aparts, 10 rotaciones externas de manguito, 8 flexiones explosivas.',
+      'Series de aproximación Press Banca: Barra vacía (20kg) x 10 -> 40kg x 5 -> 52.5kg x 3 -> 60kg x 1 rep rápida + 2 golpes/mano en Landmine con barra vacía (Descansar 2 min antes de los 65kg).',
+      'Aproximaciones resto de ejercicios: En Jalón hacer 1x6 con 40kg (o 8 retracciones escapulares colgado); en Press Militar hacer 1x5 con barra vacía (20kg).',
+    ],
     updatedAt: GYM_ROUTINES_UPDATED_AT,
     exercises: [
       {
@@ -149,6 +161,12 @@ export const INITIAL_GYM_ROUTINES: GymRoutine[] = [
     targetDays: ['Viernes', 'Sábado'],
     estimatedMinutes: 50,
     focus: 'Cadena Posterior Rápida + Estabilidad Unilateral',
+    warmup: [
+      'Calentamiento y Aproximaciones - 13 min',
+      'Activación (5 min): 10 bisagras de cadera sin peso, 10 zancadas atrás sin peso/pierna.',
+      'Series de aproximación Peso Muerto Rumano: 40kg x 8 -> 65kg x 5 -> 85kg x 2 reps rápidas + 2 saltos horizontales al 70% (Descansar 2 min antes de los 95-100kg).',
+      'Aproximaciones resto de ejercicios: En Zancadas hacer 1x4/pierna con 12kg; en Remo con barra hacer 1x6 con 40kg.',
+    ],
     updatedAt: GYM_ROUTINES_UPDATED_AT,
     exercises: [
       {
@@ -212,7 +230,12 @@ export const INITIAL_GYM_ROUTINES: GymRoutine[] = [
 
 // Full text of a routine, used as the description of its calendar events
 export function descripcionRutina(routine: GymRoutine): string {
-  const lineas = [`${routine.title}${routine.estimatedMinutes ? ` (${routine.estimatedMinutes} min)` : ''}`];
+  const lineas: string[] = [];
+  if (routine.warmup?.length) {
+    const [titulo, ...pasos] = routine.warmup;
+    lineas.push(`[${titulo}]`, ...pasos.map((p) => `* ${p}`), '');
+  }
+  lineas.push(`${routine.title}${routine.estimatedMinutes ? ` (${routine.estimatedMinutes} min)` : ''}`);
   if (routine.exercises.some((ex) => /^A[12]\./.test(ex.name))) lineas.push('', CONTRAST_RULE);
   lineas.push('');
   for (const ex of routine.exercises) {

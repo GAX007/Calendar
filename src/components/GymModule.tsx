@@ -616,6 +616,14 @@ export const GymModule: React.FC<GymModuleProps> = ({
               {(activeRoutine.subtitle || activeRoutine.focus) && (
                 <p className="text-[14.5px] leading-[1.45] text-ink-2 text-pretty">{activeRoutine.subtitle || activeRoutine.focus}</p>
               )}
+              {activeRoutine.warmup && activeRoutine.warmup.length > 0 && (
+                <div className="text-[13.5px] leading-[1.45] text-ink-2 text-pretty rounded-xl bg-surface-2 border border-line px-3 py-2 flex flex-col gap-1">
+                  <p className="font-semibold text-ink">{activeRoutine.warmup[0]}</p>
+                  {activeRoutine.warmup.slice(1).map((paso) => (
+                    <p key={paso}>{paso}</p>
+                  ))}
+                </div>
+              )}
               {activeRoutine.exercises.some((ex) => /^A[12]\./.test(ex.name)) && (
                 <p className="text-[13.5px] leading-[1.45] text-ink-2 text-pretty rounded-xl bg-surface-2 border border-line px-3 py-2">{CONTRAST_RULE}</p>
               )}

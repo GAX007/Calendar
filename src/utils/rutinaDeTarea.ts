@@ -40,6 +40,8 @@ export function rutinaDeTarea(task: TaskItem): string | null {
     );
   if (!esGym) return null;
   if (/karate|kumite|kata|dojo/.test(titulo) && !/gym|gimnasio/.test(titulo)) return null;
+  // Mobility, stretching and weigh-ins are their own sessions
+  if (/movilidad|descompresi|estiramiento|pesaje/.test(titulo)) return null;
   const texto = `${titulo} ${notas}`;
   if (!['gym', 'gimnasio', 'pesas', 'rutina', 'fuerza', 'pierna', 'cadera', 'golpeo', 'lunes', 'sentadilla', 'torso', 'cuello', 'cervical', 'banca', 'híbrido', 'hibrido', 'posterior', 'muerto', 'contraste'].some((k) => texto.includes(k))) {
     // Karate and other sports sessions have no gym routine
@@ -49,7 +51,13 @@ export function rutinaDeTarea(task: TaskItem): string | null {
   return rutinaPorTexto(titulo) || rutinaPorDia(task.date) || rutinaPorTexto(notas) || LUNES;
 }
 
-// Gym sessions from `desde` on carry their routine's full text as description
+export function sumarMinutos(hora: string, min: number): string {
+  const [h, m] = hora.split(':').map(Number);
+  const total = Math.min(h * 60 + (m || 0) + min, 23 * 60 + 59);
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
+// Gym sessions from `desde` on carry their routine's full text as description and last as long as the routine
 export function conDescripcionDeRutina(tasks: TaskItem[], routines: GymRoutine[], desde: string): TaskItem[] {
   if (!routines.length) return tasks;
   return tasks.map((t) => {
@@ -58,6 +66,9 @@ export function conDescripcionDeRutina(tasks: TaskItem[], routines: GymRoutine[]
     const routine = id ? routines.find((r) => r.id === id) : undefined;
     if (!routine) return t;
     const notes = descripcionRutina(routine);
-    return t.notes === notes ? t : { ...t, notes };
+    const durationMinutes = routine.estimatedMinutes || t.durationMinutes;
+    const endTime = sumarMinutos(t.time, durationMinutes);
+    if (t.notes === notes && t.durationMinutes === durationMinutes && t.endTime === endTime) return t;
+    return { ...t, notes, durationMinutes, endTime };
   });
 }

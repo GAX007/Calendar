@@ -3,7 +3,7 @@ import { INITIAL_GYM_ROUTINES, GYM_ROUTINES_UPDATED_AT } from '../data/initialGy
 import { isOwnerEmail } from '../lib/cuenta';
 
 const BASE_GYM_STORAGE_KEY = 'omniagenda_gym_routines';
-const GYM_ROUTINES_VERSION = '2026-11-01-fase2';
+const GYM_ROUTINES_VERSION = '2026-11-01-fase2-calentamiento';
 const GYM_VERSION_KEY = 'omniagenda_gym_version';
 const GYM_CHANGE_EVENT = 'omniagenda_gym_routines_updated';
 
