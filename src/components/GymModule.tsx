@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { motion, AnimatePresence, Reorder, useDragControls } from 'motion/react';
 import {
   Dumbbell,
@@ -32,6 +32,8 @@ import {
   VolumeX,
   SlidersHorizontal,
   CalendarPlus,
+  Rotate3d,
+  Video,
 } from 'lucide-react';
 import { GymRoutine, ExerciseItem, TaskItem } from '../types';
 import { CONTRAST_RULE, descripcionRutina } from '../data/initialGymRoutines';
@@ -40,6 +42,7 @@ import {
   saveGymRoutine,
   deleteGymRoutine,
   toggleSetCompletion,
+  setSetCompletion,
   resetWorkoutSession,
   subscribeToGymChanges,
   reorderExercise,
@@ -60,6 +63,11 @@ import GymAudioEngine, {
   BackgroundTimerController,
   GYM_TIMER_TARGET_STORAGE_KEY,
 } from '../utils/gymAudio';
+import { GuiaRespiracion } from './GuiaRespiracion';
+import { videoDe } from '../visor/video';
+
+// Three.js and the exercise animations only download when the viewer opens
+const VisorEjercicio = lazy(() => import('../visor/VisorEjercicio'));
 
 interface GymModuleProps {
   clock: RealTimeClockState;
@@ -79,6 +87,8 @@ interface ExerciseReorderRowProps {
   userEmail?: string;
   timerPreset: number;
   onStartTimer: (seconds: number) => void;
+  onStartWork: (exercise: ExerciseItem, setIndex: number) => void;
+  onOpenVisor: (exercise: ExerciseItem) => void;
   onEdit: () => void;
   onDelete: () => void;
   onQuickWeightChange: (exerciseId: string, newWeight: string) => void;
@@ -96,6 +106,8 @@ const ExerciseReorderRow: React.FC<ExerciseReorderRowProps> = ({
   userEmail,
   timerPreset,
   onStartTimer,
+  onStartWork,
+  onOpenVisor,
   onEdit,
   onDelete,
   onQuickWeightChange,
@@ -108,7 +120,8 @@ const ExerciseReorderRow: React.FC<ExerciseReorderRowProps> = ({
   const setsCount = parseInt(exercise.setsReps.match(/^(\d+)/)?.[1] || '3', 10);
   const completedSets = exercise.completedSets || new Array(setsCount).fill(false);
   const isAllDone = completedSets.slice(0, setsCount).every(Boolean);
-  const descanso = exercise.restSeconds || timerPreset;
+  const descanso = exercise.restSeconds ?? timerPreset;
+  const siguiente = completedSets.slice(0, setsCount).findIndex((s) => !s);
 
   return (
     <Reorder.Item
@@ -133,7 +146,7 @@ const ExerciseReorderRow: React.FC<ExerciseReorderRowProps> = ({
         <div className="min-w-0 flex flex-col gap-[3px]">
           <span className={`text-base leading-[1.3] font-medium ${isAllDone ? 'text-ink-3 line-through' : 'text-ink'}`}>{exercise.name}</span>
           <span className="text-[13.5px] leading-[1.35] text-ink-2">
-            {[exercise.setsReps, exercise.weight, `descanso ${descanso} s`].filter(Boolean).join(' · ')}
+            {[exercise.setsReps, exercise.weight, descanso > 0 ? `descanso ${descanso} s` : ''].filter(Boolean).join(' · ')}
           </span>
         </div>
         <button
@@ -153,7 +166,15 @@ const ExerciseReorderRow: React.FC<ExerciseReorderRowProps> = ({
           {exercise.execution && <p><strong className="font-semibold text-ink">Cómo hacerlo.</strong> {exercise.execution}</p>}
           {exercise.transfer && <p><strong className="font-semibold text-ink">Para el karate.</strong> {exercise.transfer}</p>}
           {exercise.notes && <p><strong className="font-semibold text-ink">Notas.</strong> {exercise.notes}</p>}
-          <label className="flex items-center gap-2 text-[13px] text-ink-2">
+          <a
+            href={videoDe(exercise)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="self-start h-10 -ml-1 px-2 rounded-full text-sm font-semibold flex items-center gap-2 hover:bg-black/5"
+          >
+            <Video className="w-4 h-4" strokeWidth={1.75} /> Vídeo de referencia
+          </a>
+          {exercise.weight !== '' && <label className="flex items-center gap-2 text-[13px] text-ink-2">
             Peso
             <input
               type="text"
@@ -162,7 +183,7 @@ const ExerciseReorderRow: React.FC<ExerciseReorderRowProps> = ({
               placeholder="80 kg"
               className="flex-1 min-w-0 h-10 rounded-xl border border-line-2 bg-white px-3 text-[15px] text-ink outline-none focus:border-ink"
             />
-          </label>
+          </label>}
           <div className="flex flex-wrap items-center gap-0.5 -ml-2">
             <button type="button" disabled={exIndex === 0} onClick={onNudgeUp} aria-label="Subir ejercicio" className="w-11 h-11 rounded-full flex items-center justify-center hover:bg-black/5 disabled:opacity-30">
               <ChevronUp className="w-[18px] h-[18px]" strokeWidth={1.75} />
@@ -180,7 +201,18 @@ const ExerciseReorderRow: React.FC<ExerciseReorderRowProps> = ({
         </div>
       )}
 
-      <div className="ml-[42px] flex flex-wrap gap-1.5">
+      <div className="ml-[42px] flex flex-wrap items-center gap-1.5">
+        {exercise.workSeconds && siguiente >= 0 && (
+          <button
+            type="button"
+            onClick={() => onStartWork(exercise, siguiente)}
+            aria-label={`Empezar la serie ${siguiente + 1} de ${exercise.name}: ${exercise.workSeconds} segundos`}
+            className="h-11 pl-3 pr-3.5 rounded-xl bg-ink text-white text-sm font-semibold flex items-center gap-2 active:scale-95 transition"
+          >
+            <Play className="w-4 h-4" strokeWidth={2} />
+            <span className="font-mono">{Math.floor(exercise.workSeconds / 60)}:{String(exercise.workSeconds % 60).padStart(2, '0')}</span>
+          </button>
+        )}
         {Array.from({ length: setsCount }).map((_, sIdx) => {
           const done = Boolean(completedSets[sIdx]);
           return (
@@ -191,7 +223,7 @@ const ExerciseReorderRow: React.FC<ExerciseReorderRowProps> = ({
               aria-label={`Serie ${sIdx + 1} de ${exercise.name}${done ? ', hecha' : ''}`}
               onClick={() => {
                 toggleSetCompletion(routineId, exercise.id, sIdx, userId, userEmail);
-                if (!done) onStartTimer(descanso);
+                if (!done && descanso > 0) onStartTimer(descanso);
               }}
               className={`w-11 h-11 rounded-xl border-[1.5px] font-mono text-sm font-medium flex items-center justify-center transition active:scale-95 ${
                 done ? 'bg-ink border-ink text-white' : 'bg-white border-line-3 text-ink'
@@ -201,6 +233,16 @@ const ExerciseReorderRow: React.FC<ExerciseReorderRowProps> = ({
             </button>
           );
         })}
+        {exercise.visualId && (
+          <button
+            type="button"
+            onClick={() => onOpenVisor(exercise)}
+            aria-label={`Ver ${exercise.name} en 3D`}
+            className="h-11 px-3 rounded-xl border-[1.5px] border-line-3 text-sm font-semibold flex items-center gap-1.5 active:scale-95 transition"
+          >
+            <Rotate3d className="w-4 h-4" strokeWidth={1.75} /> 3D
+          </button>
+        )}
       </div>
     </Reorder.Item>
   );
@@ -247,6 +289,13 @@ export const GymModule: React.FC<GymModuleProps> = ({
   const [pickerMinutes, setPickerMinutes] = useState<number>(2);
   const [pickerSeconds, setPickerSeconds] = useState<number>(0);
   const [soundMode, setSoundMode] = useState<GymSoundMode>(() => getSavedGymSoundMode());
+  const [visorEjercicio, setVisorEjercicio] = useState<ExerciseItem | null>(null);
+
+  // Timed set in progress (stretch, isometric): when its countdown ends the set is marked and the rest starts
+  const [trabajo, setTrabajo] = useState<{ routineId: string; exerciseId: string; setIndex: number; nombre: string; rest: number } | null>(null);
+  const trabajoRef = useRef(trabajo);
+  trabajoRef.current = trabajo;
+  const alTerminarRef = useRef<() => void>(() => {});
 
   // Background timer references (wall-clock timestamp & Web Worker)
   const targetEndTimeRef = useRef<number | null>(null);
@@ -344,6 +393,7 @@ export const GymModule: React.FC<GymModuleProps> = ({
             disableBackgroundAudioKeepAlive();
             updateMediaSession(0, false);
             workerRef.current?.stop();
+            alTerminarRef.current();
           }
         }
       }
@@ -373,6 +423,7 @@ export const GymModule: React.FC<GymModuleProps> = ({
           disableBackgroundAudioKeepAlive();
           updateMediaSession(0, false);
           workerRef.current?.stop();
+          alTerminarRef.current();
         }
       }
     };
@@ -386,7 +437,8 @@ export const GymModule: React.FC<GymModuleProps> = ({
     };
   }, []);
 
-  const startRestTimer = (seconds: number) => {
+  const startRestTimer = (seconds: number, esTrabajo = false) => {
+    if (!esTrabajo) setTrabajo(null);
     GymAudioEngine.getAudioContext();
     requestNotificationPermission();
     enableBackgroundAudioKeepAlive();
@@ -397,7 +449,7 @@ export const GymModule: React.FC<GymModuleProps> = ({
 
     lastSoundSecondRef.current = null;
     timerSecondsRef.current = seconds;
-    setTimerPreset(seconds);
+    if (!esTrabajo) setTimerPreset(seconds);
     setTimerSeconds(seconds);
     setIsTimerRunning(true);
     setIsWorkoutMode(true);
@@ -406,7 +458,25 @@ export const GymModule: React.FC<GymModuleProps> = ({
     workerRef.current?.start();
   };
 
-  const handleStartTimer = (seconds: number) => startRestTimer(seconds);
+  const startWorkTimer = (exercise: ExerciseItem, setIndex: number) => {
+    if (!activeRoutine || !exercise.workSeconds) return;
+    setTrabajo({
+      routineId: activeRoutine.id,
+      exerciseId: exercise.id,
+      setIndex,
+      nombre: exercise.name.replace(/^[A-Z]\d?\.\s*|^\d+\.\s*/, '').replace(/\s*\(.*\)$/, ''),
+      rest: exercise.restSeconds ?? 0,
+    });
+    startRestTimer(exercise.workSeconds, true);
+  };
+
+  alTerminarRef.current = () => {
+    const t = trabajoRef.current;
+    if (!t) return;
+    setTrabajo(null);
+    setSetCompletion(t.routineId, t.exerciseId, t.setIndex, true, userId, userEmail);
+    if (t.rest > 0) startRestTimer(t.rest);
+  };
 
   const handleTogglePlayPause = () => {
     GymAudioEngine.getAudioContext();
@@ -428,11 +498,12 @@ export const GymModule: React.FC<GymModuleProps> = ({
     } else {
       // Start or Resume
       const secToRun = timerSeconds > 0 ? timerSeconds : timerPreset || 120;
-      startRestTimer(secToRun);
+      startRestTimer(secToRun, Boolean(trabajo));
     }
   };
 
   const handleResetTimer = () => {
+    setTrabajo(null);
     targetEndTimeRef.current = null;
     localStorage.removeItem(GYM_TIMER_TARGET_STORAGE_KEY);
     disableBackgroundAudioKeepAlive();
@@ -546,9 +617,16 @@ export const GymModule: React.FC<GymModuleProps> = ({
     setScheduleModalRoutine(null);
   };
 
+  // "Lunes y Miércoles", but "Lun, Mar, Mié, Jue y Vie" when there are many days
+  const diasRutina = (dias?: string[]) => {
+    if (!dias?.length) return '';
+    const d = dias.length > 2 ? dias.map((x) => x.slice(0, 3)) : dias;
+    return d.length > 1 ? `${d.slice(0, -1).join(', ')} y ${d[d.length - 1]}` : d[0];
+  };
   const fmtReloj = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   const sonidoEtiqueta = soundMode === 'both' ? 'pitidos y voz' : soundMode === 'beeps' ? 'solo pitidos' : soundMode === 'voice' ? 'solo voz' : 'sin sonido';
-  const etiquetaRutina = (r: GymRoutine) => (r.targetDays?.length ? r.targetDays.map((d) => d.slice(0, 3)).join('/') : r.title.split(':')[0].slice(0, 14));
+  const etiquetaRutina = (r: GymRoutine) =>
+    r.tabLabel || (r.targetDays?.length ? r.targetDays.map((d) => d.slice(0, 3)).join('/') : r.title.split(':')[0].slice(0, 14));
   const tituloRutina = (r: GymRoutine) => (r.title.includes(':') ? r.title.split(':').slice(1).join(':').trim() : r.title);
 
   return (
@@ -557,7 +635,7 @@ export const GymModule: React.FC<GymModuleProps> = ({
         <div className="flex flex-col gap-1 min-w-0">
           <span className="text-sm font-medium text-ink-2">
             {activeRoutine
-              ? `${activeRoutine.targetDays?.join(' y ') || 'Rutina'} · ${activeRoutine.exercises.length} ejercicios${activeRoutine.estimatedMinutes ? ` · ${activeRoutine.estimatedMinutes} min` : ''}`
+              ? `${diasRutina(activeRoutine.targetDays) || 'Rutina'} · ${activeRoutine.exercises.length} ejercicios${activeRoutine.estimatedMinutes ? ` · ${activeRoutine.estimatedMinutes} min` : ''}`
               : 'Rutinas'}
           </span>
           <h1 className="text-[34px] leading-[1.05] font-semibold tracking-[-0.025em]">Gym</h1>
@@ -624,6 +702,11 @@ export const GymModule: React.FC<GymModuleProps> = ({
                   ))}
                 </div>
               )}
+              {activeRoutine.kind === 'descompresion' && (
+                <div className="rounded-xl bg-surface-2 border border-line px-3 py-2.5">
+                  <GuiaRespiracion compacta />
+                </div>
+              )}
               {activeRoutine.exercises.some((ex) => /^A[12]\./.test(ex.name)) && (
                 <p className="text-[13.5px] leading-[1.45] text-ink-2 text-pretty rounded-xl bg-surface-2 border border-line px-3 py-2">{CONTRAST_RULE}</p>
               )}
@@ -681,6 +764,8 @@ export const GymModule: React.FC<GymModuleProps> = ({
                 userEmail={userEmail}
                 timerPreset={timerPreset}
                 onStartTimer={startRestTimer}
+                onStartWork={startWorkTimer}
+                onOpenVisor={setVisorEjercicio}
                 onEdit={() =>
                   setEditingExercise({
                     exercise,
@@ -746,6 +831,23 @@ export const GymModule: React.FC<GymModuleProps> = ({
         </section>
       )}
 
+      {visorEjercicio?.visualId && (
+        <Suspense
+          fallback={
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/50">
+              <span className="px-4 py-2 rounded-full bg-white text-sm font-medium">Cargando el visor 3D…</span>
+            </div>
+          }
+        >
+          <VisorEjercicio
+            visualId={visorEjercicio.visualId}
+            nombre={visorEjercicio.name}
+            videoUrl={videoDe(visorEjercicio)}
+            onClose={() => setVisorEjercicio(null)}
+          />
+        </Suspense>
+      )}
+
       {/* Rest timer: a bar above the tab bar while training */}
       {isWorkoutMode && (
         <div className="fixed inset-x-0 bottom-[var(--bottom-nav-h)] z-40 bg-white md:bg-transparent">
@@ -754,7 +856,7 @@ export const GymModule: React.FC<GymModuleProps> = ({
               <button
                 type="button"
                 onClick={handleTogglePlayPause}
-                aria-label={isTimerRunning ? 'Pausar el descanso' : 'Empezar el descanso'}
+                aria-label={isTimerRunning ? 'Pausar el temporizador' : 'Empezar el temporizador'}
                 className="flex-none w-11 h-11 rounded-full flex items-center justify-center hover:bg-black/5"
               >
                 {isTimerRunning ? <Pause className="w-5 h-5" strokeWidth={1.75} /> : <Play className="w-5 h-5" strokeWidth={1.75} />}
@@ -766,7 +868,9 @@ export const GymModule: React.FC<GymModuleProps> = ({
                 className="min-w-0 h-11 px-1 flex items-center gap-2.5"
               >
                 <span role="timer" className="font-mono text-[17px] font-medium">{fmtReloj(timerSeconds > 0 ? timerSeconds : timerPreset)}</span>
-                <span className="text-sm truncate">{isTimerRunning ? 'Descanso' : timerSeconds > 0 ? 'En pausa' : 'Descanso listo'}</span>
+                <span className="text-sm truncate">
+                  {trabajo ? `Serie ${trabajo.setIndex + 1} · ${trabajo.nombre}` : isTimerRunning ? 'Descanso' : timerSeconds > 0 ? 'En pausa' : 'Descanso listo'}
+                </span>
               </button>
               <span className="flex-1" />
               <button

@@ -1,7 +1,7 @@
 import { GymRoutine } from '../types';
 
 // Fase 2: Potencia y Transferencia (Método de Contrastes - PAP), de cara al campeonato del 12 de diciembre
-export const GYM_ROUTINES_UPDATED_AT = '2026-11-01';
+export const GYM_ROUTINES_UPDATED_AT = '2026-11-02';
 
 export const CONTRAST_RULE =
   'REGLA GENERAL PARA BLOQUES DE CONTRASTE (A1 + A2): Hacer serie pesada (A1) -> Descansar solo 20-30 segundos -> Hacer ejercicio explosivo (A2) al 100% de velocidad -> Descansar 2.5 a 3 minutos completos antes de repetir la siguiente serie del bloque.';
@@ -24,6 +24,7 @@ export const INITIAL_GYM_ROUTINES: GymRoutine[] = [
     exercises: [
       {
         id: 'ex-lun-1',
+        visualId: 'back-squat',
         name: 'A1. Sentadilla Trasera con Barra',
         muscleGroup: 'Cuádriceps, glúteos y fuerza máxima de tren inferior (Contraste A1)',
         setsReps: '4 series x 3 reps',
@@ -35,6 +36,7 @@ export const INITIAL_GYM_ROUTINES: GymRoutine[] = [
       },
       {
         id: 'ex-lun-2',
+        visualId: 'box-jump',
         name: 'A2. Saltos Verticales / al Cajón',
         muscleGroup: 'Potencia reactiva de tren inferior (Contraste A2)',
         setsReps: '4 series x 4 saltos',
@@ -46,6 +48,7 @@ export const INITIAL_GYM_ROUTINES: GymRoutine[] = [
       },
       {
         id: 'ex-lun-3',
+        visualId: 'hip-thrust',
         name: 'B. Hip Thrust con Barra (o Swing con Mancuerna)',
         muscleGroup: 'Glúteo mayor y extensión explosiva de cadera',
         setsReps: '3 series x 5 reps explosivas (opción Hip Thrust)',
@@ -57,6 +60,7 @@ export const INITIAL_GYM_ROUTINES: GymRoutine[] = [
       },
       {
         id: 'ex-lun-4',
+        visualId: 'landmine-rotation',
         name: 'C. Rotación Explosiva en Landmine (Arco a 2 manos)',
         muscleGroup: 'Core rotacional, cadera y pies',
         setsReps: '3 series x 5 reps por lado (10 totales)',
@@ -68,6 +72,7 @@ export const INITIAL_GYM_ROUTINES: GymRoutine[] = [
       },
       {
         id: 'ex-lun-5',
+        visualId: 'bike-hiit',
         name: 'D. Bici Estática (Capacidad Láctica)',
         muscleGroup: 'Capacidad anaeróbica láctica',
         setsReps: '8 rondas de [30s sprint sentado + 60s pedaleo suave]',
@@ -98,6 +103,7 @@ export const INITIAL_GYM_ROUTINES: GymRoutine[] = [
     exercises: [
       {
         id: 'ex-mie-1',
+        visualId: 'bench-press',
         name: 'A1. Press de Banca con Barra',
         muscleGroup: 'Pectoral, tríceps y deltoides anterior (Contraste A1)',
         setsReps: '4 series x 3 reps',
@@ -109,6 +115,7 @@ export const INITIAL_GYM_ROUTINES: GymRoutine[] = [
       },
       {
         id: 'ex-mie-2',
+        visualId: 'landmine-punch',
         name: 'A2. Landmine Punch Explosivo (Estilo Tsuki a 1 mano)',
         muscleGroup: 'Cadena cinética del golpeo (Contraste A2)',
         setsReps: '4 series x 4 golpes por brazo',
@@ -121,6 +128,7 @@ export const INITIAL_GYM_ROUTINES: GymRoutine[] = [
       },
       {
         id: 'ex-mie-3',
+        visualId: 'pull-up',
         name: 'B. Dominadas Estrictas o Jalón al Pecho',
         muscleGroup: 'Dorsal ancho y estabilizadores escapulares',
         setsReps: '4 series x 6 reps',
@@ -132,6 +140,7 @@ export const INITIAL_GYM_ROUTINES: GymRoutine[] = [
       },
       {
         id: 'ex-mie-4',
+        visualId: 'overhead-press',
         name: 'C. Press Militar de Pie con Barra',
         muscleGroup: 'Deltoides, trapecio y estabilidad de pie',
         setsReps: '3 series x 5 reps',
@@ -143,6 +152,7 @@ export const INITIAL_GYM_ROUTINES: GymRoutine[] = [
       },
       {
         id: 'ex-mie-5',
+        visualId: 'neck-isometric',
         name: 'D. Blindaje Cervical Isométrico Manual',
         muscleGroup: 'Musculatura cervical',
         setsReps: '3 series x 10 segundos por lado (frente, nuca, izquierda, derecha)',
@@ -151,6 +161,7 @@ export const INITIAL_GYM_ROUTINES: GymRoutine[] = [
         execution: 'Progresando del 50% al 85% de fuerza sin mover el cuello.',
         completedSets: [false, false, false],
         restSeconds: 60,
+        workSeconds: 10,
       },
     ],
   },
@@ -171,6 +182,7 @@ export const INITIAL_GYM_ROUTINES: GymRoutine[] = [
     exercises: [
       {
         id: 'ex-vie-1',
+        visualId: 'rdl',
         name: 'A1. Peso Muerto Rumano con Barra',
         muscleGroup: 'Isquiotibiales, glúteos y erectores (Contraste A1)',
         setsReps: '3 series x 5 reps',
@@ -182,6 +194,7 @@ export const INITIAL_GYM_ROUTINES: GymRoutine[] = [
       },
       {
         id: 'ex-vie-2',
+        visualId: 'broad-jump',
         name: 'A2. Saltos de Longitud a Pies Juntos',
         muscleGroup: 'Potencia horizontal de cadera (Contraste A2)',
         setsReps: '3 series x 4 saltos horizontales máximos',
@@ -193,6 +206,7 @@ export const INITIAL_GYM_ROUTINES: GymRoutine[] = [
       },
       {
         id: 'ex-vie-3',
+        visualId: 'reverse-lunge',
         name: 'B. Zancadas Hacia Atrás con Mancuernas',
         muscleGroup: 'Glúteos, cuádriceps y estabilidad unilateral',
         setsReps: '3 series x 6 reps por pierna',
@@ -204,6 +218,7 @@ export const INITIAL_GYM_ROUTINES: GymRoutine[] = [
       },
       {
         id: 'ex-vie-4',
+        visualId: 'barbell-row',
         name: 'C. Remo con Barra Inclinado',
         muscleGroup: 'Dorsal ancho, romboides y flexores de codo',
         setsReps: '3 series x 6 reps',
@@ -215,6 +230,7 @@ export const INITIAL_GYM_ROUTINES: GymRoutine[] = [
       },
       {
         id: 'ex-vie-5',
+        visualId: 'pallof-press',
         name: 'D. Core Antirrotación (Press Pallof en Polea o Goma)',
         muscleGroup: 'Core antirrotación y oblicuos',
         setsReps: '3 series x 15 segundos isométricos por lado',
@@ -223,6 +239,149 @@ export const INITIAL_GYM_ROUTINES: GymRoutine[] = [
         execution: 'Brazos estirados al frente sin ceder el torso.',
         completedSets: [false, false, false],
         restSeconds: 60,
+        workSeconds: 15,
+      },
+    ],
+  },
+  {
+    id: 'routine-movilidad-cadera',
+    type: 'workout_session',
+    kind: 'movilidad',
+    tabLabel: 'Movilidad',
+    title: 'MOVILIDAD: Movilidad Activa y Apertura de Cadera',
+    subtitle: 'Fase 2 · Martes, jueves y domingo · cadera, aductores, psoas y columna torácica',
+    targetDays: ['Martes', 'Jueves', 'Domingo'],
+    estimatedMinutes: 20,
+    focus: 'Movilidad activa de cadera y columna torácica',
+    updatedAt: GYM_ROUTINES_UPDATED_AT,
+    exercises: [
+      {
+        id: 'ex-mov-1',
+        visualId: 'hip-90-90',
+        name: '1. Transiciones 90/90 de Cadera con Extensión',
+        muscleGroup: 'Cápsula de la cadera, rotadores profundos (piramidal, obturadores) y glúteos',
+        setsReps: '1 serie x 3 min continuos',
+        weight: '',
+        transfer: 'Rotación interna y externa de cadera para el Mawashi y el Ushiro Geri.',
+        execution: 'Torso erguido sin apoyar las manos: pivota sobre los talones hasta invertir el 90/90 y termina elevando la pelvis sobre las espinillas.',
+        completedSets: [false],
+        restSeconds: 20,
+        workSeconds: 180,
+        videoUrl: 'https://www.youtube.com/watch?v=m51AZSXMvEA',
+      },
+      {
+        id: 'ex-mov-2',
+        visualId: 'frog-stretch',
+        name: '2. Postura de la Rana Dinámica (Frog Stretch)',
+        muscleGroup: 'Aductores (mayor, largo, corto y recto interno)',
+        setsReps: '1 serie x 3 min (cadera atrás 4 s y vuelve)',
+        weight: '',
+        transfer: 'Apertura para patadas altas y guardias bajas.',
+        execution: 'Sobre antebrazos, rodillas muy abiertas y tibias paralelas: lleva la pelvis hacia los talones en 4 s y vuelve, columna neutra.',
+        completedSets: [false],
+        restSeconds: 20,
+        workSeconds: 180,
+      },
+      {
+        id: 'ex-mov-3',
+        visualId: 'cossack-squat',
+        name: '3. Cossack Squats (Sentadilla Lateral Profunda)',
+        muscleGroup: 'Aductores e isquios de la pierna estirada; tobillo y cuádriceps de la flexionada',
+        setsReps: '3 series x 6 reps por lado',
+        weight: '',
+        transfer: 'Desplazamientos laterales y apoyos bajos en el Kumite.',
+        execution: 'Postura muy ancha: baja sobre un talón con toda la planta en el suelo; la otra pierna recta con la puntera al techo.',
+        completedSets: [false, false, false],
+        restSeconds: 45,
+        videoUrl: 'https://www.youtube.com/watch?v=MJvazUpmdZU',
+      },
+      {
+        id: 'ex-mov-4',
+        visualId: 'psoas-rotation',
+        name: '4. Estiramiento del Psoas ("Caballero") con Rotación Torácica',
+        muscleGroup: 'Psoas ilíaco y recto femoral de la pierna atrasada; columna torácica',
+        setsReps: '2 series x 2 min (1 por lado)',
+        weight: '',
+        transfer: 'Cadera abierta para recoger y extender la patada.',
+        execution: 'Retroversión pélvica apretando fuerte el glúteo de atrás y gira hombros y brazos 90° hacia la pierna adelantada.',
+        completedSets: [false, false],
+        restSeconds: 10,
+        workSeconds: 120,
+        videoUrl: 'https://www.youtube.com/watch?v=o4adc_RcptM',
+      },
+      {
+        id: 'ex-mov-5',
+        visualId: 'open-book',
+        name: '5. Apertura Torácica ("Libro Abierto" en Suelo)',
+        muscleGroup: 'Pectoral mayor y menor, columna dorsal (T1-T12)',
+        setsReps: '2 series x 2 min (1 por lado)',
+        weight: '',
+        transfer: 'Rotación de torso para el Tsuki y la guardia.',
+        execution: 'De lado con la rodilla de arriba a 90° anclada al suelo: el brazo dibuja un arco amplio hasta apoyar los omóplatos, siguiendo la mano con la mirada.',
+        completedSets: [false, false],
+        restSeconds: 10,
+        workSeconds: 120,
+        videoUrl: 'https://www.youtube.com/watch?v=SKapoHxQxuk',
+      },
+    ],
+  },
+  {
+    id: 'routine-descompresion-nocturna',
+    type: 'workout_session',
+    kind: 'descompresion',
+    tabLabel: 'Noche',
+    title: 'NOCHE: Descompresión Nocturna y Apagado Nervioso',
+    subtitle: 'Fase 2 · Lunes a viernes tras el dojo · 3 posturas pasivas',
+    targetDays: ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'],
+    estimatedMinutes: 10,
+    focus: 'Descompresión y activación parasimpática',
+    warmup: [
+      'Regla',
+      'Estiramientos pasivos sin rebote (tensión suave 5/10) con respiración nasal: 4 s inhalar / 6 s exhalar.',
+    ],
+    updatedAt: GYM_ROUTINES_UPDATED_AT,
+    exercises: [
+      {
+        id: 'ex-noc-1',
+        visualId: 'pigeon',
+        name: '1. Postura de la Paloma Pasiva',
+        muscleGroup: 'Glúteo medio y mayor, piramidal de la pierna adelantada',
+        setsReps: '2 series x 2 min (1 por pierna)',
+        weight: '',
+        transfer: 'Suelta la cadera después de patear.',
+        execution: 'Pierna delantera doblada frente a la pelvis, la de atrás extendida; pliega el torso y apoya la frente sobre los antebrazos.',
+        completedSets: [false, false],
+        restSeconds: 10,
+        workSeconds: 120,
+        videoUrl: 'https://www.youtube.com/watch?v=AI5A1PRYX7E',
+      },
+      {
+        id: 'ex-noc-2',
+        visualId: 'child-pose',
+        name: '2. Postura del Niño con Alcance Lateral',
+        muscleGroup: 'Descompresión lumbar (L1-L5), dorsal ancho y cuadrado lumbar',
+        setsReps: '3 series x 1 min (centro, izquierda, derecha)',
+        weight: '',
+        transfer: 'Descarga la espalda tras los impactos del dojo.',
+        execution: 'Glúteos a los talones y brazos lejos al frente; al minuto las manos caminan a la izquierda y luego a la derecha.',
+        completedSets: [false, false, false],
+        restSeconds: 0,
+        workSeconds: 60,
+        videoUrl: 'https://www.youtube.com/watch?v=N3AussBta5k',
+      },
+      {
+        id: 'ex-noc-3',
+        visualId: 'legs-wall',
+        name: '3. Piernas en la Pared (Viparita Karani)',
+        muscleGroup: 'Drenaje venoso y linfático, isquios en estiramiento suave',
+        setsReps: '1 serie x 3 min',
+        weight: '',
+        transfer: 'Baja pulsaciones y recupera las piernas para mañana.',
+        execution: 'Boca arriba con los glúteos pegados al zócalo y las piernas verticales contra la pared; brazos en cruz relajados.',
+        completedSets: [false],
+        restSeconds: 0,
+        workSeconds: 180,
+        videoUrl: 'https://www.youtube.com/watch?v=do_1LisFah0',
       },
     ],
   },
@@ -239,7 +398,7 @@ export function descripcionRutina(routine: GymRoutine): string {
   if (routine.exercises.some((ex) => /^A[12]\./.test(ex.name))) lineas.push('', CONTRAST_RULE);
   lineas.push('');
   for (const ex of routine.exercises) {
-    lineas.push(`- ${ex.name}: ${ex.setsReps} | Peso: ${ex.weight} (${ex.execution})`);
+    lineas.push(`- ${ex.name}: ${ex.setsReps}${ex.weight ? ` | Peso: ${ex.weight}` : ''} (${ex.execution})`);
     if (ex.notes) lineas.push(`  * ${ex.notes}`);
   }
   return lineas.join('\n');

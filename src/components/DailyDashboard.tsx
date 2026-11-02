@@ -268,6 +268,16 @@ export const DailyDashboard: React.FC<DailyDashboardProps> = ({
         isTrainingDay: true,
       };
     }
+    if (day === 'Martes' || day === 'Jueves' || day === 'Domingo') {
+      return {
+        routineId: 'routine-movilidad-cadera',
+        badge: `Movilidad de Hoy • ${day}`,
+        title: 'Movilidad Activa y Apertura de Cadera',
+        subtitle: '90/90, rana, cossack, psoas con rotación y libro abierto, con temporizador y visor 3D',
+        duration: '~20 min',
+        isTrainingDay: true,
+      };
+    }
     return {
       routineId: 'routine-lunes-pierna-cadera-golpeo',
       badge: 'Día de Descanso / Recuperación Activa',

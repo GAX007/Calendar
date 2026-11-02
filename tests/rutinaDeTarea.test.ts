@@ -54,6 +54,37 @@ test('movilidad, descompresión y pesajes del 2 al 29 de noviembre', async () =>
   assert.equal(de('pesaje').length, 8);
   assert.equal(de('descompresion').find((e) => e.date === '2026-11-03')!.time, '22:00');
   assert.equal(de('pesaje').find((e) => e.date === '2026-11-04')!.time, '07:30');
-  assert.ok(ev.every((e) => rutinaDeTarea(e) === null));
+  assert.ok(de('movilidad').every((e) => rutinaDeTarea(e) === 'routine-movilidad-cadera'));
+  assert.ok(de('descompresion').every((e) => rutinaDeTarea(e) === 'routine-descompresion-nocturna'));
+  assert.ok(de('pesaje').every((e) => rutinaDeTarea(e) === null));
   assert.ok(ev.every((e) => e.date >= '2026-11-02' && e.date <= '2026-11-29'));
+});
+
+test('movilidad y descompresión son sesiones con temporizador y visor', async () => {
+  const { eventosRecuperacionFase2 } = await import('../src/data/fase2Recuperacion');
+  const ev = eventosRecuperacionFase2([]);
+  const conRutina = conDescripcionDeRutina(ev, INITIAL_GYM_ROUTINES, '2026-11-01');
+  const mov = conRutina.find((e) => e.id.includes('movilidad'))!;
+  const noche = conRutina.find((e) => e.id.includes('descompresion'))!;
+  assert.equal(mov.durationMinutes, 20);
+  assert.equal(noche.durationMinutes, 10);
+  assert.match(mov.notes!, /90\/90/);
+  assert.match(noche.notes!, /Paloma/);
+  assert.doesNotMatch(noche.notes!, /Peso:/);
+  const sesiones = INITIAL_GYM_ROUTINES.filter((r) => r.kind === 'movilidad' || r.kind === 'descompresion');
+  assert.equal(sesiones.length, 2);
+  for (const r of sesiones) {
+    assert.equal(r.type, 'workout_session');
+    for (const ex of r.exercises) {
+      const series = parseInt(ex.setsReps.match(/^(\d+)/)![1], 10);
+      assert.equal(ex.completedSets!.length, series, ex.name);
+    }
+  }
+});
+
+test('los 23 ejercicios tienen animación en el visor', async () => {
+  const { EJERCICIOS_VISOR } = await import('../src/visor/ejercicios');
+  const ids = INITIAL_GYM_ROUTINES.flatMap((r) => r.exercises.map((e) => e.visualId));
+  assert.equal(ids.length, 23);
+  for (const id of ids) assert.ok(id && EJERCICIOS_VISOR[id], `sin animación: ${id}`);
 });

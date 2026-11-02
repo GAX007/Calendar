@@ -3,7 +3,7 @@ import { INITIAL_GYM_ROUTINES, GYM_ROUTINES_UPDATED_AT } from '../data/initialGy
 import { isOwnerEmail } from '../lib/cuenta';
 
 const BASE_GYM_STORAGE_KEY = 'omniagenda_gym_routines';
-const GYM_ROUTINES_VERSION = '2026-11-01-fase2-calentamiento';
+const GYM_ROUTINES_VERSION = '2026-11-02-fase2-movilidad-visor';
 const GYM_VERSION_KEY = 'omniagenda_gym_version';
 const GYM_CHANGE_EVENT = 'omniagenda_gym_routines_updated';
 
@@ -161,6 +161,30 @@ export function toggleSetCompletion(
       if (ex.id !== exerciseId) return ex;
       const sets = [...(ex.completedSets || [])];
       sets[setIndex] = !sets[setIndex];
+      return { ...ex, completedSets: sets };
+    });
+    return { ...r, exercises };
+  });
+  saveLocalGymRoutines(updated, userId, userEmail);
+  return updated;
+}
+
+// Marks one set as done (or not) without toggling: used when a timed set ends by itself
+export function setSetCompletion(
+  routineId: string,
+  exerciseId: string,
+  setIndex: number,
+  done: boolean,
+  userId?: string,
+  userEmail?: string
+): GymRoutine[] {
+  const routines = getLocalGymRoutines(userId, userEmail);
+  const updated = routines.map((r) => {
+    if (r.id !== routineId) return r;
+    const exercises = r.exercises.map((ex) => {
+      if (ex.id !== exerciseId) return ex;
+      const sets = [...(ex.completedSets || [])];
+      sets[setIndex] = done;
       return { ...ex, completedSets: sets };
     });
     return { ...r, exercises };

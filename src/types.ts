@@ -69,7 +69,13 @@ export interface ExerciseItem {
   completedSets?: boolean[]; // Checkbox interactivo por serie para modo entrenamiento
   notes?: string;
   restSeconds?: number;
+  workSeconds?: number; // Duración de cada serie por tiempo (isométricos, estiramientos): cuenta atrás integrada
+  visualId?: string; // Animación del visor 3D (src/visor/ejercicios.ts)
+  videoUrl?: string; // Vídeo de referencia
 }
+
+// Tipo de sesión: todas se entrenan con el mismo componente (workout_session)
+export type WorkoutKind = 'gym' | 'movilidad' | 'descompresion';
 
 export interface GymRoutine {
   id: string;
@@ -79,6 +85,9 @@ export interface GymRoutine {
   estimatedMinutes?: number; // ej. 60
   focus?: string; // ej. "Hipertrofia & Transferencia a Karate"
   warmup?: string[]; // Calentamiento y aproximaciones: primera línea = título del bloque
+  type?: 'workout_session';
+  kind?: WorkoutKind; // gym si falta
+  tabLabel?: string; // Etiqueta corta en el selector de rutinas
   exercises: ExerciseItem[];
   updatedAt?: string;
 }

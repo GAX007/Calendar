@@ -4,6 +4,8 @@ import { descripcionRutina } from '../data/initialGymRoutines';
 const LUNES = 'routine-lunes-pierna-cadera-golpeo';
 const MIERCOLES = 'routine-miercoles-torso-cuello';
 const VIERNES_SABADO = 'routine-viernes-sabado-hibrido-core';
+const MOVILIDAD = 'routine-movilidad-cadera';
+const DESCOMPRESION = 'routine-descompresion-nocturna';
 
 function rutinaPorTexto(texto: string): string | null {
   if (['torso', 'cuello', 'cervical', 'miercoles', 'miércoles', 'banca', 'empuje', 'puño'].some((k) => texto.includes(k))) {
@@ -33,6 +35,9 @@ function rutinaPorDia(fecha: string): string | null {
 export function rutinaDeTarea(task: TaskItem): string | null {
   const titulo = (task.title || '').toLowerCase();
   const notas = (task.notes || '').toLowerCase();
+  // Mobility and nightly decompression are workout sessions of their own; weigh-ins and plain stretches are not
+  if (/movilidad/.test(titulo)) return MOVILIDAD;
+  if (/descompresi/.test(titulo)) return DESCOMPRESION;
   const esGym =
     task.category === 'Sports/Karate' ||
     ['gym', 'gimnasio', 'pesas', 'rutina', 'entreno', 'fuerza', 'pierna', 'pecho', 'espalda'].some(
@@ -40,8 +45,7 @@ export function rutinaDeTarea(task: TaskItem): string | null {
     );
   if (!esGym) return null;
   if (/karate|kumite|kata|dojo/.test(titulo) && !/gym|gimnasio/.test(titulo)) return null;
-  // Mobility, stretching and weigh-ins are their own sessions
-  if (/movilidad|descompresi|estiramiento|pesaje/.test(titulo)) return null;
+  if (/estiramiento|pesaje/.test(titulo)) return null;
   const texto = `${titulo} ${notas}`;
   if (!['gym', 'gimnasio', 'pesas', 'rutina', 'fuerza', 'pierna', 'cadera', 'golpeo', 'lunes', 'sentadilla', 'torso', 'cuello', 'cervical', 'banca', 'híbrido', 'hibrido', 'posterior', 'muerto', 'contraste'].some((k) => texto.includes(k))) {
     // Karate and other sports sessions have no gym routine
