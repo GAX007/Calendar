@@ -12,6 +12,8 @@ import { guionBreve, guionDelDia, guionEntregas } from '../voz';
 import { addDays } from '../../planner/time';
 import type { UniversityWorkRow } from '../../planner/university';
 import type { TaskItem, UniversitySubject } from '../../types';
+import type { Plan } from '../../planner/types';
+import { proximos, type Proximos } from '../proximos';
 import { fromDbRow, toDbRow } from '../../utils/tareasDb';
 import { newId } from '../../utils/uuid';
 import { MoodleStore } from '../../services/moodleStore';
@@ -103,6 +105,18 @@ async function aplicarEnAgenda(sb: SupabaseClient, userId: string, r: Partial<Re
   for (const id of [r.quitarTarea, r.tareaBorrada].filter(Boolean) as string[]) {
     comprobar(await sb.from('tasks').delete().eq('id', id).eq('user_id', userId), 'tasks');
   }
+}
+
+// --- What's next, as data (GET /api/asistente/proximos), for Jarvis on the PC ---------------
+export async function proximosDelUsuario(sb: SupabaseClient, userId: string, dias: number): Promise<Proximos> {
+  const { ahora, hoy, data, limites } = await backendServidor(sb, userId).cargar();
+  const tareas = await tareasCercanas(sb, userId, hoy);
+  const planes = new Map<string, Plan>();
+  const planDe = (fecha: string) => {
+    if (!planes.has(fecha)) planes.set(fecha, planActual(data, fecha, ahora, limites));
+    return planes.get(fecha)!;
+  };
+  return proximos({ data, tareas, ahoraLocal: ahora, dias, planDe });
 }
 
 // --- Conversation (so "sí" or "la de Física" after a question keeps its meaning) -----------

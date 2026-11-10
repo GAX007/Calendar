@@ -29,7 +29,7 @@ import { accesoMoodle, clienteServicio, esCalendarioPropietario, respuestaMoodle
 import { normalizarInterpretacion, promptAsistente, TIPOS_ACCION, type ContextoAsistente } from './src/asistente/interpretar';
 import { clavePublica, enviarPush, pushConfigurado } from './src/asistente/servidor/push';
 import { interpretarConOpenAI, MODELO_INTERPRETAR, MODELO_TRANSCRIBIR, openaiDisponible, transcribirConOpenAI } from './src/asistente/servidor/openai';
-import { crearTokenAtajo, listarTokensAtajo, revocarTokenAtajo, turnoAtajo, usuarioDeTokenAtajo } from './src/asistente/servidor/atajo';
+import { crearTokenAtajo, listarTokensAtajo, proximosDelUsuario, revocarTokenAtajo, turnoAtajo, usuarioDeTokenAtajo } from './src/asistente/servidor/atajo';
 
 // Normalize Netlify function URLs (/.netlify/functions/api/* -> /api/* or stripped /* -> /api/*)
 app.use((req, res, next) => {
@@ -176,6 +176,21 @@ app.post('/api/asistente/atajo', express.raw({ type: ['audio/*', 'video/*', 'app
   } catch (err: any) {
     console.warn('[asistente/atajo]', err?.message || err);
     res.status(500).json({ texto: 'Algo ha fallado en el servidor. Inténtalo otra vez.', seguir: false });
+  }
+});
+
+// What's next, as data, for an outside assistant (Jarvis on the PC) that reminds the user before each thing.
+// Read only, with the same personal token as the shortcut. ?dias=1..7 (2 by default). No AI: no cost per call.
+app.get('/api/asistente/proximos', async (req, res) => {
+  try {
+    const sb = clienteServicio();
+    const userId = await usuarioDeTokenAtajo(sb, req.headers.authorization);
+    if (!userId) return res.status(401).json({ error: 'Token no válido. Crea uno en la app: Tú → Atajo de iPhone.' });
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
+    res.json(await proximosDelUsuario(sb, userId, Number(req.query.dias) || 2));
+  } catch (err: any) {
+    console.warn('[asistente/proximos]', err?.message || err);
+    res.status(500).json({ error: 'No se pudo leer la agenda' });
   }
 });
 
