@@ -1,6 +1,6 @@
 ﻿import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { supabase, isSupabaseConfigured, sessionAuthHeaders } from '../lib/supabase';
 
 interface AuthContextType {
   user: User | null;
@@ -10,10 +10,17 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string) => Promise<{ error: string | null; needsEmailConfirmation?: boolean }>;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<{ error: string | null }>;
   continueAsGuest: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// The service worker keeps the last Moodle/calendar answers for offline use: they belong to the
+// account that was signed in, so they go when it signs out
+async function borrarCacheApi(): Promise<void> {
+  try { if (typeof caches !== 'undefined') await caches.delete('api-readonly'); } catch { /* no cache API */ }
+}
 
 function mapAuthError(err: any): string {
   if (!err) return 'Error desconocido al autenticar.';
@@ -121,12 +128,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     if (supabase) {
-      await supabase.auth.signOut();
+      // Local scope: also works when the account was just deleted on the server
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
     }
+    await borrarCacheApi();
     setUser(null);
     setSession(null);
     setIsGuest(false);
     localStorage.removeItem('calendarasist_guest_mode');
+  };
+
+  // Deletes the account and all its data on the server, then everything it left on this device
+  const deleteAccount = async () => {
+    if (!supabase || !user) return { error: 'No hay ninguna sesión iniciada.' };
+    try {
+      const res = await fetch('/api/cuenta', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', ...(await sessionAuthHeaders()) },
+        body: JSON.stringify({ confirmacion: 'ELIMINAR' }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) return { error: json.error || 'No se pudo eliminar la cuenta.' };
+      try {
+        for (const clave of Object.keys(localStorage)) if (clave.includes(user.id)) localStorage.removeItem(clave);
+      } catch { /* storage unavailable */ }
+      await signOut();
+      return { error: null };
+    } catch {
+      return { error: 'Sin conexión. Inténtalo de nuevo.' };
+    }
   };
 
   const continueAsGuest = () => {
@@ -144,6 +174,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signIn,
         signUp,
         signOut,
+        deleteAccount,
         continueAsGuest,
       }}
     >

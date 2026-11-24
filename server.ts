@@ -4,6 +4,7 @@ import https from 'https';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 import { parseGoogleCalendarFeed } from './src/utils/googleCalendarParser';
+import { normalizarUrlCalendario } from './src/utils/urlCalendario';
 import { addDays, madridLocal } from './src/planner/time';
 
 const SPANISH_DAY_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -14,8 +15,9 @@ dotenv.config({ path: ['.env', '.env.local'] });
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+// Netlify Functions refuse bodies over 6 MB anyway; a smaller limit stops abuse before parsing
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '1mb', extended: true }));
 
 import {
   syncMoodleDeliverables,
@@ -40,6 +42,7 @@ app.use((req, res, next) => {
     (req.url.startsWith('/health') ||
       req.url.startsWith('/google-calendar') ||
       req.url.startsWith('/asistente') ||
+      req.url.startsWith('/cuenta') ||
       req.url.startsWith('/transcribe-audio') ||
       req.url.startsWith('/parse-multimodal') ||
       req.url.startsWith('/sync-now') ||
@@ -214,6 +217,22 @@ app.delete('/api/asistente/tokens/:id', async (req, res) => {
   catch (err: any) { res.status(500).json({ error: err?.message || 'No se pudo revocar el token' }); }
 });
 
+// Delete the signed-in account. Every table references auth.users with "on delete cascade",
+// so removing the user removes all of its data (tasks, plan, logs, push, tokens...).
+app.delete('/api/cuenta', async (req, res) => {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  if (req.body?.confirmacion !== 'ELIMINAR') return res.status(400).json({ error: 'Falta la confirmación' });
+  try {
+    const { error } = await clienteServicio().auth.admin.deleteUser(user.id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err: any) {
+    console.warn('[cuenta] No se pudo eliminar:', err?.message || err);
+    res.status(500).json({ error: 'No se pudo eliminar la cuenta. Inténtalo más tarde.' });
+  }
+});
+
 // Voice assistant: GPT-6 Luna (Gemini only without OPENAI_API_KEY) turns a free sentence into checked actions.
 // The app runs them with the user's own session. 503 when no model answers: the app then uses its local parser.
 app.post('/api/asistente/interpretar', async (req, res) => {
@@ -312,6 +331,8 @@ app.post('/api/asistente/interpretar', async (req, res) => {
 const GOOGLE_CALENDAR_DEFAULT_ICAL_URL =
   'https://calendar.google.com/calendar/ical/c_188e38oiac67aguujcmmlujtorkrq%40resource.calendar.google.com/public/basic.ics';
 
+const MAX_ICS_CHARS = 8 * 1024 * 1024;
+
 function fetchUrlText(url: string): Promise<string> {
   return new Promise((resolve, reject) => {
     https
@@ -324,7 +345,11 @@ function fetchUrlText(url: string): Promise<string> {
         res.setEncoding('utf8');
         res.on('error', reject);
         res.on('aborted', () => reject(new Error('La descarga del calendario se interrumpió')));
-        res.on('data', (chunk) => (data += chunk));
+        res.on('data', (chunk) => {
+          data += chunk;
+          // A calendar feed is a few hundred KB; anything far bigger is not one
+          if (data.length > MAX_ICS_CHARS) res.destroy(new Error('El calendario es demasiado grande'));
+        });
         res.on('end', () => resolve(data));
       })
       .on('timeout', function () { this.destroy(new Error('Tiempo de espera agotado al descargar el calendario')); })
@@ -334,7 +359,16 @@ function fetchUrlText(url: string): Promise<string> {
 
 app.get('/api/google-calendar/sync-live', async (req, res) => {
   try {
-    const customUrl = (req.query.url as string) || '';
+    const rawUrl = typeof req.query.url === 'string' ? req.query.url : '';
+    // webcal:// and http:// links work (https only on the wire); private addresses are refused
+    const customUrl = rawUrl ? normalizarUrlCalendario(rawUrl) : '';
+    if (customUrl === null) {
+      return res.status(400).json({
+        success: false,
+        error: 'El enlace del calendario no es válido. Usa la dirección iCal pública (https:// o webcal://).',
+        tasks: [],
+      });
+    }
 
     // Privacy: the default university schedule is only for Xavier's account, proven by the
     // session token (an email in the URL proves nothing). Guests and other users bring their own iCal URL.
@@ -1426,8 +1460,11 @@ function fallbackParseSpanish(input: string, sourceType: 'voice' | 'text' | 'vis
 }
 
 // Audio-to-Text Transcription Endpoint using Gemini with multi-model failover
+// Signed in only: every call spends paid AI credits
 app.post('/api/transcribe-audio', async (req, res) => {
   const startTime = Date.now();
+  const user = await requireUser(req, res);
+  if (!user) return;
   try {
     const { audioBase64, mimeType = 'audio/webm' } = req.body;
 
@@ -1485,12 +1522,11 @@ app.post('/api/transcribe-audio', async (req, res) => {
       }
     }
 
-    // Fallback heuristic if Gemini API is unreachable or key is missing
-    return res.json({
-      transcript: 'Añadir sesión de hipertrofia de 2 horas mañana a las 18:00, y preparar la entrega de MATLAB.',
-      modelUsed: 'fallback-heuristic',
-      processingTimeMs: Date.now() - startTime,
+    // No model answered: say so instead of returning an invented sentence
+    return res.status(503).json({
+      error: 'No se pudo transcribir el audio',
       fallback: true,
+      processingTimeMs: Date.now() - startTime,
     });
   } catch (error: any) {
     console.error('Error general en /api/transcribe-audio:', error);
@@ -1499,8 +1535,11 @@ app.post('/api/transcribe-audio', async (req, res) => {
 });
 
 // Multimodal AI Parsing Endpoint with retry and multi-model cascade
+// Signed in only: every call spends paid AI credits (guests use the local parser in the app)
 app.post('/api/parse-multimodal', async (req, res) => {
   const startTime = Date.now();
+  const user = await requireUser(req, res);
+  if (!user) return;
   try {
     const { type, text, imageBase64, audioBase64, mimeType } = req.body;
 
@@ -1511,6 +1550,12 @@ app.post('/api/parse-multimodal', async (req, res) => {
     const ai = getGeminiClient();
     const todayInfo = getTodayInfo();
     const todayStr = todayInfo.todayStr;
+    // Monday..Sunday of the current Madrid week, for weekly plans
+    const lunes = addDays(todayInfo.dateStr, -((todayInfo.dayOfWeek + 6) % 7));
+    const semanaActual = [1, 2, 3, 4, 5, 6, 0].map((dow, i) => {
+      const fecha = addDays(lunes, i);
+      return `${SPANISH_DAY_NAMES[dow]}: '${fecha}'${fecha === todayInfo.dateStr ? ' (hoy)' : ''}`;
+    });
 
     // If Gemini client is available, invoke with multi-model cascade:
     // gemini-3.8-flash -> gemini-flash-latest -> gemini-3.1-flash-lite
@@ -1559,14 +1604,8 @@ REGLAS CRÍTICAS DE HORARIOS, RUTINAS Y RECURRENCIA:
 4. PLANES SEMANALES RECURRENTES O MENÚS SEMANALES (ej. "plan de comidas todas las semanas", "todas las semanas", "menú semanal", planes con "El lunes... El martes... El miércoles..."):
    - Si el usuario define un plan o menú semanal con actividades para diferentes días de la semana:
      * DEBES EXTRAER ABSOLUTAMENTE TODAS LAS ACTIVIDADES DE LOS 7 DÍAS DE LA SEMANA (Lunes, Martes, Miércoles, Jueves, Viernes, Sábado y Domingo). NUNCA omitas ningún día de la semana.
-     * Para representar la semana de referencia actual (Lunes 14 Sep a Domingo 20 Sep de 2026), asigna cada día a su fecha correspondiente de esta semana:
-       - Lunes: '${todayInfo.year}-09-14'
-       - Martes: '${todayInfo.year}-09-15'
-       - Miércoles: '${todayInfo.year}-09-16'
-       - Jueves: '${todayInfo.year}-09-17'
-       - Viernes: '${todayInfo.year}-09-18' (hoy)
-       - Sábado: '${todayInfo.year}-09-19'
-       - Domingo: '${todayInfo.year}-09-20'
+     * Asigna cada día a su fecha de la semana actual (de lunes a domingo):
+${semanaActual.map((s) => `       - ${s}`).join('\n')}
      * Clasifica comidas, nutrición, dietas, desayunos, almuerzos, meriendas o cenas en la categoría 'Health' con 'Salud (Tag: Emerald)'.
      * 'durationMinutes': asigna 30 minutos si solo se menciona la hora de inicio (ej. '08:30' -> endTime: '09:00').
      * El servidor se encargará de replicar automáticamente el plan semanal a todas las semanas del mes o periodo solicitado.
@@ -1797,7 +1836,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   console.error('Express request error:', err);
   if (err.type === 'entity.too.large' || err.status === 413) {
     return res.status(413).json({
-      error: 'El audio o archivo enviado es demasiado grande (límite 50MB). Por favor, graba un audio más corto o sube un archivo menor.',
+      error: 'El audio o archivo enviado es demasiado grande (límite 10 MB). Por favor, graba un audio más corto o sube un archivo menor.',
     });
   }
   if (err instanceof SyntaxError && 'body' in err) {

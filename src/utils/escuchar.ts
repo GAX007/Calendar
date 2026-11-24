@@ -244,7 +244,8 @@ function grabarYTranscribir(): Escucha {
       lector.onerror = () => reject(new Error('No se pudo leer el audio'));
       lector.readAsDataURL(audio);
     });
-    const res = await fetch('/api/transcribe-audio', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    const { sessionAuthHeaders } = await import('../lib/supabase');
+    const res = await fetch('/api/transcribe-audio', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await sessionAuthHeaders()) },
       body: JSON.stringify({ audioBase64: base64, mimeType: audio.type.split(';')[0] || 'audio/webm' }) });
     const json = await res.json().catch(() => ({}));
     // The endpoint answers with a made-up example sentence when transcription fails: never act on it

@@ -139,9 +139,10 @@ export const VisionScannerModal: React.FC<VisionScannerModalProps> = ({
       // Process and compress image if needed
       const { base64, mimeType } = await processImageFile(file);
 
+      const { sessionAuthHeaders } = await import('../lib/supabase');
       const response = await fetch('/api/parse-multimodal', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await sessionAuthHeaders()) },
         signal: abortControllerRef.current.signal,
         body: JSON.stringify({
           type: 'vision',

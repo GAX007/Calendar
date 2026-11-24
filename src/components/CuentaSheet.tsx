@@ -7,6 +7,7 @@ import { usePWAInstall } from '../hooks/usePWAInstall';
 import { activarPush, desactivarPush, estadoPush, type EstadoPush } from '../services/asistenteService';
 import { esperarVoces, guardarPreferenciasVoz, preferenciasVoz, vozDisponible } from '../utils/voz';
 import { AtajoIphone } from './AtajoIphone';
+import { useAuth } from '../context/AuthContext';
 
 const VELOCIDADES = [{ v: 0.9, label: 'Lenta' }, { v: 1, label: 'Normal' }, { v: 1.15, label: 'Rápida' }];
 
@@ -36,6 +37,9 @@ export const CuentaSheet: React.FC<Props> = ({
   const [pushOcupado, setPushOcupado] = useState(false);
   const [pref, setPref] = useState(preferenciasVoz);
   const [voces, setVoces] = useState<SpeechSynthesisVoice[]>([]);
+  const { deleteAccount } = useAuth();
+  const [confirmarBorrado, setConfirmarBorrado] = useState(false);
+  const [borrando, setBorrando] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -59,6 +63,16 @@ export const CuentaSheet: React.FC<Props> = ({
     } finally {
       setPushOcupado(false);
     }
+  };
+
+  const eliminarCuenta = async () => {
+    setBorrando(true);
+    const { error } = await deleteAccount();
+    setBorrando(false);
+    if (error) { showToast(error); return; }
+    setConfirmarBorrado(false);
+    onClose();
+    showToast('Cuenta eliminada');
   };
 
   const cambiarVoz = (p: { vozURI?: string | null; velocidad?: number }) => { guardarPreferenciasVoz(p); setPref(preferenciasVoz()); };
@@ -205,6 +219,31 @@ export const CuentaSheet: React.FC<Props> = ({
               {user ? <LogOut className="w-[18px] h-[18px]" strokeWidth={1.75} /> : <LogIn className="w-[18px] h-[18px]" strokeWidth={1.75} />}
               {user ? 'Cerrar sesión' : 'Iniciar sesión'}
             </button>
+
+            {user && !confirmarBorrado && (
+              <button
+                type="button"
+                onClick={() => setConfirmarBorrado(true)}
+                className="mt-2 w-full h-11 rounded-full text-[14px] font-medium text-red-600 hover:bg-red-50"
+              >
+                Eliminar cuenta
+              </button>
+            )}
+            {user && confirmarBorrado && (
+              <div role="alertdialog" aria-label="Eliminar cuenta" className="mt-3 rounded-2xl border border-red-200 p-4 flex flex-col gap-3">
+                <p className="text-[14px] text-ink-2">
+                  Se borrarán tu cuenta y todos tus datos (agenda, plan, registros y avisos). No se puede deshacer.
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" disabled={borrando} onClick={() => setConfirmarBorrado(false)} className="h-11 rounded-full border border-line-2 bg-white text-[14px] font-semibold disabled:opacity-50">
+                    Cancelar
+                  </button>
+                  <button type="button" disabled={borrando} onClick={() => void eliminarCuenta()} className="h-11 rounded-full bg-red-600 text-white text-[14px] font-semibold disabled:opacity-50">
+                    {borrando ? 'Eliminando…' : 'Eliminar'}
+                  </button>
+                </div>
+              </div>
+            )}
           </motion.section>
         </div>
       )}

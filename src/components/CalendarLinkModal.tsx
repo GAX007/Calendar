@@ -20,6 +20,7 @@ import {
   GOOGLE_CALENDAR_CONFIG,
 } from '../services/googleCalendarService';
 import { TaskItem } from '../types';
+import { normalizarUrlCalendario } from '../utils/urlCalendario';
 
 interface CalendarLinkModalProps {
   isOpen: boolean;
@@ -58,15 +59,17 @@ export const CalendarLinkModal: React.FC<CalendarLinkModalProps> = ({
   const hasCustomUrl = Boolean(getUserCustomCalendarUrl(userId));
 
   const handleSaveAndSync = async () => {
-    const trimmed = urlInput.trim();
+    const escrito = urlInput.trim();
 
-    if (!trimmed && !isXavierAccount) {
+    if (!escrito && !isXavierAccount) {
       showToast('Por favor introduce un enlace iCal (.ics) válido');
       return;
     }
 
-    if (trimmed && !trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
-      showToast('El enlace debe comenzar con https://');
+    // webcal:// (iPhone) and http:// links are turned into https://
+    const trimmed = escrito ? normalizarUrlCalendario(escrito) : '';
+    if (trimmed === null) {
+      showToast('El enlace debe ser una dirección iCal pública (https:// o webcal://)');
       return;
     }
 

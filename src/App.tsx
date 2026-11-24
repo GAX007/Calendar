@@ -434,9 +434,10 @@ function CalendarApp() {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), TEXT_PARSE_TIMEOUT_MS);
     try {
+      const { sessionAuthHeaders } = await import('./lib/supabase');
       const response = await fetch('/api/parse-multimodal', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await sessionAuthHeaders()) },
         signal: controller.signal,
         body: JSON.stringify({
           type: sourceType,
