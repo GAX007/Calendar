@@ -68,7 +68,21 @@ function getOwnGymRoutines(userId?: string, userEmail?: string): GymRoutine[] {
   }
 }
 
+// Routines that came from the cloud (rutinas_gym, edited from Claude) win over the built-in ones
+const claveNube = (userId?: string, userEmail?: string) => `${getGymStorageKey(userId, userEmail)}_nube`;
+function rutinasDeLaNube(userId?: string, userEmail?: string): GymRoutine[] | null {
+  try {
+    if (!userId || localStorage.getItem(claveNube(userId, userEmail)) !== '1') return null;
+    const parsed = JSON.parse(localStorage.getItem(getGymStorageKey(userId, userEmail)) || '[]');
+    return Array.isArray(parsed) && parsed.length ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 export function getLocalGymRoutines(userId?: string, userEmail?: string): GymRoutine[] {
+  const nube = rutinasDeLaNube(userId, userEmail);
+  if (nube) return nube;
   if (!isOwner(userId, userEmail)) return getOwnGymRoutines(userId, userEmail);
   try {
     const cachedVersion = localStorage.getItem(GYM_VERSION_KEY);
@@ -137,6 +151,7 @@ export function saveGymRoutine(routine: GymRoutine, userId?: string, userEmail?:
     updated = [{ ...routine, updatedAt: new Date().toISOString() }, ...routines];
   }
   saveLocalGymRoutines(updated, userId, userEmail);
+  subirRutinasNube(updated, userId, userEmail);
   return updated;
 }
 
@@ -144,6 +159,7 @@ export function deleteGymRoutine(routineId: string, userId?: string, userEmail?:
   const routines = getLocalGymRoutines(userId, userEmail);
   const updated = routines.filter((r) => r.id !== routineId);
   saveLocalGymRoutines(updated, userId, userEmail);
+  subirRutinasNube(updated, userId, userEmail);
   return updated;
 }
 
@@ -235,5 +251,75 @@ export function reorderExercise(
     return { ...r, exercises: newExercises, updatedAt: new Date().toISOString() };
   });
   saveLocalGymRoutines(updated, userId, userEmail);
+  subirRutinasNube(updated, userId, userEmail);
   return updated;
+}
+
+// ---- Cloud (supabase/migration_fase11_rutinas_gym.sql) ------------------------------------------
+// Claude edits the routines through the MCP connector (/api/mcp); the app reads them from rutinas_gym.
+// The ticked sets stay on the phone: they are kept by exercise id when a routine changes.
+export function conProgresoLocal(nuevas: GymRoutine[], locales: GymRoutine[]): GymRoutine[] {
+  const hechas = new Map<string, boolean[]>();
+  for (const r of locales) for (const e of r.exercises) if (e.completedSets?.length) hechas.set(`${r.id}/${e.id}`, e.completedSets);
+  return nuevas.map((r) => ({
+    ...r,
+    exercises: r.exercises.map((e) => {
+      const sets = hechas.get(`${r.id}/${e.id}`);
+      return sets ? { ...e, completedSets: sets } : e;
+    }),
+  }));
+}
+
+export async function sincronizarRutinasNube(userId?: string, userEmail?: string): Promise<boolean> {
+  if (!userId) return false;
+  try {
+    const { supabase } = await import('../lib/supabase');
+    if (!supabase) return false;
+    const { data, error } = await supabase.from('rutinas_gym').select('datos').eq('user_id', userId).order('orden').order('id');
+    if (error || !data?.length) return false; // table missing or still empty: keep the routines of the device
+    const nuevas = data.map((f: { datos: GymRoutine }) => f.datos);
+    const actuales = getLocalGymRoutines(userId, userEmail);
+    localStorage.setItem(claveNube(userId, userEmail), '1');
+    saveLocalGymRoutines(conProgresoLocal(nuevas, actuales), userId, userEmail);
+    return true;
+  } catch (err) {
+    console.warn('No se pudieron leer las rutinas de la nube:', err);
+    return false;
+  }
+}
+
+// Live: a change from Claude reaches the open app at once
+export async function escucharRutinasNube(userId: string, userEmail?: string): Promise<() => void> {
+  const { supabase } = await import('../lib/supabase');
+  if (!supabase) return () => undefined;
+  const canal = supabase
+    .channel(`rutinas_gym_${userId}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'rutinas_gym', filter: `user_id=eq.${userId}` },
+      () => { void sincronizarRutinasNube(userId, userEmail); })
+    .subscribe();
+  return () => { void supabase.removeChannel(canal); };
+}
+
+// An edit made in the app (new routine, deleted one, reordered exercises) goes back to the cloud,
+// so the next sync or Claude does not undo it. Ticked sets are not uploaded.
+function subirRutinasNube(rutinas: GymRoutine[], userId?: string, userEmail?: string): void {
+  if (!userId || localStorage.getItem(claveNube(userId, userEmail)) !== '1') return;
+  void (async () => {
+    try {
+      const { supabase } = await import('../lib/supabase');
+      if (!supabase) return;
+      const ahora = new Date().toISOString();
+      const filas = rutinas.map((r, orden) => ({
+        user_id: userId, id: r.id, orden, actualizado_en: ahora,
+        datos: { ...r, exercises: r.exercises.map(({ completedSets: _hechas, ...e }) => e) },
+      }));
+      if (filas.length) await supabase.from('rutinas_gym').upsert(filas, { onConflict: 'user_id,id' });
+      const ids = rutinas.map((r) => r.id);
+      let borrar = supabase.from('rutinas_gym').delete().eq('user_id', userId);
+      if (ids.length) borrar = borrar.not('id', 'in', `(${ids.map((id) => `"${id}"`).join(',')})`);
+      await borrar;
+    } catch (err) {
+      console.warn('No se pudieron subir las rutinas a la nube:', err);
+    }
+  })();
 }

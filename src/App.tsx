@@ -33,7 +33,7 @@ import {
   isHydrationTask,
 } from './services/taskService';
 import { mergeGoogleCalendarSnapshot } from './utils/googleCalendarSnapshot';
-import { getLocalGymRoutines, subscribeToGymChanges } from './services/gymService';
+import { getLocalGymRoutines, subscribeToGymChanges, sincronizarRutinasNube, escucharRutinasNube } from './services/gymService';
 import { conDescripcionDeRutina } from './utils/rutinaDeTarea';
 import { eventosRecuperacionFase2 } from './data/fase2Recuperacion';
 
@@ -140,6 +140,17 @@ function CalendarApp() {
   tasksRef.current = tasks;
   const userIdRef = useRef<string | undefined>(user?.id);
   userIdRef.current = user?.id;
+
+  // Gym routines edited from Claude (MCP connector, /api/mcp) come from the cloud, and live while the app is open
+  useEffect(() => {
+    if (!user?.id) return;
+    let quitar: (() => void) | undefined;
+    void sincronizarRutinasNube(user.id, user.email);
+    void escucharRutinasNube(user.id, user.email).then((fn) => { quitar = fn; });
+    const alVolver = () => { if (document.visibilityState === 'visible') void sincronizarRutinasNube(user.id, user.email); };
+    document.addEventListener('visibilitychange', alVolver);
+    return () => { quitar?.(); document.removeEventListener('visibilitychange', alVolver); };
+  }, [user?.id, user?.email]);
 
   const changeTab = (tab: AppTab) => {
     if (tab !== activeTab) {

@@ -31,6 +31,8 @@ import { accesoMoodle, clienteServicio, esCalendarioPropietario, respuestaMoodle
 import { normalizarInterpretacion, promptAsistente, TIPOS_ACCION, type ContextoAsistente } from './src/asistente/interpretar';
 import { clavePublica, enviarPush, pushConfigurado } from './src/asistente/servidor/push';
 import { interpretarConOpenAI, MODELO_INTERPRETAR, MODELO_TRANSCRIBIR, openaiDisponible, transcribirConOpenAI } from './src/asistente/servidor/openai';
+import { atenderMcp } from './src/asistente/mcpGym';
+import { storeRutinas } from './src/asistente/servidor/rutinasGym';
 import { crearTokenAtajo, listarTokensAtajo, proximosDelUsuario, revocarTokenAtajo, turnoAtajo, usuarioDeTokenAtajo } from './src/asistente/servidor/atajo';
 
 // Normalize Netlify function URLs (/.netlify/functions/api/* -> /api/* or stripped /* -> /api/*)
@@ -42,6 +44,7 @@ app.use((req, res, next) => {
     (req.url.startsWith('/health') ||
       req.url.startsWith('/google-calendar') ||
       req.url.startsWith('/asistente') ||
+      req.url.startsWith('/mcp') ||
       req.url.startsWith('/cuenta') ||
       req.url.startsWith('/transcribe-audio') ||
       req.url.startsWith('/parse-multimodal') ||
@@ -215,6 +218,33 @@ app.delete('/api/asistente/tokens/:id', async (req, res) => {
   if (!user) return;
   try { await revocarTokenAtajo(clienteServicio(), user.id, req.params.id); res.json({ ok: true }); }
   catch (err: any) { res.status(500).json({ error: err?.message || 'No se pudo revocar el token' }); }
+});
+
+// Claude connector (MCP) to edit the gym routines from the user's own Claude: Settings → Connectors → custom connector
+// with https://<site>/api/mcp?token=<personal token from the app>. Stateless Streamable HTTP: JSON-RPC in, JSON out.
+app.post('/api/mcp', async (req, res) => {
+  try {
+    const sb = clienteServicio();
+    const token = typeof req.query.token === 'string' ? req.query.token : '';
+    const userId = await usuarioDeTokenAtajo(sb, token ? `Bearer ${token}` : req.headers.authorization);
+    if (!userId) {
+      return res.status(401).json({ jsonrpc: '2.0', id: null, error: { code: -32001, message: 'Token no válido. Crea uno en la app: Cuenta → Atajo de iPhone.' } });
+    }
+    res.setHeader('Cache-Control', 'no-store');
+    const store = storeRutinas(sb, userId);
+    if (Array.isArray(req.body)) {
+      const respuestas = (await Promise.all(req.body.slice(0, 20).map((m: any) => atenderMcp(store, m)))).filter(Boolean);
+      return respuestas.length ? res.json(respuestas) : res.status(202).end();
+    }
+    const respuesta = await atenderMcp(store, req.body);
+    return respuesta ? res.json(respuesta) : res.status(202).end();
+  } catch (err: any) {
+    console.warn('[mcp]', err?.message || err);
+    res.status(500).json({ jsonrpc: '2.0', id: req.body?.id ?? null, error: { code: -32603, message: 'Error interno al leer o guardar las rutinas' } });
+  }
+});
+app.get('/api/mcp', (req, res) => {
+  res.set('Allow', 'POST').status(405).json({ error: 'Este conector solo acepta POST (MCP Streamable HTTP).' });
 });
 
 // Delete the signed-in account. Every table references auth.users with "on delete cascade",
